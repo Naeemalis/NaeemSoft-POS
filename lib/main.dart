@@ -264,7 +264,8 @@ class _PosHomePageState extends State<PosHomePage> {
       }
     });
     await _saveProducts();
-    if (product != null && mounted) {
+    final targetProduct = _products.firstWhere((p) => p.name == name);
+    if (mounted) {
       final yes = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
         title: const Text('إعداد وحدات المنتج'),
         content: const Text('هل تريد تعريف وحدات البيع والتوريد الآن؟'),
@@ -273,7 +274,7 @@ class _PosHomePageState extends State<PosHomePage> {
           FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('إعداد الوحدات')),
         ],
       ));
-      if (yes == true) await _configureUnits(product);
+      if (yes == true) await _configureUnits(targetProduct);
     }
   }
 
