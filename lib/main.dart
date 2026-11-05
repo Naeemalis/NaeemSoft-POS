@@ -67,10 +67,12 @@ class Invoice {
 }
 
 class CartLine {
-  CartLine({required this.name, required this.quantity, required this.unitPrice});
+  CartLine({required this.name, required this.quantity, required this.unitPrice, this.unitName = 'كيلو', this.baseQuantity});
   final String name;
   final double quantity;
   final double unitPrice;
+  final String unitName;
+  final double? baseQuantity;
   double get total => quantity * unitPrice;
 }
 
@@ -181,20 +183,28 @@ class _PosHomePageState extends State<PosHomePage> {
     });
   }
 
-  void _addToCart(Product product) {
+  Future<void> _addToCart(Product product) async {
     final quantity = _selectedQuantity;
     if (quantity <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اختر كمية أكبر من صفر')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختر كمية أكبر من صفر')));
       return;
     }
-    if (product.price <= 0) {
-      _editProduct(product);
+    final unit = await _selectUnit(product, 'اختر وحدة البيع');
+    if (unit == null) return;
+    final factor = (unit['factor'] as num).toDouble();
+    final price = (unit['price'] as num).toDouble();
+    final baseQty = quantity * factor;
+    final alreadyInCart = _cart.where((x) => x.name == product.name).fold(0.0, (v, x) => v + (x.baseQuantity ?? x.quantity));
+    if (baseQty + alreadyInCart > product.stock) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('المخزون غير كافٍ. المتاح: ' + _quantityLabel(product.stock))));
+      return;
+    }
+    if (price <= 0) {
+      await _editProduct(product);
       return;
     }
     setState(() {
-      _cart.add(CartLine(name: product.name, quantity: quantity, unitPrice: product.price));
+      _cart.add(CartLine(name: product.name, quantity: quantity, unitPrice: price, unitName: unit['name'].toString(), baseQuantity: baseQty));
       _quantityText = '1';
       _quantityTouched = false;
     });
@@ -319,10 +329,17 @@ class _PosHomePageState extends State<PosHomePage> {
     final nextNumber = _invoices.isEmpty ? 1 : _invoices.map((i) => i.number).reduce((a,b) => a>b?a:b)+1;
     final invoice = Invoice(
       number: nextNumber, date: DateTime.now(),
-      items: _cart.map((line) => {'name': line.name, 'quantity': line.quantity, 'unitPrice': line.unitPrice, 'lineTotal': line.total}).toList(),
+      items: _cart.map((line) => {'name': line.name, 'quantity': line.quantity, 'unit': line.unitName, 'baseQuantity': line.baseQuantity ?? line.quantity, 'unitPrice': line.unitPrice, 'lineTotal': line.total}).toList(),
       total: _total, customerName: customer, paidAmount: paid,
     );
-    setState(() { _invoices.add(invoice); _cart.clear(); _quantityText = '1'; _quantityTouched = false; });
+    setState(() {
+      for (final line in _cart) {
+        final p = _products.where((x) => x.name == line.name).firstOrNull;
+        if (p != null) p.stock -= line.baseQuantity ?? line.quantity;
+      }
+      _invoices.add(invoice); _cart.clear(); _quantityText = '1'; _quantityTouched = false;
+    });
+    await _saveProducts();
     await _saveInvoices();
     if (mounted) {
       await _showInvoice(invoice);
@@ -475,7 +492,7 @@ class _PosHomePageState extends State<PosHomePage> {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Row(children: [
                       Expanded(flex: 4, child: Text(line.name)),
-                      Expanded(flex: 2, child: Text('${_quantityLabel(line.quantity)} كيلو',
+                      Expanded(flex: 2, child: Text('${_quantityLabel(line.quantity)} ${line.unitName}',
                         textAlign: TextAlign.center)),
                       Expanded(flex: 3, child: Text(_money(line.total), textAlign: TextAlign.end)),
                       SizedBox(width: 30, child: IconButton(
@@ -520,7 +537,7 @@ class _PosHomePageState extends State<PosHomePage> {
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Row(children: [
                     Expanded(flex: 4, child: Text(item['name'] as String)),
-                    Expanded(flex: 2, child: Text('${_quantityLabel((item['quantity'] as num).toDouble())} كيلو',
+                    Expanded(flex: 2, child: Text('${_quantityLabel((item['quantity'] as num).toDouble())} ${item['unit'] ?? 'كيلو'}',
                       textAlign: TextAlign.center)),
                     Expanded(flex: 3, child: Text(_money((item['lineTotal'] as num).toDouble()),
                       textAlign: TextAlign.end)),
@@ -813,7 +830,7 @@ class _PosHomePageState extends State<PosHomePage> {
   }
 
   Future<void> _shareInvoice(Invoice invoice) async {
-    final lines = invoice.items.map((item) => '${item['name']} | ${_quantityLabel((item['quantity'] as num).toDouble())} كيلو | ${_money((item['lineTotal'] as num).toDouble())}').join('\n');
+    final lines = invoice.items.map((item) => '${item['name']} | ${_quantityLabel((item['quantity'] as num).toDouble())} ${item['unit'] ?? 'كيلو'} | ${_money((item['lineTotal'] as num).toDouble())}').join('\n');
     final customer = invoice.customerName == null ? 'نقدي' : 'آجل - ${invoice.customerName}';
     final body = 'NaeemSoft POS\nفاتورة رقم ${invoice.number}\n${invoice.date.toLocal()}\nنوع البيع: $customer\n$lines\nالإجمالي: ${_money(invoice.total)}\nالمدفوع: ${_money(invoice.paidAmount)}\nالمتبقي: ${_money(invoice.total-invoice.paidAmount)}\nشكراً لتعاملكم معنا';
     await Share.share(body, subject: 'فاتورة رقم ${invoice.number}');
@@ -925,7 +942,6 @@ class _PosHomePageState extends State<PosHomePage> {
     setState(() {
       product.stock += base;
       _receipts.add({'supplier': supplier, 'product': product.name, 'quantity': qty, 'unit': unit['name'], 'baseQuantity': base, 'cost': cost, 'date': DateTime.now().toIso8601String()});
-      _purchases.add({'supplier': supplier, 'date': DateTime.now().toIso8601String(), 'total': cost, 'paid': paid.clamp(0, cost), 'status': 'received'});
     });
     await _saveExtra();
     await _saveProducts();
