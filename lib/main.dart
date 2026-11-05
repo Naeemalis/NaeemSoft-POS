@@ -723,7 +723,7 @@ class _PosHomePageState extends State<PosHomePage> {
       title: Text(title),
       content: SingleChildScrollView(child: SelectableText(body)),
       actions: [
-        TextButton(onPressed: () => Share.share('$title\\n$body'), child: const Text('مشاركة')),
+        TextButton(onPressed: () => _shareReport(title, body), child: const Text('مشاركة PDF')),
         TextButton(onPressed: () => _printReport(title, body), child: const Text('طباعة / PDF')),
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
       ],
@@ -741,6 +741,21 @@ class _PosHomePageState extends State<PosHomePage> {
       ],
     ));
     await Printing.layoutPdf(onLayout: (_) async => doc.save());
+  }
+
+  Future<void> _shareReport(String title, String body) async {
+    final doc = pw.Document();
+    doc.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      build: (_) => [
+        pw.Text(title, textDirection: pw.TextDirection.rtl,
+          style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 12),
+        pw.Text(body, textDirection: pw.TextDirection.rtl,
+          style: const pw.TextStyle(fontSize: 11)),
+      ],
+    ));
+    await Printing.sharePdf(bytes: await doc.save(), filename: 'naeemsoft-report.pdf');
   }
 
   Future<void> _showReports() async {
