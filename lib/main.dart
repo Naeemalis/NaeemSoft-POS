@@ -480,6 +480,11 @@ class _PosHomePageState extends State<PosHomePage> {
           style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
+            tooltip: 'سجل الفواتير',
+            onPressed: _showInvoiceHistory,
+            icon: const Icon(Icons.receipt_long),
+          ),
+          IconButton(
             tooltip: 'إضافة صنف',
             onPressed: _addProduct,
             icon: const Icon(Icons.add_circle_outline),
