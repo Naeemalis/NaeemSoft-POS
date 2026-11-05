@@ -28,14 +28,18 @@ class NaeemSoftApp extends StatelessWidget {
 }
 
 class Product {
-  Product({required this.name, this.price = 0});
+  Product({required this.name, this.price = 0, this.stock = 0, List<Map<String, dynamic>>? units})
+      : units = units ?? [{'name': 'كيلو', 'factor': 1.0, 'price': price}];
   String name;
   double price;
-
-  Map<String, dynamic> toJson() => {'name': name, 'price': price};
+  double stock;
+  List<Map<String, dynamic>> units;
+  Map<String, dynamic> toJson() => {'name': name, 'price': price, 'stock': stock, 'units': units};
   factory Product.fromJson(Map<String, dynamic> json) => Product(
     name: json['name'] as String,
     price: (json['price'] as num?)?.toDouble() ?? 0,
+    stock: (json['stock'] as num?)?.toDouble() ?? 0,
+    units: json['units'] is List ? (json['units'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : null,
   );
 }
 
@@ -79,6 +83,12 @@ class PosHomePage extends StatefulWidget {
 class _PosHomePageState extends State<PosHomePage> {
   static const _productsKey = 'naeemsoft_products_v1';
   static const _invoicesKey = 'naeemsoft_invoices_v1';
+  static const _receiptsKey = 'naeemsoft_receipts_v1';
+  static const _returnsKey = 'naeemsoft_returns_v1';
+  static const _languageKey = 'naeemsoft_language_v1';
+  final List<Map<String, dynamic>> _receipts = [];
+  final List<Map<String, dynamic>> _returns = [];
+  String _language = 'ar';
   final List<Product> _products = [
     Product(name: 'بصل'), Product(name: 'بطاط'), Product(name: 'ليمون'), Product(name: 'ثوم'),
   ];
@@ -109,6 +119,9 @@ class _PosHomePageState extends State<PosHomePage> {
     final rawCustomers = prefs.getString(_customersKey);
     final rawSuppliers = prefs.getString(_suppliersKey);
     final rawPurchases = prefs.getString(_purchasesKey);
+    final rawReceipts = prefs.getString(_receiptsKey);
+    final rawReturns = prefs.getString(_returnsKey);
+    _language = prefs.getString(_languageKey) ?? 'ar';
     if (rawProducts != null) {
       try {
         final decoded = jsonDecode(rawProducts) as List<dynamic>;
@@ -120,6 +133,8 @@ class _PosHomePageState extends State<PosHomePage> {
     if (rawCustomers != null) { try { _customers.addAll((jsonDecode(rawCustomers) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
     if (rawSuppliers != null) { try { _suppliers.addAll((jsonDecode(rawSuppliers) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
     if (rawPurchases != null) { try { _purchases.addAll((jsonDecode(rawPurchases) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
+    if (rawReceipts != null) { try { _receipts.addAll((jsonDecode(rawReceipts) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
+    if (rawReturns != null) { try { _returns.addAll((jsonDecode(rawReturns) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
     if (rawInvoices != null) {
       try {
         final decoded = jsonDecode(rawInvoices) as List<dynamic>;
@@ -239,6 +254,17 @@ class _PosHomePageState extends State<PosHomePage> {
       }
     });
     await _saveProducts();
+    if (product != null && mounted) {
+      final yes = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+        title: const Text('إعداد وحدات المنتج'),
+        content: const Text('هل تريد تعريف وحدات البيع والتوريد الآن؟'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('لاحقاً')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('إعداد الوحدات')),
+        ],
+      ));
+      if (yes == true) await _configureUnits(product);
+    }
   }
 
   void _removeCartLine(int index) => setState(() => _cart.removeAt(index));
@@ -565,6 +591,9 @@ class _PosHomePageState extends State<PosHomePage> {
     await p.setString(_customersKey, jsonEncode(_customers));
     await p.setString(_suppliersKey, jsonEncode(_suppliers));
     await p.setString(_purchasesKey, jsonEncode(_purchases));
+    await p.setString(_receiptsKey, jsonEncode(_receipts));
+    await p.setString(_returnsKey, jsonEncode(_returns));
+    await p.setString(_languageKey, _language);
   }
 
   Future<String?> _askText(String title, String label, {String initial = ''}) async {
@@ -790,16 +819,153 @@ class _PosHomePageState extends State<PosHomePage> {
     await Share.share(body, subject: 'فاتورة رقم ${invoice.number}');
   }
 
+
+  Future<void> _chooseLanguage() async {
+    final v = await showDialog<String>(context: context, builder: (ctx) => SimpleDialog(
+      title: const Text('Language / Langue / اللغة'),
+      children: [
+        SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'ar'), child: const Text('العربية')),
+        SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'fr'), child: const Text('Français')),
+        SimpleDialogOption(onPressed: () => Navigator.pop(ctx, 'en'), child: const Text('English')),
+      ],
+    ));
+    if (v != null) {
+      setState(() => _language = v);
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_languageKey, v);
+    }
+  }
+
+  Future<void> _configureUnits(Product product) async {
+    final names = TextEditingController(text: product.units.map((e) => e['name']).join(','));
+    final factors = TextEditingController(text: product.units.map((e) => e['factor'].toString()).join(','));
+    final prices = TextEditingController(text: product.units.map((e) => e['price'].toString()).join(','));
+    final values = await showDialog<List<List<String>>>(context: context, builder: (ctx) => AlertDialog(
+      title: Text('وحدات المنتج: ' + product.name),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text('اكتب الوحدات من الأصغر إلى الأكبر، وافصل بينها بفاصلة. المعامل هو عدد الوحدات الأساسية داخل الوحدة.'),
+        TextField(controller: names, decoration: const InputDecoration(labelText: 'الوحدات: عبوة, باكت, كرتون')),
+        TextField(controller: factors, decoration: const InputDecoration(labelText: 'المعاملات: 1, 6, 72')),
+        TextField(controller: prices, decoration: const InputDecoration(labelText: 'أسعار البيع: 100, 550, 6000')),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        FilledButton(onPressed: () {
+          final a = names.text.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+          final b = factors.text.split(',').map((e) => e.trim()).toList();
+          final c = prices.text.split(',').map((e) => e.trim()).toList();
+          if (a.isNotEmpty && a.length == b.length && a.length == c.length) Navigator.pop(ctx, [a,b,c]);
+        }, child: const Text('حفظ')),
+      ],
+    ));
+    names.dispose(); factors.dispose(); prices.dispose();
+    if (values == null) return;
+    final parsed = <Map<String, dynamic>>[];
+    for (var i=0; i<values[0].length; i++) {
+      final f = double.tryParse(values[1][i]);
+      final p = double.tryParse(values[2][i]);
+      if (f == null || f <= 0 || p == null || p < 0 || (i > 0 && f <= (parsed.last['factor'] as num).toDouble())) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المعاملات يجب أن تكون موجبة ومتزايدة والأسعار صحيحة.')));
+        return;
+      }
+      parsed.add({'name': values[0][i], 'factor': f, 'price': p});
+    }
+    setState(() { product.units = parsed; product.price = (parsed.first['price'] as num).toDouble(); });
+    await _saveProducts();
+  }
+
+  Future<void> _inventoryMenu() async {
+    final choice = await showModalBottomSheet<String>(context: context, builder: (ctx) => SafeArea(child: Wrap(children: [
+      const ListTile(title: Text('المخزون والتوريد والمرتجعات')),
+      ListTile(leading: const Icon(Icons.inventory), title: const Text('رصيد المخزون'), onTap: () => Navigator.pop(ctx, 'stock')),
+      ListTile(leading: const Icon(Icons.local_shipping), title: const Text('استلام توريد'), onTap: () => Navigator.pop(ctx, 'receive')),
+      ListTile(leading: const Icon(Icons.assignment_return), title: const Text('مرتجع عميل'), onTap: () => Navigator.pop(ctx, 'customer')),
+      ListTile(leading: const Icon(Icons.keyboard_return), title: const Text('مرتجع إلى المورد'), onTap: () => Navigator.pop(ctx, 'supplier')),
+    ])));
+    if (choice == 'stock') {
+      final body = _products.map((p) => p.name + ': ' + _quantityLabel(p.stock) + ' وحدة أساسية | ' + p.units.map((x) => (p.stock / (x['factor'] as num).toDouble()).toStringAsFixed(2) + ' ' + x['name'].toString()).join(' / ')).join('\n');
+      await _showTextReport('رصيد المخزون', body.isEmpty ? 'لا توجد منتجات' : body);
+    } else if (choice == 'receive') {
+      await _receiveStock();
+    } else if (choice == 'customer' || choice == 'supplier') {
+      await _processReturn(choice == 'customer');
+    }
+  }
+
+  Future<Product?> _selectProduct(String title) => showDialog<Product>(context: context, builder: (ctx) => SimpleDialog(
+    title: Text(title),
+    children: _products.map((p) => SimpleDialogOption(onPressed: () => Navigator.pop(ctx, p), child: Text(p.name))).toList(),
+  ));
+
+  Future<Map<String, dynamic>?> _selectUnit(Product p, String title) => showDialog<Map<String, dynamic>>(context: context, builder: (ctx) => SimpleDialog(
+    title: Text(title),
+    children: p.units.map((u) => SimpleDialogOption(onPressed: () => Navigator.pop(ctx, u), child: Text(u['name'].toString() + '  × ' + u['factor'].toString()))).toList(),
+  ));
+
+  Future<void> _receiveStock() async {
+    if (_suppliers.isEmpty || _products.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف مورداً ومنتجاً أولاً.')));
+      return;
+    }
+    final supplier = await showDialog<String>(context: context, builder: (ctx) => SimpleDialog(
+      title: const Text('اختر المورد'),
+      children: _suppliers.map((s) => SimpleDialogOption(onPressed: () => Navigator.pop(ctx, s['name'] as String), child: Text(s['name'] as String))).toList(),
+    ));
+    if (supplier == null) return;
+    final product = await _selectProduct('اختر المنتج المستلم');
+    if (product == null) return;
+    final unit = await _selectUnit(product, 'وحدة التوريد');
+    if (unit == null) return;
+    final qty = await _askAmount('كمية الاستلام', 'الكمية');
+    if (qty == null) return;
+    final cost = await _askAmount('قيمة فاتورة الشراء', 'الإجمالي');
+    if (cost == null) return;
+    final paid = await _askAmount('المبلغ المدفوع', 'اتركه فارغاً إن لم تدفع') ?? 0;
+    final base = qty * (unit['factor'] as num).toDouble();
+    setState(() {
+      product.stock += base;
+      _receipts.add({'supplier': supplier, 'product': product.name, 'quantity': qty, 'unit': unit['name'], 'baseQuantity': base, 'cost': cost, 'date': DateTime.now().toIso8601String()});
+      _purchases.add({'supplier': supplier, 'date': DateTime.now().toIso8601String(), 'total': cost, 'paid': paid.clamp(0, cost), 'status': 'received'});
+    });
+    await _saveExtra();
+    await _saveProducts();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم الاستلام وإضافة ' + _quantityLabel(base) + ' إلى المخزون.')));
+  }
+
+  Future<void> _processReturn(bool customerReturn) async {
+    final p = await _selectProduct('اختر المنتج');
+    if (p == null) return;
+    final u = await _selectUnit(p, 'اختر وحدة المرتجع');
+    if (u == null) return;
+    final q = await _askAmount('كمية المرتجع', 'الكمية');
+    if (q == null) return;
+    final base = q * (u['factor'] as num).toDouble();
+    if (!customerReturn && base > p.stock) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرصيد غير كافٍ لإرجاع هذه الكمية.')));
+      return;
+    }
+    final reason = await _askText('سبب المرتجع', 'السبب') ?? 'غير محدد';
+    setState(() {
+      p.stock += customerReturn ? base : -base;
+      _returns.add({'type': customerReturn ? 'customer' : 'supplier', 'product': p.name, 'quantity': q, 'unit': u['name'], 'baseQuantity': base, 'reason': reason, 'date': DateTime.now().toIso8601String()});
+    });
+    await _saveProducts();
+    await _saveExtra();
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(customerReturn ? 'أعيدت الكمية إلى المخزون.' : 'تم خصم الكمية المرتجعة من المخزون.')));
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('NaeemSoft POS', style: TextStyle(fontWeight: FontWeight.bold)),
       actions: [
-        PopupMenuButton<String>(onSelected: (v) { if (v == 'reports') _showReports(); if (v == 'customers') _manageCustomers(); if (v == 'suppliers') _manageSuppliers(); if (v == 'history') _showHistory(); }, itemBuilder: (_) => const [
+        PopupMenuButton<String>(onSelected: (v) { if (v == 'reports') _showReports(); if (v == 'customers') _manageCustomers(); if (v == 'suppliers') _manageSuppliers(); if (v == 'history') _showHistory(); if (v == 'inventory') _inventoryMenu(); if (v == 'language') _chooseLanguage(); }, itemBuilder: (_) => const [
           PopupMenuItem(value: 'reports', child: Text('التقارير')),
           PopupMenuItem(value: 'customers', child: Text('الزبائن وكشوف الحساب')),
           PopupMenuItem(value: 'suppliers', child: Text('الموردون والمشتريات')),
           PopupMenuItem(value: 'history', child: Text('سجل الفواتير')),
+          PopupMenuItem(value: 'inventory', child: Text('المخزون والتوريد والمرتجعات')),
+          PopupMenuItem(value: 'language', child: Text('Language / Langue / اللغة')),
         ]),
       ],
     ),
