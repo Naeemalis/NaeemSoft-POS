@@ -972,6 +972,165 @@ class _PosHomePageState extends State<PosHomePage> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(customerReturn ? 'أعيدت الكمية إلى المخزون.' : 'تم خصم الكمية المرتجعة من المخزون.')));
   }
 
+
+  int _selectedModule = 0;
+
+  Future<void> _openModule(int index) async {
+    setState(() => _selectedModule = index);
+    switch (index) {
+      case 0:
+        return;
+      case 1:
+        await _receiveStock();
+        break;
+      case 2:
+        await _manageSuppliers();
+        break;
+      case 3:
+        final kind = await showModalBottomSheet<bool>(
+          context: context,
+          builder: (ctx) => SafeArea(child: Wrap(children: [
+            const ListTile(title: Text('المرتجعات')),
+            ListTile(leading: const Icon(Icons.assignment_return), title: const Text('مرتجع من زبون'),
+              onTap: () => Navigator.pop(ctx, true)),
+            ListTile(leading: const Icon(Icons.keyboard_return), title: const Text('مرتجع إلى المورد'),
+              onTap: () => Navigator.pop(ctx, false)),
+          ])),
+        );
+        if (kind != null) await _processReturn(kind);
+        break;
+      case 4:
+        await _manageProducts();
+        break;
+      case 5:
+        await _showStockReport();
+        break;
+      case 6:
+        await _showReports();
+        break;
+      case 7:
+        await _manageCustomers();
+        break;
+      case 8:
+        await _showHistory();
+        break;
+    }
+    if (mounted) setState(() => _selectedModule = 0);
+  }
+
+  Widget _buildMainNavigation() {
+    const items = <(String, IconData)>[
+      ('المبيعات', Icons.point_of_sale),
+      ('التوريد', Icons.add_box_outlined),
+      ('المشتريات', Icons.shopping_cart_outlined),
+      ('المرتجعات', Icons.assignment_return_outlined),
+      ('المنتجات', Icons.inventory_2_outlined),
+      ('المخزون', Icons.warehouse_outlined),
+      ('التقارير', Icons.analytics_outlined),
+      ('الزبائن', Icons.people_outline),
+      ('الفواتير', Icons.receipt_long),
+    ];
+    return Material(
+      elevation: 8,
+      color: Theme.of(context).colorScheme.surface,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 68,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 4),
+            itemBuilder: (context, index) {
+              final selected = _selectedModule == index;
+              return InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _openModule(index),
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 64),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: selected ? Theme.of(context).colorScheme.primaryContainer : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(items[index].$2, size: 22,
+                        color: selected ? Theme.of(context).colorScheme.primary : null),
+                      const SizedBox(height: 3),
+                      Text(items[index].$1, style: TextStyle(fontSize: 10,
+                        fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _manageProducts() async {
+    while (mounted) {
+      final action = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) => Directionality(
+          textDirection: TextDirection.rtl,
+          child: SafeArea(child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.72,
+            child: Column(children: [
+              const ListTile(title: Text('إدارة المنتجات والوحدات',
+                style: TextStyle(fontWeight: FontWeight.bold))),
+              ListTile(leading: const Icon(Icons.add_circle_outline),
+                title: const Text('إضافة منتج جديد'),
+                onTap: () => Navigator.pop(ctx, 'add')),
+              const Divider(height: 1),
+              Expanded(child: ListView.builder(
+                itemCount: _products.length,
+                itemBuilder: (context, i) {
+                  final p = _products[i];
+                  return ListTile(
+                    leading: const Icon(Icons.inventory_2_outlined),
+                    title: Text(p.name),
+                    subtitle: Text('السعر الأساسي: ${_money(p.price)} • الوحدات: ${p.units.length}'),
+                    onTap: () => Navigator.pop(ctx, 'edit:$i'),
+                    trailing: IconButton(
+                      tooltip: 'إعداد الوحدات',
+                      icon: const Icon(Icons.straighten),
+                      onPressed: () => Navigator.pop(ctx, 'units:$i'),
+                    ),
+                  );
+                },
+              )),
+            ]),
+          )),
+        ),
+      );
+      if (action == null) break;
+      if (action == 'add') {
+        await _editProduct(null);
+      } else if (action.startsWith('edit:')) {
+        final i = int.tryParse(action.substring(5));
+        if (i != null && i >= 0 && i < _products.length) await _editProduct(_products[i]);
+      } else if (action.startsWith('units:')) {
+        final i = int.tryParse(action.substring(6));
+        if (i != null && i >= 0 && i < _products.length) await _configureUnits(_products[i]);
+      }
+    }
+  }
+
+  Future<void> _showStockReport() async {
+    final body = _products.map((p) =>
+      '${p.name}: ${_quantityLabel(p.stock)} وحدة أساسية | ' +
+      p.units.map((x) => (p.stock / (x['factor'] as num).toDouble()).toStringAsFixed(2) + ' ' + x['name'].toString()).join(' / ')
+    ).join('\\n');
+    await _showTextReport('رصيد المخزون', body.isEmpty ? 'لا توجد منتجات' : body);
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -1018,5 +1177,6 @@ class _PosHomePageState extends State<PosHomePage> {
             ),
           ),
         ]),
+    bottomNavigationBar: _buildMainNavigation(),
   );
 }
