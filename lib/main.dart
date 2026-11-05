@@ -283,7 +283,7 @@ class _PosHomePageState extends State<PosHomePage> {
     }
     final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('تأكيد البيع'),
-      content: Text('الإجمالي: ${_money(_total)}\\nالمدفوع: ${_money(paid)}\\nالمتبقي: ${_money(_total-paid)}'),
+      content: Text('الإجمالي: ${_money(_total)}\nالمدفوع: ${_money(paid)}\nالمتبقي: ${_money(_total-paid)}'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('رجوع')),
         FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حفظ الفاتورة')),
@@ -708,14 +708,14 @@ class _PosHomePageState extends State<PosHomePage> {
 
   Future<void> _showCustomerStatement(String name) async {
     final rows = _invoices.where((i) => i.customerName == name).toList();
-    final body = rows.map((i) => 'فاتورة ${i.number} | ${i.date.toLocal()} | ${_money(i.total)} | مدفوع ${_money(i.paidAmount)} | متبقي ${_money(i.total-i.paidAmount)}').join('\\n');
-    await _showTextReport('كشف حساب الزبون: $name', '$body\\nالرصيد المتبقي: ${_money(_customerBalance(name))}');
+    final body = rows.map((i) => 'فاتورة ${i.number} | ${i.date.toLocal()} | ${_money(i.total)} | مدفوع ${_money(i.paidAmount)} | متبقي ${_money(i.total-i.paidAmount)}').join('\n');
+    await _showTextReport('كشف حساب الزبون: $name', '$body\nالرصيد المتبقي: ${_money(_customerBalance(name))}');
   }
 
   Future<void> _showSupplierStatement(String name) async {
     final rows = _purchases.where((p) => p['supplier'] == name).toList();
-    final body = rows.map((p) => 'شراء | ${p['date']} | ${_money((p['total'] as num).toDouble())} | مدفوع ${_money((p['paid'] as num).toDouble())}').join('\\n');
-    await _showTextReport('كشف حساب المورد: $name', '$body\\nالمستحق: ${_money(_supplierBalance(name))}');
+    final body = rows.map((p) => 'شراء | ${p['date']} | ${_money((p['total'] as num).toDouble())} | مدفوع ${_money((p['paid'] as num).toDouble())}').join('\n');
+    await _showTextReport('كشف حساب المورد: $name', '$body\nالمستحق: ${_money(_supplierBalance(name))}');
   }
 
   Future<void> _showTextReport(String title, String body) async {
@@ -765,28 +765,28 @@ class _PosHomePageState extends State<PosHomePage> {
     final cash = today.where((i) => i.customerName == null).fold(0.0, (v, i) => v + i.total);
     final credit = today.where((i) => i.customerName != null).fold(0.0, (v, i) => v + i.total);
     final collected = today.fold(0.0, (v, i) => v + i.paidAmount);
-    final daily = 'التاريخ: ${now.toLocal()}\\nعدد الفواتير: ${today.length}\\nالنقدي: ${_money(cash)}\\nالآجل: ${_money(credit)}\\nالمقبوض: ${_money(collected)}\\nالمتبقي: ${_money(sales-collected)}\\nإجمالي المبيعات: ${_money(sales)}\\n\\n' +
-      today.map((i) => 'فاتورة ${i.number} | ${i.date.hour}:${i.date.minute.toString().padLeft(2,'0')} | ${_money(i.total)}').join('\\n');
+    final daily = 'التاريخ: ${now.toLocal()}\nعدد الفواتير: ${today.length}\nالنقدي: ${_money(cash)}\nالآجل: ${_money(credit)}\nالمقبوض: ${_money(collected)}\nالمتبقي: ${_money(sales-collected)}\nإجمالي المبيعات: ${_money(sales)}\n\n' +
+      today.map((i) => 'فاتورة ${i.number} | ${i.date.hour}:${i.date.minute.toString().padLeft(2,'0')} | ${_money(i.total)}').join('\n');
     await showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (ctx) => Directionality(
       textDirection: TextDirection.rtl, child: SafeArea(child: Wrap(children: [
         const ListTile(title: Text('التقارير', style: TextStyle(fontWeight: FontWeight.bold))),
         ListTile(leading: const Icon(Icons.today), title: const Text('تقرير مبيعات اليوم'), subtitle: Text('الإجمالي: ${_money(sales)}'),
           onTap: () { Navigator.pop(ctx); _showTextReport('تقرير مبيعات اليوم', daily); }),
         ListTile(leading: const Icon(Icons.receipt_long), title: const Text('تقرير جميع المبيعات'),
-          onTap: () { Navigator.pop(ctx); final b = _invoices.map((i) => 'فاتورة ${i.number} | ${i.date.toLocal()} | ${_money(i.total)}').join('\\n'); _showTextReport('تقرير المبيعات', b); }),
+          onTap: () { Navigator.pop(ctx); final b = _invoices.map((i) => 'فاتورة ${i.number} | ${i.date.toLocal()} | ${_money(i.total)}').join('\n'); _showTextReport('تقرير المبيعات', b); }),
         ListTile(leading: const Icon(Icons.people), title: const Text('أرصدة الزبائن'),
-          onTap: () { Navigator.pop(ctx); final b = _customers.map((c) => '${c['name']}: ${_money(_customerBalance(c['name']))}').join('\\n'); _showTextReport('أرصدة الزبائن', b); }),
+          onTap: () { Navigator.pop(ctx); final b = _customers.map((c) => '${c['name']}: ${_money(_customerBalance(c['name']))}').join('\n'); _showTextReport('أرصدة الزبائن', b); }),
         ListTile(leading: const Icon(Icons.local_shipping), title: const Text('أرصدة الموردين والمشتريات'),
-          onTap: () { Navigator.pop(ctx); final b = _suppliers.map((v) => '${v['name']}: ${_money(_supplierBalance(v['name']))}').join('\\n') + '\\nإجمالي المشتريات: ${_money(_purchases.fold(0.0,(v,p)=>v+(p['total'] as num).toDouble()))}'; _showTextReport('تقرير الموردين والمشتريات', b); }),
+          onTap: () { Navigator.pop(ctx); final b = _suppliers.map((v) => '${v['name']}: ${_money(_supplierBalance(v['name']))}').join('\n') + '\nإجمالي المشتريات: ${_money(_purchases.fold(0.0,(v,p)=>v+(p['total'] as num).toDouble()))}'; _showTextReport('تقرير الموردين والمشتريات', b); }),
         ListTile(leading: const Icon(Icons.account_balance), title: const Text('تقرير الديون المستحقة'),
-          onTap: () { Navigator.pop(ctx); final b = 'ديون الزبائن: ${_money(_customers.fold(0.0,(v,c)=>v+_customerBalance(c['name'])))}\\nمستحقات الموردين: ${_money(_suppliers.fold(0.0,(v,s)=>v+_supplierBalance(s['name'])))}'; _showTextReport('تقرير الديون', b); }),
+          onTap: () { Navigator.pop(ctx); final b = 'ديون الزبائن: ${_money(_customers.fold(0.0,(v,c)=>v+_customerBalance(c['name'])))}\nمستحقات الموردين: ${_money(_suppliers.fold(0.0,(v,s)=>v+_supplierBalance(s['name'])))}'; _showTextReport('تقرير الديون', b); }),
       ]))));
   }
 
   Future<void> _shareInvoice(Invoice invoice) async {
-    final lines = invoice.items.map((item) => '${item['name']} | ${_quantityLabel((item['quantity'] as num).toDouble())} كيلو | ${_money((item['lineTotal'] as num).toDouble())}').join('\\n');
+    final lines = invoice.items.map((item) => '${item['name']} | ${_quantityLabel((item['quantity'] as num).toDouble())} كيلو | ${_money((item['lineTotal'] as num).toDouble())}').join('\n');
     final customer = invoice.customerName == null ? 'نقدي' : 'آجل - ${invoice.customerName}';
-    final body = 'NaeemSoft POS\\nفاتورة رقم ${invoice.number}\\n${invoice.date.toLocal()}\\nنوع البيع: $customer\\n$lines\\nالإجمالي: ${_money(invoice.total)}\\nالمدفوع: ${_money(invoice.paidAmount)}\\nالمتبقي: ${_money(invoice.total-invoice.paidAmount)}\\nشكراً لتعاملكم معنا';
+    final body = 'NaeemSoft POS\nفاتورة رقم ${invoice.number}\n${invoice.date.toLocal()}\nنوع البيع: $customer\n$lines\nالإجمالي: ${_money(invoice.total)}\nالمدفوع: ${_money(invoice.paidAmount)}\nالمتبقي: ${_money(invoice.total-invoice.paidAmount)}\nشكراً لتعاملكم معنا';
     await Share.share(body, subject: 'فاتورة رقم ${invoice.number}');
   }
 
