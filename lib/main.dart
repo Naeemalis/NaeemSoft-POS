@@ -80,7 +80,9 @@ class PosHomePage extends StatefulWidget {
 }
 
 class _PosHomePageState extends State<PosHomePage> {
-  static const _storageKey = 'naeemsoft_products_v1';\n  static const _invoiceStorageKey = 'naeemsoft_invoices_v1';\n  final List<Invoice> _invoices = [];
+  static const _storageKey = 'naeemsoft_products_v1';
+  static const _invoiceStorageKey = 'naeemsoft_invoices_v1';
+  final List<Invoice> _invoices = [];
   final List<Product> _products = [
     Product(name: 'بصل'),
     Product(name: 'بطاط'),
@@ -106,7 +108,18 @@ class _PosHomePageState extends State<PosHomePage> {
 
   Future<void> _loadProducts() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);\n    final savedInvoices = prefs.getString(_invoiceStorageKey);\n    if (savedInvoices != null) {\n      try {\n        final decodedInvoices = jsonDecode(savedInvoices) as List<dynamic>;\n        _invoices.addAll(decodedInvoices.map((e) => Invoice.fromJson(\n          Map<String, dynamic>.from(e as Map),\n        )));\n      } catch (_) {\n        // Preserve product data even if old invoice data is unreadable.\n      }\n    }
+    final raw = prefs.getString(_storageKey);
+    final savedInvoices = prefs.getString(_invoiceStorageKey);
+    if (savedInvoices != null) {
+      try {
+        final decodedInvoices = jsonDecode(savedInvoices) as List<dynamic>;
+        _invoices.addAll(decodedInvoices.map((e) => Invoice.fromJson(
+          Map<String, dynamic>.from(e as Map),
+        )));
+      } catch (_) {
+        // Preserve product data even if old invoice data is unreadable.
+      }
+    }
     if (raw != null) {
       try {
         final decoded = jsonDecode(raw) as List<dynamic>;
@@ -308,13 +321,24 @@ class _PosHomePageState extends State<PosHomePage> {
   }
 
   Future<void> _completeSale() async {
-    if (_products.every((p) => p.quantity == 0)) {
+    final saleItems = _products.where((p) => p.quantity > 0).toList();
+    if (saleItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('أدخل كمية صنف واحد على الأقل')),
       );
       return;
     }
-    final total = _total;
+
+    final total = saleItems.fold<double>(
+      0, (sum, p) => sum + p.price * p.quantity,
+    );
+    if (saleItems.any((p) => p.price <= 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('حدد أسعار جميع الأصناف قبل إتمام البيع')),
+      );
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -327,25 +351,125 @@ class _PosHomePageState extends State<PosHomePage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('تأكيد'),
+            child: const Text('حفظ الفاتورة'),
           ),
         ],
       ),
     );
-    if (confirmed == true) {
-      setState(() {
-        for (final product in _products) {
-          product.quantity = 0;
-          _quantityControllers[product.name]?.clear();
-        }
-      });
-      await _save();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم تسجيل البيع بقيمة ${_money(total)}')),
-        );
+
+    if (confirmed != true) return;
+
+    final nextNumber = _invoices.isEmpty
+        ? 1
+        : _invoices.map((i) => i.number).reduce((a, b) => a > b ? a : b) + 1;
+    final invoice = Invoice(
+      number: nextNumber,
+      date: DateTime.now(),
+      items: saleItems.map((p) => {
+        'name': p.name,
+        'quantity': p.quantity,
+        'unitPrice': p.price,
+        'lineTotal': p.price * p.quantity,
+      }).toList(),
+      total: total,
+    );
+
+    setState(() {
+      _invoices.add(invoice);
+      for (final product in _products) {
+        product.quantity = 0;
+        _quantityControllers[product.name]?.clear();
       }
-    }
+    });
+    await _saveInvoices();
+    await _save();
+
+    if (!mounted) return;
+    await _showInvoicePreview(invoice);
+  }
+
+  Future<void> _showInvoicePreview(Invoice invoice) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: Text('فاتورة رقم ${invoice.number}'),
+          content: SizedBox(
+            width: 360,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('NaeemSoft POS',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const Text('فاتورة مبيعات'),
+                  const Divider(),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text('التاريخ: ${invoice.date.toLocal()}',
+                      style: const TextStyle(fontSize: 12)),
+                  ),
+                  const SizedBox(height: 12),
+                  const Row(
+                    children: [
+                      Expanded(flex: 3, child: Text('الصنف',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                      Expanded(flex: 2, child: Text('العدد',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                      Expanded(flex: 2, child: Text('سعر الوحدة',
+                        textAlign: TextAlign.end,
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                      Expanded(flex: 2, child: Text('الإجمالي',
+                        textAlign: TextAlign.end,
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                    ],
+                  ),
+                  const Divider(),
+                  ...invoice.items.map((item) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 5),
+                    child: Row(
+                      children: [
+                        Expanded(flex: 3, child: Text(item['name'] as String)),
+                        Expanded(flex: 2, child: Text(
+                          (item['quantity'] as num).toString(),
+                          textAlign: TextAlign.center)),
+                        Expanded(flex: 2, child: Text(
+                          (item['unitPrice'] as num).toStringAsFixed(0),
+                          textAlign: TextAlign.end)),
+                        Expanded(flex: 2, child: Text(
+                          (item['lineTotal'] as num).toStringAsFixed(0),
+                          textAlign: TextAlign.end)),
+                      ],
+                    ),
+                  )),
+                  const Divider(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('الإجمالي',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                      Text(_money(invoice.total),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Text('شكراً لتعاملكم معنا',
+                    textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
