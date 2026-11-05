@@ -334,7 +334,8 @@ class _PosHomePageState extends State<PosHomePage> {
     );
     setState(() {
       for (final line in _cart) {
-        final p = _products.where((x) => x.name == line.name).firstOrNull;
+        Product? p;
+        for (final candidate in _products) { if (candidate.name == line.name) { p = candidate; break; } }
         if (p != null) p.stock -= line.baseQuantity ?? line.quantity;
       }
       _invoices.add(invoice); _cart.clear(); _quantityText = '1'; _quantityTouched = false;
