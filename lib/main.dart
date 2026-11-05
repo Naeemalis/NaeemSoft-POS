@@ -342,11 +342,12 @@ class _PosHomePageState extends State<PosHomePage> {
             icon: const Icon(Icons.add), label: const Text('إضافة صنف')),
         ]),
         SizedBox(
-          height: 76,
+          height: 150,
           child: GridView.builder(
-            scrollDirection: Axis.horizontal,
+            scrollDirection: Axis.vertical,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 1, mainAxisSpacing: 8, childAspectRatio: 0.82,
+              crossAxisCount: 5, crossAxisSpacing: 4, mainAxisSpacing: 4,
+              childAspectRatio: 1.0,
             ),
             itemCount: _products.length,
             itemBuilder: (context, index) {
