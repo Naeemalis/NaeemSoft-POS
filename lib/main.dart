@@ -272,25 +272,25 @@ class _PosHomePageState extends State<PosHomePage> {
 
   Widget _key(String label, {VoidCallback? onTap, bool accent = false}) => Expanded(
     child: Padding(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(2),
       child: SizedBox(
-        height: 52,
+        height: 39,
         child: FilledButton.tonal(
           style: FilledButton.styleFrom(
             backgroundColor: accent ? Theme.of(context).colorScheme.primaryContainer : null,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           onPressed: onTap,
-          child: Text(label, style: const TextStyle(fontSize: 21, fontWeight: FontWeight.bold)),
+          child: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         ),
       ),
     ),
   );
 
   Widget _buildKeypad() => Card(
-    margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+    margin: const EdgeInsets.fromLTRB(10, 4, 10, 2),
     child: Padding(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(5),
       child: Column(
         children: [
           Row(
@@ -298,7 +298,7 @@ class _PosHomePageState extends State<PosHomePage> {
               const Text('الكمية المطلوبة', style: TextStyle(fontWeight: FontWeight.w600)),
               const Spacer(),
               Text(_quantityLabel(_selectedQuantity),
-                style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.primary)),
               const SizedBox(width: 8),
               IconButton(tooltip: 'إعادة ضبط الكمية', onPressed: _clearQuantity,
@@ -342,7 +342,7 @@ class _PosHomePageState extends State<PosHomePage> {
             icon: const Icon(Icons.add), label: const Text('إضافة صنف')),
         ]),
         SizedBox(
-          height: 118,
+          height: 76,
           child: GridView.builder(
             scrollDirection: Axis.horizontal,
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -355,25 +355,18 @@ class _PosHomePageState extends State<PosHomePage> {
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: () => _addToCart(product),
+                  onLongPress: () => _editProduct(product),
                   child: Padding(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Expanded(child: Center(child: Icon(Icons.eco_outlined,
-                          size: 34, color: Theme.of(context).colorScheme.primary))),
                         Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 3),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
                         Text(product.price > 0 ? '${_money(product.price)} / كيلو' : 'حدد السعر',
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 11)),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: InkWell(
-                            onTap: () => _editProduct(product),
-                            child: const Icon(Icons.edit, size: 16),
-                          ),
-                        ),
                       ],
                     ),
                   ),
