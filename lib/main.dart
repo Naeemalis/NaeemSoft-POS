@@ -1,6 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:pdf/pdf.dart';
+import 'package:printing/printing.dart';
 
 void main() => runApp(const NaeemSoftApp());
 
@@ -36,14 +40,16 @@ class Product {
 }
 
 class Invoice {
-  Invoice({required this.number, required this.date, required this.items, required this.total});
+  Invoice({required this.number, required this.date, required this.items, required this.total, this.customerName, this.paidAmount = 0});
   final int number;
   final DateTime date;
   final List<Map<String, dynamic>> items;
   final double total;
+  final String? customerName;
+  double paidAmount;
 
   Map<String, dynamic> toJson() => {
-    'number': number, 'date': date.toIso8601String(), 'items': items, 'total': total,
+    'number': number, 'date': date.toIso8601String(), 'items': items, 'total': total, 'customerName': customerName, 'paidAmount': paidAmount,
   };
   factory Invoice.fromJson(Map<String, dynamic> json) => Invoice(
     number: (json['number'] as num).toInt(),
@@ -51,6 +57,8 @@ class Invoice {
     items: (json['items'] as List<dynamic>)
       .map((e) => Map<String, dynamic>.from(e as Map)).toList(),
     total: (json['total'] as num).toDouble(),
+    customerName: json['customerName'] as String?,
+    paidAmount: (json['paidAmount'] as num?)?.toDouble() ?? ((json['customerName'] == null) ? (json['total'] as num).toDouble() : 0),
   );
 }
 
@@ -98,6 +106,9 @@ class _PosHomePageState extends State<PosHomePage> {
     final prefs = await SharedPreferences.getInstance();
     final rawProducts = prefs.getString(_productsKey);
     final rawInvoices = prefs.getString(_invoicesKey);
+    final rawCustomers = prefs.getString(_customersKey);
+    final rawSuppliers = prefs.getString(_suppliersKey);
+    final rawPurchases = prefs.getString(_purchasesKey);
     if (rawProducts != null) {
       try {
         final decoded = jsonDecode(rawProducts) as List<dynamic>;
@@ -106,6 +117,9 @@ class _PosHomePageState extends State<PosHomePage> {
           ..addAll(decoded.map((e) => Product.fromJson(Map<String, dynamic>.from(e as Map))));
       } catch (_) {}
     }
+    if (rawCustomers != null) { try { _customers.addAll((jsonDecode(rawCustomers) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
+    if (rawSuppliers != null) { try { _suppliers.addAll((jsonDecode(rawSuppliers) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
+    if (rawPurchases != null) { try { _purchases.addAll((jsonDecode(rawPurchases) as List).map((e) => Map<String,dynamic>.from(e))); } catch (_) {} }
     if (rawInvoices != null) {
       try {
         final decoded = jsonDecode(rawInvoices) as List<dynamic>;
@@ -194,6 +208,7 @@ class _PosHomePageState extends State<PosHomePage> {
             ],
           ),
           actions: [
+            if (product != null) TextButton(onPressed: () => Navigator.pop(dialogContext, {'delete': 'yes'}), child: const Text('حذف الصنف')),
             TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
             FilledButton(
               onPressed: () {
@@ -212,6 +227,7 @@ class _PosHomePageState extends State<PosHomePage> {
     nameController.dispose();
     priceController.dispose();
     if (result == null) return;
+    if (result['delete'] == 'yes') { setState(() => _products.remove(product)); await _saveProducts(); return; }
     final name = result['name']!;
     final price = double.parse(result['price']!);
     setState(() {
@@ -227,47 +243,65 @@ class _PosHomePageState extends State<PosHomePage> {
 
   void _removeCartLine(int index) => setState(() => _cart.removeAt(index));
 
+
   Future<void> _completeSale() async {
     if (_cart.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('اختر الأصناف أولاً لإضافتها إلى الفاتورة')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اختر الأصناف أولاً لإضافتها إلى الفاتورة')));
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تأكيد البيع'),
-        content: Text('إجمالي الفاتورة: ${_money(_total)}'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('رجوع')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('حفظ الفاتورة')),
-        ],
-      ),
-    );
+    final mode = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('نوع البيع'),
+      content: const Text('اختر طريقة تسجيل هذه الفاتورة'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, 'cash'), child: const Text('نقدي')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, 'credit'), child: const Text('آجل')),
+      ],
+    ));
+    if (mode == null) return;
+    String? customer;
+    double paid = _total;
+    if (mode == 'credit') {
+      if (_customers.isEmpty) {
+        final add = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+          title: const Text('لا يوجد زبائن مسجلون'),
+          content: const Text('يجب إضافة الزبون قبل تسجيل البيع الآجل.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('إضافة زبون')),
+          ],
+        ));
+        if (add == true) await _manageCustomers();
+      }
+      if (_customers.isEmpty) return;
+      customer = await showDialog<String>(context: context, builder: (ctx) => SimpleDialog(
+        title: const Text('اختر الزبون'),
+        children: _customers.map((c) => SimpleDialogOption(onPressed: () => Navigator.pop(ctx, c['name'] as String), child: Text(c['name'] as String))).toList(),
+      ));
+      if (customer == null) return;
+      paid = await _askAmount('المبلغ المدفوع الآن', 'اكتب 0 إذا لم يدفع شيئاً') ?? 0;
+      if (paid > _total) paid = _total;
+    }
+    final confirmed = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('تأكيد البيع'),
+      content: Text('الإجمالي: ${_money(_total)}\\nالمدفوع: ${_money(paid)}\\nالمتبقي: ${_money(_total-paid)}'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('رجوع')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حفظ الفاتورة')),
+      ],
+    ));
     if (confirmed != true) return;
-    final nextNumber = _invoices.isEmpty
-      ? 1
-      : _invoices.map((i) => i.number).reduce((a, b) => a > b ? a : b) + 1;
+    final nextNumber = _invoices.isEmpty ? 1 : _invoices.map((i) => i.number).reduce((a,b) => a>b?a:b)+1;
     final invoice = Invoice(
-      number: nextNumber,
-      date: DateTime.now(),
-      items: _cart.map((line) => {
-        'name': line.name,
-        'quantity': line.quantity,
-        'unitPrice': line.unitPrice,
-        'lineTotal': line.total,
-      }).toList(),
-      total: _total,
+      number: nextNumber, date: DateTime.now(),
+      items: _cart.map((line) => {'name': line.name, 'quantity': line.quantity, 'unitPrice': line.unitPrice, 'lineTotal': line.total}).toList(),
+      total: _total, customerName: customer, paidAmount: paid,
     );
-    setState(() {
-      _invoices.add(invoice);
-      _cart.clear();
-      _quantityText = '1';
-      _quantityTouched = false;
-    });
+    setState(() { _invoices.add(invoice); _cart.clear(); _quantityText = '1'; _quantityTouched = false; });
     await _saveInvoices();
-    if (mounted) await _showInvoice(invoice);
+    if (mounted) {
+      await _showInvoice(invoice);
+      if (mounted) await _shareInvoice(invoice);
+    }
   }
 
   Widget _key(String label, {VoidCallback? onTap, bool accent = false}) => Expanded(
@@ -471,12 +505,15 @@ class _PosHomePageState extends State<PosHomePage> {
                   const Text('الإجمالي', style: TextStyle(fontWeight: FontWeight.bold)),
                   Text(_money(invoice.total), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ]),
+                const SizedBox(height: 8),
+                Text('المدفوع: ${_money(invoice.paidAmount)}'),
+                Text('المتبقي: ${_money(invoice.total-invoice.paidAmount)}'),
                 const SizedBox(height: 12),
                 const Text('شكراً لتعاملكم معنا'),
               ]),
             ),
           ),
-          actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))],
+          actions: [TextButton(onPressed: () => _shareInvoice(invoice), child: const Text('مشاركة الفاتورة')), TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))],
         ),
       ),
     );
@@ -515,12 +552,240 @@ class _PosHomePageState extends State<PosHomePage> {
     );
   }
 
+
+  static const _customersKey = 'naeemsoft_customers_v1';
+  static const _suppliersKey = 'naeemsoft_suppliers_v1';
+  static const _purchasesKey = 'naeemsoft_purchases_v1';
+  final List<Map<String, dynamic>> _customers = [];
+  final List<Map<String, dynamic>> _suppliers = [];
+  final List<Map<String, dynamic>> _purchases = [];
+
+  Future<void> _saveExtra() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_customersKey, jsonEncode(_customers));
+    await p.setString(_suppliersKey, jsonEncode(_suppliers));
+    await p.setString(_purchasesKey, jsonEncode(_purchases));
+  }
+
+  Future<String?> _askText(String title, String label, {String initial = ''}) async {
+    final c = TextEditingController(text: initial);
+    final result = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: TextField(controller: c, autofocus: true, decoration: InputDecoration(labelText: label)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        FilledButton(onPressed: () { if (c.text.trim().isNotEmpty) Navigator.pop(ctx, c.text.trim()); }, child: const Text('حفظ')),
+      ],
+    ));
+    c.dispose();
+    return result;
+  }
+
+  Future<double?> _askAmount(String title, String label) async {
+    final c = TextEditingController();
+    final result = await showDialog<double>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: TextField(controller: c, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(labelText: label)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+        FilledButton(onPressed: () {
+          final v = double.tryParse(c.text.trim().replaceAll(',', '.'));
+          if (v != null && v > 0) Navigator.pop(ctx, v);
+        }, child: const Text('حفظ')),
+      ],
+    ));
+    c.dispose();
+    return result;
+  }
+
+  Future<void> _manageCustomers() async {
+    while (mounted) {
+      final action = await showModalBottomSheet<String>(context: context, builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl, child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('إدارة الزبائن', style: TextStyle(fontWeight: FontWeight.bold))),
+          ListTile(leading: const Icon(Icons.person_add), title: const Text('إضافة زبون'), onTap: () => Navigator.pop(ctx, 'add')),
+          ..._customers.map((c) => ListTile(leading: const Icon(Icons.person), title: Text(c['name']),
+            subtitle: Text('الرصيد: ${_money(_customerBalance(c['name']))}'),
+            trailing: IconButton(icon: const Icon(Icons.account_balance_wallet), onPressed: () => Navigator.pop(ctx, 'pay:${c['name']}')),
+            onTap: () => Navigator.pop(ctx, 'statement:${c['name']}'))),
+        ]))));
+      if (action == null) break;
+      if (action == 'add') {
+        final name = await _askText('إضافة زبون', 'اسم الزبون');
+        if (name != null && !_customers.any((c) => c['name'] == name)) {
+          final phone = await _askText('رقم الهاتف', 'رقم الهاتف (اختياري)') ?? '';
+          _customers.add({'name': name, 'phone': phone});
+          await _saveExtra();
+        }
+      } else if (action.startsWith('pay:')) {
+        await _recordCustomerPayment(action.substring(4));
+      } else if (action.startsWith('statement:')) {
+        await _showCustomerStatement(action.substring(10));
+      }
+    }
+  }
+
+  double _customerBalance(String name) => _invoices.where((i) => (i.customerName ?? '') == name)
+    .fold(0.0, (v, i) => v + i.total - i.paidAmount);
+  double _supplierBalance(String name) => _purchases.where((p) => p['supplier'] == name)
+    .fold(0.0, (v, p) => v + (p['total'] as num).toDouble() - (p['paid'] as num).toDouble());
+
+  Future<void> _recordCustomerPayment(String name) async {
+    final amount = await _askAmount('استلام دفعة من $name', 'مبلغ الدفعة');
+    if (amount == null) return;
+    var remaining = amount;
+    for (final i in _invoices.where((x) => x.customerName == name && x.paidAmount < x.total).toList()) {
+      final due = i.total - i.paidAmount;
+      final add = remaining < due ? remaining : due;
+      i.paidAmount += add;
+      remaining -= add;
+      if (remaining <= 0) break;
+    }
+    await _saveInvoices();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _manageSuppliers() async {
+    while (mounted) {
+      final action = await showModalBottomSheet<String>(context: context, builder: (ctx) => Directionality(
+        textDirection: TextDirection.rtl, child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const ListTile(title: Text('الموردون والمشتريات', style: TextStyle(fontWeight: FontWeight.bold))),
+          ListTile(leading: const Icon(Icons.person_add), title: const Text('إضافة مورد'), onTap: () => Navigator.pop(ctx, 'add')),
+          ListTile(leading: const Icon(Icons.add_shopping_cart), title: const Text('تسجيل مشتريات من مورد'), onTap: () => Navigator.pop(ctx, 'purchase')),
+          ..._suppliers.map((v) => ListTile(leading: const Icon(Icons.local_shipping), title: Text(v['name']),
+            subtitle: Text('المستحق: ${_money(_supplierBalance(v['name']))}'),
+            trailing: IconButton(icon: const Icon(Icons.payment), onPressed: () => Navigator.pop(ctx, 'pay:${v['name']}')),
+            onTap: () => Navigator.pop(ctx, 'statement:${v['name']}'))),
+        ]))));
+      if (action == null) break;
+      if (action == 'add') {
+        final name = await _askText('إضافة مورد', 'اسم المورد');
+        if (name != null && !_suppliers.any((v) => v['name'] == name)) {
+          final phone = await _askText('رقم الهاتف', 'رقم الهاتف (اختياري)') ?? '';
+          _suppliers.add({'name': name, 'phone': phone});
+          await _saveExtra();
+        }
+      } else if (action == 'purchase') {
+        if (_suppliers.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف مورداً أولاً')));
+        } else {
+          final supplier = await showDialog<String>(context: context, builder: (ctx) => SimpleDialog(
+            title: const Text('اختر المورد'),
+            children: _suppliers.map((v) => SimpleDialogOption(onPressed: () => Navigator.pop(ctx, v['name']), child: Text(v['name']))).toList(),
+          ));
+          if (supplier != null) {
+            final total = await _askAmount('مشتريات من $supplier', 'إجمالي قيمة المشتريات');
+            if (total != null) {
+              final paid = await _askAmount('المبلغ المدفوع الآن', 'اكتب 0 إذا كانت آجلة') ?? 0;
+              _purchases.add({'supplier': supplier, 'date': DateTime.now().toIso8601String(),
+                'total': total, 'paid': paid > total ? total : paid});
+              await _saveExtra();
+              if (mounted) setState(() {});
+            }
+          }
+        }
+      } else if (action.startsWith('pay:')) {
+        final name = action.substring(4);
+        final amount = await _askAmount('سداد للمورد $name', 'مبلغ السداد');
+        if (amount != null) {
+          var left = amount;
+          for (final p in _purchases.where((x) => x['supplier'] == name).toList()) {
+            final due = (p['total'] as num).toDouble() - (p['paid'] as num).toDouble();
+            final add = left < due ? left : due;
+            p['paid'] = (p['paid'] as num).toDouble() + add;
+            left -= add;
+            if (left <= 0) break;
+          }
+          await _saveExtra();
+          if (mounted) setState(() {});
+        }
+      } else if (action.startsWith('statement:')) {
+        await _showSupplierStatement(action.substring(10));
+      }
+    }
+  }
+
+  Future<void> _showCustomerStatement(String name) async {
+    final rows = _invoices.where((i) => i.customerName == name).toList();
+    final body = rows.map((i) => 'فاتورة ${i.number} | ${i.date.toLocal()} | ${_money(i.total)} | مدفوع ${_money(i.paidAmount)} | متبقي ${_money(i.total-i.paidAmount)}').join('\\n');
+    await _showTextReport('كشف حساب الزبون: $name', '$body\\nالرصيد المتبقي: ${_money(_customerBalance(name))}');
+  }
+
+  Future<void> _showSupplierStatement(String name) async {
+    final rows = _purchases.where((p) => p['supplier'] == name).toList();
+    final body = rows.map((p) => 'شراء | ${p['date']} | ${_money((p['total'] as num).toDouble())} | مدفوع ${_money((p['paid'] as num).toDouble())}').join('\\n');
+    await _showTextReport('كشف حساب المورد: $name', '$body\\nالمستحق: ${_money(_supplierBalance(name))}');
+  }
+
+  Future<void> _showTextReport(String title, String body) async {
+    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      title: Text(title),
+      content: SingleChildScrollView(child: SelectableText(body)),
+      actions: [
+        TextButton(onPressed: () => Share.share('$title\\n$body'), child: const Text('مشاركة')),
+        TextButton(onPressed: () => _printReport(title, body), child: const Text('طباعة / PDF')),
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إغلاق')),
+      ],
+    ));
+  }
+
+  Future<void> _printReport(String title, String body) async {
+    final doc = pw.Document();
+    doc.addPage(pw.MultiPage(
+      pageFormat: PdfPageFormat.a4,
+      build: (_) => [
+        pw.Text(title, textDirection: pw.TextDirection.rtl, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 12),
+        pw.Text(body, textDirection: pw.TextDirection.rtl, style: const pw.TextStyle(fontSize: 11)),
+      ],
+    ));
+    await Printing.layoutPdf(onLayout: (_) async => doc.save());
+  }
+
+  Future<void> _showReports() async {
+    final now = DateTime.now();
+    final today = _invoices.where((i) => i.date.year == now.year && i.date.month == now.month && i.date.day == now.day).toList();
+    final sales = today.fold(0.0, (v, i) => v + i.total);
+    final cash = today.where((i) => i.customerName == null).fold(0.0, (v, i) => v + i.total);
+    final credit = today.where((i) => i.customerName != null).fold(0.0, (v, i) => v + i.total);
+    final collected = today.fold(0.0, (v, i) => v + i.paidAmount);
+    final daily = 'التاريخ: ${now.toLocal()}\\nعدد الفواتير: ${today.length}\\nالنقدي: ${_money(cash)}\\nالآجل: ${_money(credit)}\\nالمقبوض: ${_money(collected)}\\nالمتبقي: ${_money(sales-collected)}\\nإجمالي المبيعات: ${_money(sales)}\\n\\n' +
+      today.map((i) => 'فاتورة ${i.number} | ${i.date.hour}:${i.date.minute.toString().padLeft(2,'0')} | ${_money(i.total)}').join('\\n');
+    await showModalBottomSheet<void>(context: context, isScrollControlled: true, builder: (ctx) => Directionality(
+      textDirection: TextDirection.rtl, child: SafeArea(child: Wrap(children: [
+        const ListTile(title: Text('التقارير', style: TextStyle(fontWeight: FontWeight.bold))),
+        ListTile(leading: const Icon(Icons.today), title: const Text('تقرير مبيعات اليوم'), subtitle: Text('الإجمالي: ${_money(sales)}'),
+          onTap: () { Navigator.pop(ctx); _showTextReport('تقرير مبيعات اليوم', daily); }),
+        ListTile(leading: const Icon(Icons.receipt_long), title: const Text('تقرير جميع المبيعات'),
+          onTap: () { Navigator.pop(ctx); final b = _invoices.map((i) => 'فاتورة ${i.number} | ${i.date.toLocal()} | ${_money(i.total)}').join('\\n'); _showTextReport('تقرير المبيعات', b); }),
+        ListTile(leading: const Icon(Icons.people), title: const Text('أرصدة الزبائن'),
+          onTap: () { Navigator.pop(ctx); final b = _customers.map((c) => '${c['name']}: ${_money(_customerBalance(c['name']))}').join('\\n'); _showTextReport('أرصدة الزبائن', b); }),
+        ListTile(leading: const Icon(Icons.local_shipping), title: const Text('أرصدة الموردين والمشتريات'),
+          onTap: () { Navigator.pop(ctx); final b = _suppliers.map((v) => '${v['name']}: ${_money(_supplierBalance(v['name']))}').join('\\n') + '\\nإجمالي المشتريات: ${_money(_purchases.fold(0.0,(v,p)=>v+(p['total'] as num).toDouble()))}'; _showTextReport('تقرير الموردين والمشتريات', b); }),
+        ListTile(leading: const Icon(Icons.account_balance), title: const Text('تقرير الديون المستحقة'),
+          onTap: () { Navigator.pop(ctx); final b = 'ديون الزبائن: ${_money(_customers.fold(0.0,(v,c)=>v+_customerBalance(c['name'])))}\\nمستحقات الموردين: ${_money(_suppliers.fold(0.0,(v,s)=>v+_supplierBalance(s['name'])))}'; _showTextReport('تقرير الديون', b); }),
+      ]))));
+  }
+
+  Future<void> _shareInvoice(Invoice invoice) async {
+    final lines = invoice.items.map((item) => '${item['name']} | ${_quantityLabel((item['quantity'] as num).toDouble())} كيلو | ${_money((item['lineTotal'] as num).toDouble())}').join('\\n');
+    final customer = invoice.customerName == null ? 'نقدي' : 'آجل - ${invoice.customerName}';
+    final body = 'NaeemSoft POS\\nفاتورة رقم ${invoice.number}\\n${invoice.date.toLocal()}\\nنوع البيع: $customer\\n$lines\\nالإجمالي: ${_money(invoice.total)}\\nالمدفوع: ${_money(invoice.paidAmount)}\\nالمتبقي: ${_money(invoice.total-invoice.paidAmount)}\\nشكراً لتعاملكم معنا';
+    await Share.share(body, subject: 'فاتورة رقم ${invoice.number}');
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('NaeemSoft POS', style: TextStyle(fontWeight: FontWeight.bold)),
       actions: [
-        IconButton(tooltip: 'سجل الفواتير', onPressed: _showHistory, icon: const Icon(Icons.receipt_long)),
+        PopupMenuButton<String>(onSelected: (v) { if (v == 'reports') _showReports(); if (v == 'customers') _manageCustomers(); if (v == 'suppliers') _manageSuppliers(); if (v == 'history') _showHistory(); }, itemBuilder: (_) => const [
+          PopupMenuItem(value: 'reports', child: Text('التقارير')),
+          PopupMenuItem(value: 'customers', child: Text('الزبائن وكشوف الحساب')),
+          PopupMenuItem(value: 'suppliers', child: Text('الموردون والمشتريات')),
+          PopupMenuItem(value: 'history', child: Text('سجل الفواتير')),
+        ]),
       ],
     ),
     body: _loading
