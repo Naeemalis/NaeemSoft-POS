@@ -42,6 +42,36 @@ class Product {
   );
 }
 
+class Invoice {
+  Invoice({
+    required this.number,
+    required this.date,
+    required this.items,
+    required this.total,
+  });
+
+  final int number;
+  final DateTime date;
+  final List<Map<String, dynamic>> items;
+  final double total;
+
+  Map<String, dynamic> toJson() => {
+    'number': number,
+    'date': date.toIso8601String(),
+    'items': items,
+    'total': total,
+  };
+
+  factory Invoice.fromJson(Map<String, dynamic> json) => Invoice(
+    number: (json['number'] as num).toInt(),
+    date: DateTime.parse(json['date'] as String),
+    items: (json['items'] as List<dynamic>)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList(),
+    total: (json['total'] as num).toDouble(),
+  );
+}
+
 class PosHomePage extends StatefulWidget {
   const PosHomePage({super.key});
 
@@ -50,7 +80,7 @@ class PosHomePage extends StatefulWidget {
 }
 
 class _PosHomePageState extends State<PosHomePage> {
-  static const _storageKey = 'naeemsoft_products_v1';
+  static const _storageKey = 'naeemsoft_products_v1';\n  static const _invoiceStorageKey = 'naeemsoft_invoices_v1';\n  final List<Invoice> _invoices = [];
   final List<Product> _products = [
     Product(name: 'بصل'),
     Product(name: 'بطاط'),
@@ -76,7 +106,7 @@ class _PosHomePageState extends State<PosHomePage> {
 
   Future<void> _loadProducts() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);
+    final raw = prefs.getString(_storageKey);\n    final savedInvoices = prefs.getString(_invoiceStorageKey);\n    if (savedInvoices != null) {\n      try {\n        final decodedInvoices = jsonDecode(savedInvoices) as List<dynamic>;\n        _invoices.addAll(decodedInvoices.map((e) => Invoice.fromJson(\n          Map<String, dynamic>.from(e as Map),\n        )));\n      } catch (_) {\n        // Preserve product data even if old invoice data is unreadable.\n      }\n    }
     if (raw != null) {
       try {
         final decoded = jsonDecode(raw) as List<dynamic>;
@@ -97,6 +127,14 @@ class _PosHomePageState extends State<PosHomePage> {
     await prefs.setString(
       _storageKey,
       jsonEncode(_products.map((p) => p.toJson()).toList()),
+    );
+  }
+
+  Future<void> _saveInvoices() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _invoiceStorageKey,
+      jsonEncode(_invoices.map((invoice) => invoice.toJson()).toList()),
     );
   }
 
@@ -185,6 +223,88 @@ class _PosHomePageState extends State<PosHomePage> {
       setState(() => _products.add(Product(name: name)));
       await _save();
     }
+  }
+
+  Future<void> _showInvoiceHistory() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('سجل الفواتير'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: _invoices.isEmpty
+                ? const Text('لا توجد فواتير محفوظة حتى الآن')
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _invoices.length,
+                    separatorBuilder: (_, __) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final invoice = _invoices[_invoices.length - 1 - index];
+                      final date = invoice.date.toLocal();
+                      final dateText =
+                          '${date.year}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}  '
+                          '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('فاتورة #${invoice.number}'),
+                        subtitle: Text('$dateText • ${invoice.items.length} أصناف'),
+                        trailing: Text(_money(invoice.total)),
+                        onTap: () => showDialog<void>(
+                          context: context,
+                          builder: (context) => Directionality(
+                            textDirection: TextDirection.rtl,
+                            child: AlertDialog(
+                              title: Text('تفاصيل الفاتورة #${invoice.number}'),
+                              content: SizedBox(
+                                width: double.maxFinite,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ...invoice.items.map((item) => ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(item['name'] as String),
+                                      subtitle: Text(
+                                        '${item['quantity']} × ${_money((item['unitPrice'] as num).toDouble())}',
+                                      ),
+                                      trailing: Text(_money(
+                                        (item['lineTotal'] as num).toDouble(),
+                                      )),
+                                    )),
+                                    const Divider(),
+                                    ListTile(
+                                      title: const Text('الإجمالي',
+                                        style: TextStyle(fontWeight: FontWeight.bold)),
+                                      trailing: Text(_money(invoice.total),
+                                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('إغلاق'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _completeSale() async {
