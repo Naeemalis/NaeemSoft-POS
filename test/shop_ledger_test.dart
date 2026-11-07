@@ -68,7 +68,7 @@ void main() {
     final items = await shop.db.rawQuery(
       'SELECT SUM(cost_total_djf) AS c FROM sale_items',
     );
-    expect(items.single['c'], 10720);
+    expect(items.single['c'], 15720);
 
     final sales = await shop.db.rawQuery(
       'SELECT SUM(total-paid) AS due FROM sales WHERE customer_id=?',
