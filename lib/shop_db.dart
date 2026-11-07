@@ -21,6 +21,7 @@ class ShopDb {
       onUpgrade: (d, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await d.execute('ALTER TABLE products ADD COLUMN stock_grams INTEGER NOT NULL DEFAULT 0');
+          await d.execute('ALTER TABLE products ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
           await d.execute('UPDATE products SET stock_grams = CAST(ROUND(stock * 1000) AS INTEGER)');
           await d.execute('ALTER TABLE purchases ADD COLUMN due_date TEXT');
           await d.execute('ALTER TABLE purchases ADD COLUMN status TEXT NOT NULL DEFAULT "posted"');
