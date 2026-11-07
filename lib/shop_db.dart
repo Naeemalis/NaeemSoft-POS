@@ -405,8 +405,6 @@ class ShopDb {
         });
         final currentRows = await tx.query('products', columns: ['stock_grams','inventory_value_djf'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
         if (currentRows.isEmpty) throw Exception('الصنف غير موجود');
-        final oldGrams = (currentRows.first['stock_grams'] as num).toInt();
-        final oldValue = (currentRows.first['inventory_value_djf'] as num).toInt();
         final addedValue = lineTotal;
         await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams + ?, stock = (stock_grams + ?) / 1000.0, inventory_value_djf = inventory_value_djf + ? WHERE id = ?',
             [grams, grams, addedValue, x['product_id']]);
