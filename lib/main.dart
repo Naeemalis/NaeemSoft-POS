@@ -153,11 +153,11 @@ class _SalePageState extends State<SalePage>{
  @override Widget build(BuildContext c)=>Column(children:[
   Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
-   return GridView.builder(padding:const EdgeInsets.all(8),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,childAspectRatio:2,crossAxisSpacing:8,mainAxisSpacing:8),itemCount:s.data!.length,itemBuilder:(c,i){
-    final p=s.data![i];return Card(child:InkWell(onTap:()=>add(p),child:Padding(padding:const EdgeInsets.all(8),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
-     Text(p['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold)),Text(money(p['sale_price'] as num)+' / كجم'),Text(kg(p['stock_grams'] as num))
-    ]))));
-   });
+   return GridView.builder(padding:const EdgeInsets.all(4),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,childAspectRatio:1.75,crossAxisSpacing:4,mainAxisSpacing:4),itemCount:s.data!.length,itemBuilder:(c,i){
+     final p=s.data![i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:()=>add(p),child:Padding(padding:const EdgeInsets.all(3),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+      Text(p['name'] as String,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),Text(money(p['sale_price'] as num),style:const TextStyle(fontSize:11)),Text(kg(p['stock_grams'] as num),style:const TextStyle(fontSize:10))
+     ]))));
+    });
   })),
   Padding(padding:const EdgeInsets.all(10),child:Column(children:[
    Text('السلة: '+cart.length.toString()+' أصناف • '+money(total)),
@@ -210,7 +210,11 @@ class _PurchasePageState extends State<PurchasePage>{
  @override Widget build(BuildContext c)=>Column(children:[
   Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
-   return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text('الوحدة الافتراضية: '+(p['purchase_unit'] as String)),trailing:const Icon(Icons.add_circle_outline),onTap:()=>add(p))).toList());
+   return GridView.builder(padding:const EdgeInsets.all(4),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,childAspectRatio:1.75,crossAxisSpacing:4,mainAxisSpacing:4),itemCount:s.data!.length,itemBuilder:(c,i){
+     final p=s.data![i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:()=>add(p),child:Padding(padding:const EdgeInsets.all(3),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+      Text(p['name'] as String,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),Text(p['purchase_unit'] as String,style:const TextStyle(fontSize:11)),const Text('إضافة +',style:TextStyle(fontSize:10))
+     ]))));
+    });
   })),
   Padding(padding:const EdgeInsets.all(10),child:Column(children:[
    Text('أصناف الفاتورة: '+cart.length.toString()+' • '+money(total)),
