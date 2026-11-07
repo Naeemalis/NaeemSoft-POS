@@ -274,6 +274,7 @@ class ShopDb {
         total += ((grams * price) / 1000).round();
       }
       if (paid < 0 || paid > total) throw Exception('قيمة المدفوع غير صحيحة');
+      if (customerId == null && paid != total) throw Exception('البيع الآجل يتطلب اختيار زبون مسجل');
       final saleId = await tx.insert('sales', {
         'customer_id': customerId, 'date': DateTime.now().toIso8601String(),
         'total': total, 'paid': paid, 'due_date': dueDate, 'status': 'posted',
