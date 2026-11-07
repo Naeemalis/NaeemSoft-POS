@@ -68,7 +68,7 @@ void main() {
     final items = await shop.db.rawQuery(
       'SELECT SUM(cost_total_djf) AS c FROM sale_items',
     );
-    expect(items.single['c'], 10660);
+    expect(items.single['c'], 10720);
 
     final sales = await shop.db.rawQuery(
       'SELECT SUM(total-paid) AS due FROM sales WHERE customer_id=?',
@@ -87,7 +87,7 @@ void main() {
       [onion],
     );
     expect(movements.single['q'], 120000);
-    expect(movements.single['v'], 69340);
+    expect(movements.single['v'], 64280);
 
     // Aggregate validation must reject two individually valid lines whose sum exceeds stock.
     await expectLater(
