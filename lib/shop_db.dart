@@ -11,7 +11,7 @@ class ShopDb {
     final dir = await getDatabasesPath();
     db = await openDatabase(
       p.join(dir, 'naeemsoft_shop.db'),
-      version: 4,
+      version: 5,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -44,6 +44,13 @@ class ShopDb {
         if (oldVersion < 4) {
           await _createReturns(d);
         }
+        if (oldVersion < 5) {
+          await d.execute('ALTER TABLE products ADD COLUMN inventory_value_djf INTEGER NOT NULL DEFAULT 0');
+          await d.execute('ALTER TABLE sale_items ADD COLUMN cost_total_djf INTEGER NOT NULL DEFAULT 0');
+          await d.execute('ALTER TABLE sale_items ADD COLUMN cost_per_kg_snapshot INTEGER NOT NULL DEFAULT 0');
+          await d.execute('ALTER TABLE stock_movements ADD COLUMN value_delta_djf INTEGER NOT NULL DEFAULT 0');
+          await d.execute('UPDATE products SET inventory_value_djf = CAST(ROUND(stock_grams * COALESCE(cost,0) / 1000.0) AS INTEGER) WHERE inventory_value_djf=0 AND stock_grams>0');
+        }
       },
     );
   }
@@ -54,7 +61,7 @@ class ShopDb {
       purchase_unit TEXT NOT NULL DEFAULT 'جوان', base_unit TEXT NOT NULL DEFAULT 'كجم',
       default_weight REAL NOT NULL DEFAULT 1, cost REAL NOT NULL DEFAULT 0,
       sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
-      stock_grams INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1)''');
+      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1)''');
     await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT)');
     await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT)');
     await d.execute('''CREATE TABLE purchases(
@@ -76,6 +83,7 @@ class ShopDb {
       id INTEGER PRIMARY KEY AUTOINCREMENT, sale_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
       quantity REAL NOT NULL, unit_price REAL NOT NULL, line_total REAL NOT NULL,
       quantity_grams INTEGER NOT NULL DEFAULT 0, price_per_kg REAL NOT NULL DEFAULT 0,
+      cost_total_djf INTEGER NOT NULL DEFAULT 0, cost_per_kg_snapshot INTEGER NOT NULL DEFAULT 0,
       FOREIGN KEY(sale_id) REFERENCES sales(id), FOREIGN KEY(product_id) REFERENCES products(id))''');
     await d.execute('''CREATE TABLE payments(
       id INTEGER PRIMARY KEY AUTOINCREMENT, party_type TEXT NOT NULL CHECK(party_type IN ('customer','supplier')),
@@ -98,7 +106,7 @@ class ShopDb {
       id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL,
       movement_type TEXT NOT NULL CHECK(movement_type IN ('purchase','sale','waste','adjustment','opening')),
       source_type TEXT, source_id INTEGER, quantity_grams INTEGER NOT NULL,
-      unit_cost_per_kg INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, note TEXT,
+      unit_cost_per_kg INTEGER NOT NULL DEFAULT 0, value_delta_djf INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, note TEXT,
       FOREIGN KEY(product_id) REFERENCES products(id))''');
     await d.execute('''CREATE TABLE IF NOT EXISTS payment_allocations(
       id INTEGER PRIMARY KEY AUTOINCREMENT, payment_id INTEGER NOT NULL,
@@ -377,12 +385,17 @@ class ShopDb {
           'unit_cost': grams == 0 ? 0 : lineTotal / (grams / 1000),
           'line_total': lineTotal, 'package_cost': packageCost, 'kg_cost': kgCost,
         });
-        await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams + ?, stock = (stock_grams + ?) / 1000.0 WHERE id = ?',
-            [grams, grams, x['product_id']]);
+        final currentRows = await tx.query('products', columns: ['stock_grams','inventory_value_djf'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
+        if (currentRows.isEmpty) throw Exception('الصنف غير موجود');
+        final oldGrams = (currentRows.first['stock_grams'] as num).toInt();
+        final oldValue = (currentRows.first['inventory_value_djf'] as num).toInt();
+        final addedValue = lineTotal;
+        await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams + ?, stock = (stock_grams + ?) / 1000.0, inventory_value_djf = inventory_value_djf + ? WHERE id = ?',
+            [grams, grams, addedValue, x['product_id']]);
         await tx.insert('stock_movements', {
           'product_id': x['product_id'], 'movement_type': 'purchase',
           'source_type': 'purchase', 'source_id': purchaseId, 'quantity_grams': grams,
-          'unit_cost_per_kg': kgCost, 'created_at': DateTime.now().toIso8601String(),
+          'unit_cost_per_kg': kgCost, 'value_delta_djf': addedValue, 'created_at': DateTime.now().toIso8601String(),
         });
         await tx.insert('purchase_batches', {
           'purchase_item_id': itemId, 'product_id': x['product_id'],
@@ -410,6 +423,7 @@ class ShopDb {
     if (items.isEmpty) throw Exception('السلة فارغة');
     await db.transaction((tx) async {
       int total = 0;
+      final itemCosts = <int, Map<String,int>>{};
       for (final x in items) {
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
@@ -419,6 +433,10 @@ class ShopDb {
           throw Exception('الكمية غير كافية: ${product.first['name']}');
         }
         total += ((grams * price) / 1000).round();
+        final stockGrams = (product.first['stock_grams'] as num).toInt();
+        final stockValue = (product.first['inventory_value_djf'] as num).toInt();
+        final costPerKg = stockGrams > 0 ? ((stockValue * 1000) / stockGrams).round() : 0;
+        itemCosts[(x['product_id'] as num).toInt()] = {'cost': ((grams * costPerKg) / 1000).round(), 'costPerKg': costPerKg};
       }
       if (paid < 0 || paid > total) throw Exception('قيمة المدفوع غير صحيحة');
       if (customerId == null && paid != total) throw Exception('البيع الآجل يتطلب اختيار زبون مسجل');
@@ -434,13 +452,17 @@ class ShopDb {
           'sale_id': saleId, 'product_id': x['product_id'],
           'quantity': grams / 1000, 'unit_price': price,
           'line_total': line, 'quantity_grams': grams, 'price_per_kg': price,
+          'cost_total_djf': itemCosts[(x['product_id'] as num).toInt()]!['cost'],
+          'cost_per_kg_snapshot': itemCosts[(x['product_id'] as num).toInt()]!['costPerKg'],
         });
-        await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams - ?, stock = (stock_grams - ?) / 1000.0 WHERE id = ?',
-            [grams, grams, x['product_id']]);
+        final costValue = itemCosts[(x['product_id'] as num).toInt()]!['cost']!;
+        await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams - ?, stock = (stock_grams - ?) / 1000.0, inventory_value_djf = MAX(0, inventory_value_djf - ?) WHERE id = ?',
+            [grams, grams, costValue, x['product_id']]);
         await tx.insert('stock_movements', {
           'product_id': x['product_id'], 'movement_type': 'sale',
           'source_type': 'sale', 'source_id': saleId, 'quantity_grams': -grams,
-          'unit_cost_per_kg': 0, 'created_at': DateTime.now().toIso8601String(),
+          'unit_cost_per_kg': itemCosts[(x['product_id'] as num).toInt()]!['costPerKg'],
+          'value_delta_djf': -itemCosts[(x['product_id'] as num).toInt()]!['cost']!, 'created_at': DateTime.now().toIso8601String(),
         });
       }
       if (customerId != null && paid > 0) {
