@@ -321,7 +321,7 @@ class ShopDb {
           'sale_item_id':type=='customer'?sourceId:null,
           'purchase_item_id':type=='supplier'?sourceId:null,
           'quantity_grams':grams,'unit_price':price,'line_total':line,
-          'cost_per_kg':(source['kg_cost'] as num?)?.toInt()??0,
+          'cost_per_kg':type=='customer'?((source['cost_per_kg_snapshot'] as num?)?.toInt()??0):((source['kg_cost'] as num?)?.toInt()??0),
         });
         final delta=type=='customer'?grams:-grams;
         final productRows=await tx.query('products',columns:['stock_grams','inventory_value_djf'],where:'id=?',whereArgs:[productId],limit:1);
