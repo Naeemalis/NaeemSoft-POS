@@ -193,7 +193,7 @@ class StockPage extends StatelessWidget {const StockPage({super.key});@override 
 });}
 class AdminPage extends StatelessWidget {const AdminPage({super.key});@override Widget build(BuildContext c)=>ListView(children:[
  _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
- _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
+ _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'المرتجعات',Icons.assignment_return,const ReturnsPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
  _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage())
 ]);Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)));}
 class ProductsPage extends StatefulWidget {const ProductsPage({super.key});@override State<ProductsPage> createState()=>_ProductsPageState();}
@@ -227,6 +227,80 @@ class InvoicesPage extends StatelessWidget {const InvoicesPage({super.key});@ove
   final all=<Map<String,Object?>>[...s.data![0].map((x)=>{...x,'kind':'بيع'}),...s.data![1].map((x)=>{...x,'kind':'توريد'})]..sort((a,b)=>(b['id'] as int).compareTo(a['id'] as int));
   return ListView(children:all.map((x)=>ListTile(title:Text((x['kind'] as String)+' رقم '+x['id'].toString()),subtitle:Text(x['date'].toString()),trailing:Text(money(x['total'] as num)))).toList());
  }));}
+
+
+class ReturnsPage extends StatefulWidget {
+ const ReturnsPage({super.key});
+ @override State<ReturnsPage> createState()=>_ReturnsPageState();
+}
+class _ReturnsPageState extends State<ReturnsPage>{
+ String type='customer';
+ int? invoiceId;
+ List<Map<String,Object?>> invoiceItems=[];
+ final Map<int,TextEditingController> quantities={};
+ final cash=TextEditingController(text:'0');
+ bool saving=false;
+ Future<void> loadItems(int id) async {
+  final data=await ShopDb.instance.returnableItems(type,id);
+  for(final c in quantities.values){c.dispose();}
+  quantities.clear();
+  for(final x in data){quantities[x['source_item_id'] as int]=TextEditingController(text:'0');}
+  if(mounted)setState(()=>invoiceItems=data);
+ }
+ Future<void> changeType(String value) async {
+  setState((){type=value;invoiceId=null;invoiceItems=[];quantities.clear();cash.text='0';});
+ }
+ Future<void> submit() async {
+  if(invoiceId==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اختر الفاتورة الأصلية')));return;}
+  final selected=<Map<String,dynamic>>[];
+  for(final x in invoiceItems){
+   final id=x['source_item_id'] as int;
+   final grams=int.tryParse(quantities[id]?.text??'0')??0;
+   if(grams>0)selected.add({'source_item_id':id,'grams':grams,'unit_price':(x['unit_price'] as num).toInt()});
+  }
+  if(selected.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية مرتجعة لصنف واحد على الأقل')));return;}
+  setState(()=>saving=true);
+  try{
+   final id=await ShopDb.instance.saveReturn(type:type,invoiceId:invoiceId!,items:selected,cashPaid:type=='customer'?(int.tryParse(cash.text)??0):0);
+   if(!mounted)return;
+   setState((){invoiceId=null;invoiceItems=[];quantities.clear();cash.text='0';});
+   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم حفظ المرتجع رقم '+id.toString())));
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  finally{if(mounted)setState(()=>saving=false);}
+ }
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('مرتجعات الزبائن والموردين')),
+  body:ListView(padding:const EdgeInsets.all(12),children:[
+   SegmentedButton<String>(segments:const[
+    ButtonSegment(value:'customer',label:Text('مرتجع زبون'),icon:Icon(Icons.assignment_return)),
+    ButtonSegment(value:'supplier',label:Text('مرتجع للمورد'),icon:Icon(Icons.local_shipping_outlined)),
+   ],selected:{type},onSelectionChanged:(v)=>changeType(v.first)),
+   const SizedBox(height:12),
+   FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.returnableInvoices(type),builder:(c,s){
+    if(!s.hasData)return const LinearProgressIndicator();
+    return DropdownButtonFormField<int>(
+     value:invoiceId,decoration:const InputDecoration(labelText:'اختر الفاتورة الأصلية',border:OutlineInputBorder()),
+     items:s.data!.map((x)=>DropdownMenuItem<int>(value:x['id'] as int,child:Text('#'+x['id'].toString()+' • '+(x['party_name']??'بدون اسم').toString()+' • '+money(x['total'] as num)))).toList(),
+     onChanged:(v){if(v!=null){setState(()=>invoiceId=v);loadItems(v);}},
+    );
+   }),
+   const SizedBox(height:12),
+   if(invoiceId!=null && invoiceItems.isEmpty) const Text('لا توجد كميات متبقية للإرجاع في هذه الفاتورة'),
+   ...invoiceItems.map((x){
+    final id=x['source_item_id'] as int;
+    return Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Text(x['product_name'] as String,style:const TextStyle(fontWeight:FontWeight.bold)),
+     Text('المتاح للإرجاع: '+kg(x['remaining_grams'] as num)+' • سعر الوحدة: '+money(x['unit_price'] as num)),
+     TextField(controller:quantities[id],keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الكمية المرتجعة بالجرام',border:OutlineInputBorder(),isDense:true)),
+    ])));
+   }),
+   if(type=='customer')field(cash,'المبلغ الذي أُعيد نقداً للزبون',number:true),
+   const SizedBox(height:8),
+   FilledButton.icon(onPressed:saving?null:submit,icon:const Icon(Icons.save),label:Text(saving?'جارٍ الحفظ...':'حفظ المرتجع وتحديث المخزون')),
+   const Padding(padding:EdgeInsets.only(top:12),child:Text('يجب اختيار الفاتورة الأصلية. لا يسمح النظام بإرجاع كمية أكبر من المتبقي من الصنف في الفاتورة. مرتجع المورد لا يتجاوز رصيد المخزون المتاح.',style:TextStyle(height:1.5))),
+  ]),
+ );
+}
 
 class DraftsPage extends StatefulWidget {
  final String? type;
