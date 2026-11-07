@@ -274,7 +274,7 @@ class ShopDb {
         final sourceId=(item['source_item_id'] as num).toInt();
         if (grams<=0) throw Exception('الكمية المرتجعة غير صحيحة');
         final sourceTable=type=='customer'?'sale_items':'purchase_items';
-        final source=await tx.query(sourceTable,where:'id=?',whereArgs:[sourceId],limit:1);
+        final source=await tx.query(sourceTable,where:'id=? AND ${type=='customer'?'sale_id':'purchase_id'}=?',whereArgs:[sourceId,invoiceId],limit:1);
         if(source.isEmpty) throw Exception('صنف الفاتورة الأصلية غير موجود');
         final key=type=='customer'?'sale_item_id':'purchase_item_id';
         final already=await tx.rawQuery('SELECT COALESCE(SUM(ri.quantity_grams),0) q FROM return_items ri JOIN returns r ON r.id=ri.return_id WHERE ri.$key=? AND r.return_type=?',[sourceId,type]);
@@ -320,9 +320,6 @@ class ShopDb {
           'unit_cost_per_kg':(source['kg_cost'] as num?)?.toInt()??0,
           'created_at':DateTime.now().toIso8601String(),'note':type=='customer'?'مرتجع زبون':'مرتجع مورد',
         });
-      }
-      if(type=='customer' && cashPaid>0 && customerId!=null){
-        await tx.insert('payments',{'party_type':'supplier','party_id':customerId,'date':DateTime.now().toIso8601String(),'amount':cashPaid,'note':'رد نقدي لمرتجع زبون رقم $returnId'});
       }
       return returnId;
     });
