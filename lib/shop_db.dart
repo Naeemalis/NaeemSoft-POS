@@ -269,6 +269,7 @@ class ShopDb {
       final customerId = type == 'customer' ? invoice.first['customer_id'] as int? : null;
       final supplierId = type == 'supplier' ? invoice.first['supplier_id'] as int? : null;
       int total = 0;
+      final supplierReturnByProduct=<int,int>{};
       for (final item in items) {
         final grams=(item['grams'] as num).toInt();
         final sourceId=(item['source_item_id'] as num).toInt();
@@ -282,11 +283,14 @@ class ShopDb {
         final remaining=originalGrams-(already.first['q'] as num).toInt();
         if(grams>remaining) throw Exception('الكمية أكبر من المتبقي القابل للإرجاع');
         final productId=(source.first['product_id'] as num).toInt();
-        final price=(item['unit_price'] as num).toInt();
+        final price=type=='customer'?(source.first['price_per_kg'] as num).toInt():((source.first['quantity'] as num)>0?((source.first['line_total'] as num)/(source.first['quantity'] as num)).round():0);
         total += ((grams*price)/1000).round();
-        if(type=='supplier'){
-          final stock=await tx.query('products',columns:['stock_grams'],where:'id=?',whereArgs:[productId],limit:1);
-          if(stock.isEmpty || (stock.first['stock_grams'] as num).toInt()<grams) throw Exception('المخزون لا يكفي لإرجاع هذه الكمية للمورد');
+        if(type=='supplier') supplierReturnByProduct[productId]=(supplierReturnByProduct[productId]??0)+grams;
+      }
+      if(type=='supplier'){
+        for(final entry in supplierReturnByProduct.entries){
+          final stock=await tx.query('products',columns:['stock_grams'],where:'id=?',whereArgs:[entry.key],limit:1);
+          if(stock.isEmpty || (stock.first['stock_grams'] as num).toInt()<entry.value) throw Exception('المخزون لا يكفي لإرجاع الكمية الإجمالية لهذا الصنف للمورد');
         }
       }
       if(cashPaid<0 || cashPaid>total || (type=='supplier' && cashPaid!=0)) throw Exception('قيمة التسوية غير صحيحة');
@@ -302,7 +306,7 @@ class ShopDb {
         final sourceTable=type=='customer'?'sale_items':'purchase_items';
         final source=(await tx.query(sourceTable,where:'id=?',whereArgs:[sourceId],limit:1)).first;
         final productId=(source['product_id'] as num).toInt();
-        final price=(item['unit_price'] as num).toInt();
+        final price=type=='customer'?(source['price_per_kg'] as num).toInt():((source['quantity'] as num)>0?((source['line_total'] as num)/(source['quantity'] as num)).round():0);
         final line=((grams*price)/1000).round();
         await tx.insert('return_items',{
           'return_id':returnId,'product_id':productId,
