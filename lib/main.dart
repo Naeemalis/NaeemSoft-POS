@@ -159,11 +159,11 @@ class _SalePageState extends State<SalePage>{
      ]))));
     });
   })),
-  Padding(padding:const EdgeInsets.all(10),child:Column(children:[
-   Text('السلة: '+cart.length.toString()+' أصناف • '+money(total)),
-   ...cart.values.map((x)=>ListTile(dense:true,title:Text(x['name'] as String),subtitle:Text(kg(x['grams'] as int)),trailing:IconButton(icon:const Icon(Icons.close),onPressed:()=>setState(()=>cart.remove(x['product_id']))))),
-   Row(children:[Expanded(child:OutlinedButton.icon(onPressed:saveDraft,icon:const Icon(Icons.save_outlined),label:const Text('حفظ مسودة'))),const SizedBox(width:8),Expanded(child:OutlinedButton.icon(onPressed:openDrafts,icon:const Icon(Icons.folder_open),label:const Text('المسودات')))]),
-   const SizedBox(height:6),SizedBox(width:double.infinity,child:FilledButton(onPressed:checkout,child:const Text('ترحيل فاتورة البيع')))
+  Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
+   Text('السلة: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
+   SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.values.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(kg(x['grams'] as int),style:const TextStyle(fontSize:10)),trailing:IconButton(visualDensity:VisualDensity.compact,iconSize:16,icon:const Icon(Icons.close),onPressed:()=>setState(()=>cart.remove(x['product_id']))))).toList())),
+   Row(children:[Expanded(child:OutlinedButton(onPressed:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
+   const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:checkout,child:const Text('إتمام البيع',style:TextStyle(fontSize:11))))
   ]))
  ]);
 }
@@ -216,11 +216,11 @@ class _PurchasePageState extends State<PurchasePage>{
      ]))));
     });
   })),
-  Padding(padding:const EdgeInsets.all(10),child:Column(children:[
-   Text('أصناف الفاتورة: '+cart.length.toString()+' • '+money(total)),
-   ...cart.map((x)=>Text((x['name'] as String)+': '+x['packages'].toString()+' × '+(x['unit'] as String)+' • '+kg((x['packages'] as int)*(x['weight_grams'] as int)))),
-   Row(children:[Expanded(child:OutlinedButton.icon(onPressed:saveDraft,icon:const Icon(Icons.save_outlined),label:const Text('حفظ مسودة'))),const SizedBox(width:8),Expanded(child:OutlinedButton.icon(onPressed:openDrafts,icon:const Icon(Icons.folder_open),label:const Text('المسودات')))]),
-   const SizedBox(height:6),SizedBox(width:double.infinity,child:FilledButton(onPressed:save,child:const Text('اختيار المورد وترحيل التوريد')))
+  Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
+   Text('سلة التوريد: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
+   SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(x['packages'].toString()+' × '+(x['unit'] as String)+' • '+kg((x['packages'] as int)*(x['weight_grams'] as int)),style:const TextStyle(fontSize:10)),trailing:Text(money((x['packages'] as int)*(x['package_cost'] as int)),style:const TextStyle(fontSize:10)))).toList())),
+   Row(children:[Expanded(child:OutlinedButton(onPressed:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
+   const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:save,child:const Text('اختيار المورد وترحيل التوريد',style:TextStyle(fontSize:11))))
   ]))
  ]);
 }
