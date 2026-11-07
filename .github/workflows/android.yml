@@ -12,6 +12,8 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+      # Generate the standard Android Gradle project files missing from this repository.
+      - run: flutter create --platforms=android --project-name naeemsoft_pos .
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter build apk --release
