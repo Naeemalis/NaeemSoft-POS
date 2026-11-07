@@ -7,10 +7,10 @@ class ShopDb {
   static final ShopDb instance = ShopDb._();
   late Database db;
 
-  Future<void> open() async {
-    final dir = await getDatabasesPath();
+  Future<void> open({String? databasePath}) async {
+    final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
-      p.join(dir, 'naeemsoft_shop.db'),
+      databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
       version: 5,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
@@ -54,6 +54,8 @@ class ShopDb {
       },
     );
   }
+
+  Future<void> close() async { if (db.isOpen) await db.close(); }
 
   Future<void> _createBase(DatabaseExecutor d) async {
     await d.execute('''CREATE TABLE products(
@@ -370,9 +372,10 @@ class ShopDb {
 
   Future<void> savePurchase({
     required int supplierId, required List<Map<String, dynamic>> items,
-    required int paid, String? dueDate, String? note,
+    required int paid, String? dueDate, String? note, DateTime? transactionDate,
   }) async {
     if (items.isEmpty) throw Exception('أضف صنفاً واحداً على الأقل');
+    final txDate = (transactionDate ?? DateTime.now()).toIso8601String();
     await db.transaction((tx) async {
       int total = 0;
       for (final x in items) {
@@ -384,7 +387,7 @@ class ShopDb {
       }
       if (paid < 0 || paid > total) throw Exception('قيمة المدفوع غير صحيحة');
       final purchaseId = await tx.insert('purchases', {
-        'supplier_id': supplierId, 'date': DateTime.now().toIso8601String(),
+        'supplier_id': supplierId, 'date': txDate,
         'total': total, 'paid': paid, 'due_date': dueDate, 'note': note, 'status': 'posted',
       });
       for (final x in items) {
@@ -410,7 +413,7 @@ class ShopDb {
         await tx.insert('stock_movements', {
           'product_id': x['product_id'], 'movement_type': 'purchase',
           'source_type': 'purchase', 'source_id': purchaseId, 'quantity_grams': grams,
-          'unit_cost_per_kg': kgCost, 'value_delta_djf': addedValue, 'created_at': DateTime.now().toIso8601String(),
+          'unit_cost_per_kg': kgCost, 'value_delta_djf': addedValue, 'created_at': txDate,
         });
         await tx.insert('purchase_batches', {
           'purchase_item_id': itemId, 'product_id': x['product_id'],
@@ -421,7 +424,7 @@ class ShopDb {
       if (paid > 0) {
         final paymentId = await tx.insert('payments', {
           'party_type': 'supplier', 'party_id': supplierId,
-          'date': DateTime.now().toIso8601String(), 'amount': paid, 'note': 'دفعة عند التوريد',
+          'date': txDate, 'amount': paid, 'note': 'دفعة عند التوريد',
         });
         await tx.insert('payment_allocations', {
           'payment_id': paymentId, 'invoice_type': 'purchase',
@@ -433,57 +436,67 @@ class ShopDb {
 
   Future<void> saveSale({
     required int? customerId, required List<Map<String, dynamic>> items,
-    required int paid, String? dueDate,
+    required int paid, String? dueDate, DateTime? transactionDate,
   }) async {
     if (items.isEmpty) throw Exception('السلة فارغة');
+    final txDate = (transactionDate ?? DateTime.now()).toIso8601String();
     await db.transaction((tx) async {
       int total = 0;
-      final itemCosts = <int, Map<String,int>>{};
+      final itemCosts = <Map<String,int>>[];
+      final requestedByProduct = <int,int>{};
       for (final x in items) {
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
         final product = await tx.query('products', where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
         if (product.isEmpty) throw Exception('الصنف غير موجود');
-        if ((product.first['stock_grams'] as num).toInt() < grams) {
-          throw Exception('الكمية غير كافية: ${product.first['name']}');
-        }
+        if (grams <= 0 || price < 0) throw Exception('راجع كمية وسعر الصنف');
+        final productId = (x['product_id'] as num).toInt();
+        requestedByProduct[productId] = (requestedByProduct[productId] ?? 0) + grams;
         total += ((grams * price) / 1000).round();
         final stockGrams = (product.first['stock_grams'] as num).toInt();
         final stockValue = (product.first['inventory_value_djf'] as num).toInt();
         final costPerKg = stockGrams > 0 ? ((stockValue * 1000) / stockGrams).round() : 0;
-        itemCosts[(x['product_id'] as num).toInt()] = {'cost': ((grams * costPerKg) / 1000).round(), 'costPerKg': costPerKg};
+        itemCosts.add({'cost': ((grams * costPerKg) / 1000).round(), 'costPerKg': costPerKg});
+      }
+      for (final entry in requestedByProduct.entries) {
+        final stock = await tx.query('products', columns: ['stock_grams','name'], where: 'id = ?', whereArgs: [entry.key], limit: 1);
+        if (stock.isEmpty || (stock.first['stock_grams'] as num).toInt() < entry.value) {
+          throw Exception('الكمية الإجمالية غير كافية: ${stock.isEmpty ? entry.key : stock.first['name']}');
+        }
       }
       if (paid < 0 || paid > total) throw Exception('قيمة المدفوع غير صحيحة');
       if (customerId == null && paid != total) throw Exception('البيع الآجل يتطلب اختيار زبون مسجل');
       final saleId = await tx.insert('sales', {
-        'customer_id': customerId, 'date': DateTime.now().toIso8601String(),
+        'customer_id': customerId, 'date': txDate,
         'total': total, 'paid': paid, 'due_date': dueDate, 'status': 'posted',
       });
-      for (final x in items) {
+      for (var i = 0; i < items.length; i++) {
+        final x = items[i];
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
         final line = ((grams * price) / 1000).round();
+        final cost = itemCosts[i];
         await tx.insert('sale_items', {
           'sale_id': saleId, 'product_id': x['product_id'],
           'quantity': grams / 1000, 'unit_price': price,
           'line_total': line, 'quantity_grams': grams, 'price_per_kg': price,
-          'cost_total_djf': itemCosts[(x['product_id'] as num).toInt()]!['cost'],
-          'cost_per_kg_snapshot': itemCosts[(x['product_id'] as num).toInt()]!['costPerKg'],
+          'cost_total_djf': cost['cost'],
+          'cost_per_kg_snapshot': cost['costPerKg'],
         });
-        final costValue = itemCosts[(x['product_id'] as num).toInt()]!['cost']!;
+        final costValue = cost['cost']!;
         await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams - ?, stock = (stock_grams - ?) / 1000.0, inventory_value_djf = MAX(0, inventory_value_djf - ?) WHERE id = ?',
             [grams, grams, costValue, x['product_id']]);
         await tx.insert('stock_movements', {
           'product_id': x['product_id'], 'movement_type': 'sale',
           'source_type': 'sale', 'source_id': saleId, 'quantity_grams': -grams,
-          'unit_cost_per_kg': itemCosts[(x['product_id'] as num).toInt()]!['costPerKg'],
-          'value_delta_djf': -itemCosts[(x['product_id'] as num).toInt()]!['cost']!, 'created_at': DateTime.now().toIso8601String(),
+          'unit_cost_per_kg': cost['costPerKg'],
+          'value_delta_djf': -costValue, 'created_at': txDate,
         });
       }
       if (customerId != null && paid > 0) {
         final paymentId = await tx.insert('payments', {
           'party_type': 'customer', 'party_id': customerId,
-          'date': DateTime.now().toIso8601String(), 'amount': paid, 'note': 'دفعة عند البيع',
+          'date': txDate, 'amount': paid, 'note': 'دفعة عند البيع',
         });
         await tx.insert('payment_allocations', {
           'payment_id': paymentId, 'invoice_type': 'sale', 'invoice_id': saleId, 'amount': paid,
