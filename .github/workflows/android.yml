@@ -17,6 +17,7 @@ jobs:
       # Flutter's generated counter test targets MyApp; this project uses NaeemSoftApp.
       - run: rm -f test/widget_test.dart
       - run: flutter pub get
+      - run: flutter test
       - run: flutter analyze --no-fatal-infos
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
