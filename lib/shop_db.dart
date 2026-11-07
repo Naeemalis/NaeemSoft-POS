@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -10,13 +11,14 @@ class ShopDb {
     final dir = await getDatabasesPath();
     db = await openDatabase(
       p.join(dir, 'naeemsoft_shop.db'),
-      version: 2,
+      version: 3,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
       onCreate: (d, v) async {
         await _createBase(d);
         await _createExtended(d);
+        await _createDrafts(d);
       },
       onUpgrade: (d, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -34,6 +36,9 @@ class ShopDb {
           await d.execute('UPDATE purchase_items SET kg_cost = unit_cost, package_cost = CASE WHEN packages > 0 THEN line_total / packages ELSE 0 END');
           await d.execute('UPDATE sale_items SET quantity_grams = CAST(ROUND(quantity * 1000) AS INTEGER), price_per_kg = unit_price');
           await _createExtended(d);
+        }
+        if (oldVersion < 3) {
+          await _createDrafts(d);
         }
       },
     );
@@ -118,6 +123,63 @@ class ShopDb {
     await d.execute('CREATE INDEX IF NOT EXISTS idx_sales_customer_date ON sales(customer_id, date)');
     await d.execute('CREATE INDEX IF NOT EXISTS idx_stock_product_date ON stock_movements(product_id, created_at)');
     await d.execute('CREATE INDEX IF NOT EXISTS idx_payments_party_date ON payments(party_type, party_id, date)');
+  }
+
+
+  Future<void> _createDrafts(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS invoice_drafts(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_type TEXT NOT NULL CHECK(invoice_type IN ('sale','purchase')),
+      party_id INTEGER,
+      items_json TEXT NOT NULL,
+      total INTEGER NOT NULL DEFAULT 0,
+      paid INTEGER NOT NULL DEFAULT 0,
+      due_date TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )''');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_drafts_type_updated ON invoice_drafts(invoice_type, updated_at)');
+  }
+
+  Future<int> saveDraft({
+    required String type,
+    required List<Map<String, dynamic>> items,
+    int? partyId,
+    int total = 0,
+    int paid = 0,
+    String? dueDate,
+    int? draftId,
+  }) async {
+    if (type != 'sale' && type != 'purchase') throw Exception('نوع المسودة غير صحيح');
+    if (items.isEmpty) throw Exception('لا يمكن حفظ فاتورة فارغة');
+    final now = DateTime.now().toIso8601String();
+    final values = <String, Object?>{
+      'invoice_type': type, 'party_id': partyId, 'items_json': jsonEncode(items),
+      'total': total, 'paid': paid, 'due_date': dueDate, 'updated_at': now,
+    };
+    if (draftId != null) {
+      await db.update('invoice_drafts', values, where: 'id = ? AND invoice_type = ?', whereArgs: [draftId, type]);
+      return draftId;
+    }
+    values['created_at'] = now;
+    return db.insert('invoice_drafts', values);
+  }
+
+  Future<List<Map<String, Object?>>> getDrafts({String? type}) =>
+      db.query('invoice_drafts', where: type == null ? null : 'invoice_type = ?',
+        whereArgs: type == null ? null : [type], orderBy: 'updated_at DESC');
+
+  Future<Map<String, Object?>> getDraft(int id) async {
+    final result = await db.query('invoice_drafts', where: 'id = ?', whereArgs: [id], limit: 1);
+    if (result.isEmpty) throw Exception('المسودة غير موجودة');
+    final draft = Map<String, Object?>.from(result.first);
+    draft['items'] = (jsonDecode(draft['items_json'] as String) as List)
+        .map((x) => Map<String, dynamic>.from(x as Map)).toList();
+    return draft;
+  }
+
+  Future<void> deleteDraft(int id) async {
+    await db.delete('invoice_drafts', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
