@@ -70,7 +70,7 @@ class _SalePageState extends State<SalePage>{
   final g=TextEditingController(text:'1000'),a=TextEditingController();
   String mode='weight';
   final price=(p['sale_price'] as num).round();
-  final stock=(p['stock_grams'] as num).toInt();
+  final stock=(p['stock_grams'] as num).toInt()-(cart[p['id'] as int]?['grams'] as int? ?? 0);
   int calculatedGrams(){
    if(mode=='weight') return int.tryParse(g.text.trim())??0;
    final amount=int.tryParse(a.text.trim())??0;
