@@ -247,7 +247,7 @@ class ShopDb {
     return db.rawQuery("""
       SELECT pi.id source_item_id,pi.product_id,pr.name product_name,
         CAST(ROUND(pi.quantity*1000) AS INTEGER) - COALESCE((SELECT SUM(ri.quantity_grams) FROM return_items ri JOIN returns r ON r.id=ri.return_id WHERE ri.purchase_item_id=pi.id AND r.return_type='supplier'),0) remaining_grams,
-        CASE WHEN pi.quantity>0 THEN CAST(ROUND(pi.line_total*1000/pi.quantity) AS INTEGER) ELSE 0 END unit_price
+        CASE WHEN pi.quantity>0 THEN CAST(ROUND(pi.line_total/pi.quantity) AS INTEGER) ELSE 0 END unit_price
       FROM purchase_items pi JOIN products pr ON pr.id=pi.product_id
       WHERE pi.purchase_id=? AND CAST(ROUND(pi.quantity*1000) AS INTEGER) > COALESCE((SELECT SUM(ri.quantity_grams) FROM return_items ri JOIN returns r ON r.id=ri.return_id WHERE ri.purchase_item_id=pi.id AND r.return_type='supplier'),0)
     """,[invoiceId]);
