@@ -65,6 +65,7 @@ class DashboardPage extends StatelessWidget {
 class SalePage extends StatefulWidget {const SalePage({super.key});@override State<SalePage> createState()=>_SalePageState();}
 class _SalePageState extends State<SalePage>{
  final Map<int,Map<String,dynamic>> cart={};
+ int? activeDraftId;
  Future<void> add(Map<String,Object?> p) async {
   final g=TextEditingController(text:'1000'),a=TextEditingController();
   String mode='weight';
@@ -89,14 +90,14 @@ class _SalePageState extends State<SalePage>{
  int get total=>cart.values.fold(0,(v,x)=>v+(((x['grams'] as int)*(x['price_per_kg'] as int))/1000).round());
  Future<void> saveDraft() async {
   if(cart.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('السلة فارغة')));return;}
-  try{final id=await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),total:total);cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة البيع رقم '+id.toString())));}}
+  try{final id=await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),total:total,draftId:activeDraftId);activeDraftId=id;cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة البيع رقم '+id.toString())));}}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Future<void> openDrafts() async {
   final draft=await Navigator.push<Map<String,Object?>>(context,MaterialPageRoute(builder:(_)=>const DraftsPage(type:'sale')));
   if(draft==null)return;
   final items=(draft['items'] as List).cast<Map<String,dynamic>>();
-  setState((){cart.clear();for(final x in items){cart[x['product_id'] as int]=x;}});
+  setState((){activeDraftId=draft['id'] as int;cart.clear();for(final x in items){cart[x['product_id'] as int]=x;}});
  }
  Future<void> checkout() async {
   if(cart.isEmpty)return;
@@ -113,7 +114,7 @@ class _SalePageState extends State<SalePage>{
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ترحيل الفاتورة'))])));
   if(ok!=true)return;
-  try{await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim());cart.clear();if(mounted)setState((){});}
+  try{await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim());if(activeDraftId!=null)await ShopDb.instance.deleteDraft(activeDraftId!);activeDraftId=null;cart.clear();if(mounted)setState((){});}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  @override Widget build(BuildContext c)=>Column(children:[
@@ -136,6 +137,7 @@ class _SalePageState extends State<SalePage>{
 class PurchasePage extends StatefulWidget {const PurchasePage({super.key});@override State<PurchasePage> createState()=>_PurchasePageState();}
 class _PurchasePageState extends State<PurchasePage>{
  final List<Map<String,dynamic>> cart=[];
+ int? activeDraftId;
  Future<void> add(Map<String,Object?> p) async {
   final n=TextEditingController(text:'1'),w=TextEditingController(text:((p['default_weight'] as num)*1000).round().toString()),cost=TextEditingController(text:'0'),unit=TextEditingController(text:p['purchase_unit'] as String);
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:Text('توريد '+(p['name'] as String)),content:Column(mainAxisSize:MainAxisSize.min,children:[
@@ -148,14 +150,14 @@ class _PurchasePageState extends State<PurchasePage>{
  int get total=>cart.fold(0,(v,x)=>v+(x['packages'] as int)*(x['package_cost'] as int));
  Future<void> saveDraft() async {
   if(cart.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الفاتورة فارغة')));return;}
-  try{final id=await ShopDb.instance.saveDraft(type:'purchase',items:cart,total:total);cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة التوريد رقم '+id.toString())));}}
+  try{final id=await ShopDb.instance.saveDraft(type:'purchase',items:cart,total:total,draftId:activeDraftId);activeDraftId=id;cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة التوريد رقم '+id.toString())));}}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Future<void> openDrafts() async {
   final draft=await Navigator.push<Map<String,Object?>>(context,MaterialPageRoute(builder:(_)=>const DraftsPage(type:'purchase')));
   if(draft==null)return;
   final items=(draft['items'] as List).cast<Map<String,dynamic>>();
-  setState((){cart..clear()..addAll(items);});
+  setState((){activeDraftId=draft['id'] as int;cart..clear()..addAll(items);});
  }
  Future<void> save() async {
   if(cart.isEmpty)return;final suppliers=await rows('suppliers');int? supplier;
@@ -169,7 +171,7 @@ class _PurchasePageState extends State<PurchasePage>{
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ترحيل'))])));
   if(ok!=true)return;if(supplier==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اختر المورد أولاً')));return;}
-  try{await ShopDb.instance.savePurchase(supplierId:supplier!,items:cart,paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim());cart.clear();if(mounted)setState((){});}
+  try{await ShopDb.instance.savePurchase(supplierId:supplier!,items:cart,paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim());if(activeDraftId!=null)await ShopDb.instance.deleteDraft(activeDraftId!);activeDraftId=null;cart.clear();if(mounted)setState((){});}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  @override Widget build(BuildContext c)=>Column(children:[
