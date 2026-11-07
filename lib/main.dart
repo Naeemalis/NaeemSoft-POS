@@ -87,6 +87,17 @@ class _SalePageState extends State<SalePage>{
   setState(()=>cart[id]={'product_id':id,'name':p['name'],'grams':(cart[id]?['grams']??0)+result['grams']!,'price_per_kg':result['price']!});
  }
  int get total=>cart.values.fold(0,(v,x)=>v+(((x['grams'] as int)*(x['price_per_kg'] as int))/1000).round());
+ Future<void> saveDraft() async {
+  if(cart.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('السلة فارغة')));return;}
+  try{final id=await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),total:total);cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة البيع رقم '+id.toString())));}}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+ }
+ Future<void> openDrafts() async {
+  final draft=await Navigator.push<Map<String,Object?>>(context,MaterialPageRoute(builder:(_)=>const DraftsPage(type:'sale')));
+  if(draft==null)return;
+  final items=(draft['items'] as List).cast<Map<String,dynamic>>();
+  setState((){cart.clear();for(final x in items){cart[x['product_id'] as int]=x;}});
+ }
  Future<void> checkout() async {
   if(cart.isEmpty)return;
   final customers=await rows('customers');int? customer;
@@ -117,7 +128,8 @@ class _SalePageState extends State<SalePage>{
   Padding(padding:const EdgeInsets.all(10),child:Column(children:[
    Text('السلة: '+cart.length.toString()+' أصناف • '+money(total)),
    ...cart.values.map((x)=>ListTile(dense:true,title:Text(x['name'] as String),subtitle:Text(kg(x['grams'] as int)),trailing:IconButton(icon:const Icon(Icons.close),onPressed:()=>setState(()=>cart.remove(x['product_id']))))),
-   SizedBox(width:double.infinity,child:FilledButton(onPressed:checkout,child:const Text('إتمام البيع')))
+   Row(children:[Expanded(child:OutlinedButton.icon(onPressed:saveDraft,icon:const Icon(Icons.save_outlined),label:const Text('حفظ مسودة'))),const SizedBox(width:8),Expanded(child:OutlinedButton.icon(onPressed:openDrafts,icon:const Icon(Icons.folder_open),label:const Text('المسودات')))]),
+   const SizedBox(height:6),SizedBox(width:double.infinity,child:FilledButton(onPressed:checkout,child:const Text('ترحيل فاتورة البيع')))
   ]))
  ]);
 }
@@ -134,6 +146,17 @@ class _PurchasePageState extends State<PurchasePage>{
   if(count>0&&weight>0&&price>=0)setState(()=>cart.add({'product_id':p['id'],'name':p['name'],'unit':unit.text,'packages':count,'weight_grams':weight,'package_cost':price}));
  }
  int get total=>cart.fold(0,(v,x)=>v+(x['packages'] as int)*(x['package_cost'] as int));
+ Future<void> saveDraft() async {
+  if(cart.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الفاتورة فارغة')));return;}
+  try{final id=await ShopDb.instance.saveDraft(type:'purchase',items:cart,total:total);cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة التوريد رقم '+id.toString())));}}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+ }
+ Future<void> openDrafts() async {
+  final draft=await Navigator.push<Map<String,Object?>>(context,MaterialPageRoute(builder:(_)=>const DraftsPage(type:'purchase')));
+  if(draft==null)return;
+  final items=(draft['items'] as List).cast<Map<String,dynamic>>();
+  setState((){cart..clear()..addAll(items);});
+ }
  Future<void> save() async {
   if(cart.isEmpty)return;final suppliers=await rows('suppliers');int? supplier;
   final paid=TextEditingController(text:'0'),due=TextEditingController();
@@ -157,7 +180,8 @@ class _PurchasePageState extends State<PurchasePage>{
   Padding(padding:const EdgeInsets.all(10),child:Column(children:[
    Text('أصناف الفاتورة: '+cart.length.toString()+' • '+money(total)),
    ...cart.map((x)=>Text((x['name'] as String)+': '+x['packages'].toString()+' × '+(x['unit'] as String)+' • '+kg((x['packages'] as int)*(x['weight_grams'] as int)))),
-   SizedBox(width:double.infinity,child:FilledButton(onPressed:save,child:const Text('اختيار المورد وترحيل التوريد')))
+   Row(children:[Expanded(child:OutlinedButton.icon(onPressed:saveDraft,icon:const Icon(Icons.save_outlined),label:const Text('حفظ مسودة'))),const SizedBox(width:8),Expanded(child:OutlinedButton.icon(onPressed:openDrafts,icon:const Icon(Icons.folder_open),label:const Text('المسودات')))]),
+   const SizedBox(height:6),SizedBox(width:double.infinity,child:FilledButton(onPressed:save,child:const Text('اختيار المورد وترحيل التوريد')))
   ]))
  ]);
 }
@@ -167,7 +191,7 @@ class StockPage extends StatelessWidget {const StockPage({super.key});@override 
 });}
 class AdminPage extends StatelessWidget {const AdminPage({super.key});@override Widget build(BuildContext c)=>ListView(children:[
  _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
- _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),
+ _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
  _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage())
 ]);Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)));}
 class ProductsPage extends StatefulWidget {const ProductsPage({super.key});@override State<ProductsPage> createState()=>_ProductsPageState();}
@@ -201,6 +225,34 @@ class InvoicesPage extends StatelessWidget {const InvoicesPage({super.key});@ove
   final all=<Map<String,Object?>>[...s.data![0].map((x)=>{...x,'kind':'بيع'}),...s.data![1].map((x)=>{...x,'kind':'توريد'})]..sort((a,b)=>(b['id'] as int).compareTo(a['id'] as int));
   return ListView(children:all.map((x)=>ListTile(title:Text((x['kind'] as String)+' رقم '+x['id'].toString()),subtitle:Text(x['date'].toString()),trailing:Text(money(x['total'] as num)))).toList());
  }));}
+
+class DraftsPage extends StatefulWidget {
+ final String? type;
+ const DraftsPage({super.key,this.type});
+ @override State<DraftsPage> createState()=>_DraftsPageState();
+}
+class _DraftsPageState extends State<DraftsPage>{
+ Future<void> remove(int id) async {await ShopDb.instance.deleteDraft(id);if(mounted)setState((){});}
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:Text(widget.type=='sale'?'مسودات البيع':widget.type=='purchase'?'مسودات التوريد':'مسودات الفواتير')),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.getDrafts(type:widget.type),builder:(c,s){
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   if(s.data!.isEmpty)return const Center(child:Text('لا توجد مسودات محفوظة'));
+   return ListView(children:s.data!.map((d){
+    final isSale=d['invoice_type']=='sale';
+    final dt=DateTime.tryParse(d['updated_at'] as String);
+    return Card(child:ListTile(
+     leading:Icon(isSale?Icons.point_of_sale:Icons.local_shipping),
+     title:Text((isSale?'مسودة بيع #':'مسودة توريد #')+d['id'].toString()),
+     subtitle:Text((dt?.toLocal().toString().substring(0,16)??'')+' • '+money(d['total'] as num)),
+     trailing:PopupMenuButton<String>(onSelected:(v)async{if(v=='delete'){await remove(d['id'] as int);}else{final full=await ShopDb.instance.getDraft(d['id'] as int);if(context.mounted)Navigator.pop(context,full);}},itemBuilder:(_)=>const[
+      PopupMenuItem(value:'open',child:Text('استعادة المسودة')),PopupMenuItem(value:'delete',child:Text('حذف المسودة'))]),
+     onTap:()async{final full=await ShopDb.instance.getDraft(d['id'] as int);if(context.mounted)Navigator.pop(context,full);},
+    ));
+   }).toList());
+  }));
+}
+
 class AccountsPage extends StatelessWidget {const AccountsPage({super.key});@override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('ملخص الحسابات')),
  body:FutureBuilder<List<List<Map<String,Object?>>>>(future:Future.wait([rows('customers'),rows('suppliers'),rows('sales'),rows('purchases')]),builder:(c,s){
   if(!s.hasData)return const Center(child:CircularProgressIndicator());final x=s.data!;
