@@ -14,6 +14,8 @@ jobs:
           channel: stable
       # Generate the standard Android Gradle project files missing from this repository.
       - run: flutter create --platforms=android --project-name naeemsoft_pos .
+      # Flutter's generated counter test targets MyApp; this project uses NaeemSoftApp.
+      - run: rm -f test/widget_test.dart
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter build apk --release
