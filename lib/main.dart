@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:sqflite/sqflite.dart';
@@ -87,7 +88,7 @@ class NaeemSoftApp extends StatelessWidget {
     supportedLocales: const [Locale('ar'), Locale('en')],
     localizationsDelegates: GlobalMaterialLocalizations.delegates,
     theme: ThemeData(useMaterial3: true, colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff218653)), scaffoldBackgroundColor: const Color(0xfff6f8f6)),
-    home: const Directionality(textDirection: TextDirection.rtl, child: MainShell()),
+    home: const Directionality(textDirection: ui.TextDirection.rtl, child: MainShell()),
   );
 }
 
@@ -183,7 +184,7 @@ class _PurchasePageState extends State<PurchasePage> {
   }
   double get total=>cart.fold(0,(v,e)=>v+(e['quantity'] as double)*(e['cost'] as double));
   Future<void> save() async {if(cart.isEmpty)return;try{await ShopDb.instance.savePurchase(supplierId:null,items:cart,paid:0);cart.clear();if(mounted)setState((){});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}
-  @override Widget build(BuildContext context)=>Column(children:[Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.rows('products'),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text('وحدة الشراء: '+(p['purchase_unit'] as String)),trailing:const Icon(Icons.add_circle_outline),onTap:()=>add(p)).toList());})),Container(padding:const EdgeInsets.all(12),child:Column(children:[Text('أصناف الفاتورة: '+cart.length.toString()+' • الإجمالي: '+money(total)),const SizedBox(height:8),SizedBox(width:double.infinity,child:FilledButton(onPressed:save,child:const Text('ترحيل التوريد إلى مخزون المحل')))]))]);
+  @override Widget build(BuildContext context)=>Column(children:[Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.rows('products'),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text('وحدة الشراء: '+(p['purchase_unit'] as String)),trailing:const Icon(Icons.add_circle_outline),onTap:()=>add(p))).toList());})),Container(padding:const EdgeInsets.all(12),child:Column(children:[Text('أصناف الفاتورة: '+cart.length.toString()+' • الإجمالي: '+money(total)),const SizedBox(height:8),SizedBox(width:double.infinity,child:FilledButton(onPressed:save,child:const Text('ترحيل التوريد إلى مخزون المحل')))]))]);
 }
 
 class StockPage extends StatelessWidget { const StockPage({super.key}); @override Widget build(BuildContext context)=>FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.rows('products'),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text('التكلفة: '+money(p['cost'] as num)+' • البيع: '+money(p['sale_price'] as num)),trailing:Text((p['stock'] as num).toString()+' كجم'))).toList());}); }
