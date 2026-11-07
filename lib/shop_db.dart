@@ -324,12 +324,27 @@ class ShopDb {
           'cost_per_kg':(source['kg_cost'] as num?)?.toInt()??0,
         });
         final delta=type=='customer'?grams:-grams;
-        await tx.rawUpdate('UPDATE products SET stock_grams=stock_grams+?, stock=(stock_grams+?)/1000.0 WHERE id=?',[delta,delta,productId]);
+        final productRows=await tx.query('products',columns:['stock_grams','inventory_value_djf'],where:'id=?',whereArgs:[productId],limit:1);
+        final currentGrams=(productRows.first['stock_grams'] as num).toInt();
+        final currentValue=(productRows.first['inventory_value_djf'] as num).toInt();
+        int valueDelta;
+        int movementCost;
+        if(type=='customer'){
+          final originalGrams=(source['quantity_grams'] as num).toInt();
+          final originalCost=(source['cost_total_djf'] as num?)?.toInt()??0;
+          valueDelta=originalGrams>0?((originalCost*grams)/originalGrams).round():0;
+          movementCost=(source['cost_per_kg_snapshot'] as num?)?.toInt()??0;
+        }else{
+          movementCost=currentGrams>0?((currentValue*1000)/currentGrams).round():0;
+          valueDelta=-((grams*movementCost)/1000).round();
+        }
+        if(type=='supplier' && currentGrams<grams) throw Exception('المخزون لا يكفي لمرتجع المورد');
+        await tx.rawUpdate('UPDATE products SET stock_grams=stock_grams+?, stock=(stock_grams+?)/1000.0, inventory_value_djf=MAX(0,inventory_value_djf+?) WHERE id=?',[delta,delta,valueDelta,productId]);
         await tx.insert('stock_movements',{
           'product_id':productId,'movement_type':'adjustment',
           'source_type':type=='customer'?'customer_return':'supplier_return',
           'source_id':returnId,'quantity_grams':delta,
-          'unit_cost_per_kg':(source['kg_cost'] as num?)?.toInt()??0,
+          'unit_cost_per_kg':movementCost,'value_delta_djf':valueDelta,
           'created_at':DateTime.now().toIso8601String(),'note':type=='customer'?'مرتجع زبون':'مرتجع مورد',
         });
       }
