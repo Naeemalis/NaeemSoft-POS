@@ -68,17 +68,19 @@ class _SalePageState extends State<SalePage>{
  int? activeDraftId;
  Future<void> add(Map<String,Object?> p) async {
   final g=TextEditingController(text:'1000'),a=TextEditingController();
+  final priceController=TextEditingController(text:(p['sale_price'] as num).round().toString());
   String mode='weight';
-  final price=(p['sale_price'] as num).round();
   final stock=(p['stock_grams'] as num).toInt()-(cart[p['id'] as int]?['grams'] as int? ?? 0);
+  int currentPrice()=>int.tryParse(priceController.text.trim())??0;
   int calculatedGrams(){
+   final price=currentPrice();
    if(mode=='weight') return int.tryParse(g.text.trim())??0;
    final amount=int.tryParse(a.text.trim())??0;
    if(price<=0||amount<=0)return 0;
    return ((amount*1000)/price).round();
   }
   int calculatedAmount(){
-   final grams=calculatedGrams();
+   final grams=calculatedGrams(),price=currentPrice();
    if(grams<=0||price<=0)return 0;
    return ((grams*price)/1000).round();
   }
@@ -89,12 +91,14 @@ class _SalePageState extends State<SalePage>{
      segments:const[ButtonSegment(value:'weight',label:Text('إدخال الوزن')),ButtonSegment(value:'amount',label:Text('إدخال المبلغ'))],
      selected:{mode},onSelectionChanged:(v)=>setD(()=>mode=v.first)),
     const SizedBox(height:12),
+    TextField(controller:priceController,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'سعر البيع الذي تحدده لهذه العملية / كجم',suffixText:'DJF',border:OutlineInputBorder())),
+    const SizedBox(height:8),
     if(mode=='weight')
-     TextField(controller:g,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'الوزن بالجرام',suffixText:'جرام',border:OutlineInputBorder()))
+     TextField(controller:g,keyboardType:const TextInputType.numberWithOptions(decimal:true),onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'الوزن بالجرام',suffixText:'جرام',border:OutlineInputBorder()))
     else
-     TextField(controller:a,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'المبلغ الذي دفعه الزبون',suffixText:'DJF',border:OutlineInputBorder())),
+     TextField(controller:a,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'المبلغ الذي حدده الزبون',suffixText:'DJF',border:OutlineInputBorder())),
     const SizedBox(height:10),
-    Text('سعر البيع: '+money(price)+' / كجم'),
+    Text('السعر المعتمد لهذه العملية: '+money(currentPrice())+' / كجم'),
     const SizedBox(height:8),
     Container(width:double.infinity,padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:Theme.of(c).colorScheme.surfaceContainerHighest,borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Text('الوزن المحسوب: '+calculatedGrams().toString()+' جرام',style:const TextStyle(fontWeight:FontWeight.bold)),
@@ -107,11 +111,11 @@ class _SalePageState extends State<SalePage>{
     TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),
     FilledButton(onPressed:(){
      final grams=calculatedGrams();
-     if(grams<=0||grams>stock||price<=0)return;
-     Navigator.pop(c,{'grams':grams,'price':price});
+     if(grams<=0||grams>stock||currentPrice()<=0)return;
+     Navigator.pop(c,{'grams':grams,'price':currentPrice()});
     },child:const Text('إضافة للسلة'))
    ])));
-  g.dispose();a.dispose();
+  g.dispose();a.dispose();priceController.dispose();
   if(result==null||result['grams']!<=0)return;
   final id=p['id'] as int;
   setState(()=>cart[id]={'product_id':id,'name':p['name'],'grams':(cart[id]?['grams']??0)+result['grams']!,'price_per_kg':result['price']!});
