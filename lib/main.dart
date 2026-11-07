@@ -69,20 +69,49 @@ class _SalePageState extends State<SalePage>{
  Future<void> add(Map<String,Object?> p) async {
   final g=TextEditingController(text:'1000'),a=TextEditingController();
   String mode='weight';
+  final price=(p['sale_price'] as num).round();
+  final stock=(p['stock_grams'] as num).toInt();
+  int calculatedGrams(){
+   if(mode=='weight') return int.tryParse(g.text.trim())??0;
+   final amount=int.tryParse(a.text.trim())??0;
+   if(price<=0||amount<=0)return 0;
+   return ((amount*1000)/price).round();
+  }
+  int calculatedAmount(){
+   final grams=calculatedGrams();
+   if(grams<=0||price<=0)return 0;
+   return ((grams*price)/1000).round();
+  }
   final result=await showDialog<Map<String,int>>(context:context,builder:(c)=>StatefulBuilder(builder:(c,setD)=>AlertDialog(
    title:Text('بيع '+(p['name'] as String)),
    content:Column(mainAxisSize:MainAxisSize.min,children:[
-    SegmentedButton<String>(segments:const[ButtonSegment(value:'weight',label:Text('بالوزن')),ButtonSegment(value:'amount',label:Text('بالمبلغ'))],selected:{mode},onSelectionChanged:(v)=>setD(()=>mode=v.first)),
+    SegmentedButton<String>(
+     segments:const[ButtonSegment(value:'weight',label:Text('إدخال الوزن')),ButtonSegment(value:'amount',label:Text('إدخال المبلغ'))],
+     selected:{mode},onSelectionChanged:(v)=>setD(()=>mode=v.first)),
+    const SizedBox(height:12),
+    if(mode=='weight')
+     TextField(controller:g,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'الوزن بالجرام',suffixText:'جرام',border:OutlineInputBorder()))
+    else
+     TextField(controller:a,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'المبلغ الذي دفعه الزبون',suffixText:'DJF',border:OutlineInputBorder())),
     const SizedBox(height:10),
-    if(mode=='weight')field(g,'الكمية بالجرام',number:true) else field(a,'المبلغ الذي مع الزبون',number:true),
-    Text('سعر الكيلو: '+money(p['sale_price'] as num))
+    Text('سعر البيع: '+money(price)+' / كجم'),
+    const SizedBox(height:8),
+    Container(width:double.infinity,padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:Theme.of(c).colorScheme.surfaceContainerHighest,borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Text('الوزن المحسوب: '+calculatedGrams().toString()+' جرام',style:const TextStyle(fontWeight:FontWeight.bold)),
+     Text('قيمة البيع المحسوبة: '+money(calculatedAmount())),
+     Text('المتاح في المخزون: '+stock.toString()+' جرام')
+    ])),
+    if(calculatedGrams()>stock)const Padding(padding:EdgeInsets.only(top:8),child:Text('الكمية المطلوبة أكبر من المخزون المتاح',style:TextStyle(color:Colors.red)))
    ]),
-   actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),
+   actions:[
+    TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),
     FilledButton(onPressed:(){
-     final price=(p['sale_price'] as num).toInt();
-     final grams=mode=='weight'?(int.tryParse(g.text)??0):price==0?0:(((int.tryParse(a.text)??0)*1000)/price).round();
+     final grams=calculatedGrams();
+     if(grams<=0||grams>stock||price<=0)return;
      Navigator.pop(c,{'grams':grams,'price':price});
-    },child:const Text('إضافة'))])));
+    },child:const Text('إضافة للسلة'))
+   ])));
+  g.dispose();a.dispose();
   if(result==null||result['grams']!<=0)return;
   final id=p['id'] as int;
   setState(()=>cart[id]={'product_id':id,'name':p['name'],'grams':(cart[id]?['grams']??0)+result['grams']!,'price_per_kg':result['price']!});
