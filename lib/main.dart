@@ -168,14 +168,14 @@ class _SalePageState extends State<SalePage>{
   Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    return GridView.builder(padding:const EdgeInsets.all(4),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,childAspectRatio:1.75,crossAxisSpacing:4,mainAxisSpacing:4),itemCount:s.data!.length,itemBuilder:(c,i){
-     final p=s.data![i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:()=>add(p),child:Padding(padding:const EdgeInsets.all(3),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+     final p=s.data![i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(3),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       Text(p['name'] as String,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),Text(money(p['sale_price'] as num),style:const TextStyle(fontSize:11)),Text(kg(p['stock_grams'] as num),style:const TextStyle(fontSize:10))
      ]))));
     });
   })),
   Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
    Text('السلة: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
-   SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.values.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(kg(x['grams'] as int),style:const TextStyle(fontSize:10)),trailing:IconButton(visualDensity:VisualDensity.compact,iconSize:16,icon:const Icon(Icons.close),onPressed:()=>setState(()=>cart.remove(x['product_id']))))).toList())),
+   SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.values.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(kg(x['grams'] as int),style:const TextStyle(fontSize:10)),trailing:IconButton(visualDensity:VisualDensity.compact,iconSize:16,icon:const Icon(Icons.close),onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id']))))).toList())),
    Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
    const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع',style:const TextStyle(fontSize:11))))
   ]))
@@ -239,7 +239,7 @@ class _PurchasePageState extends State<PurchasePage>{
   Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    return GridView.builder(padding:const EdgeInsets.all(4),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:3,childAspectRatio:1.75,crossAxisSpacing:4,mainAxisSpacing:4),itemCount:s.data!.length,itemBuilder:(c,i){
-     final p=s.data![i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:()=>add(p),child:Padding(padding:const EdgeInsets.all(3),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+     final p=s.data![i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(3),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       Text(p['name'] as String,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),Text(p['purchase_unit'] as String,style:const TextStyle(fontSize:11)),const Text('إضافة +',style:TextStyle(fontSize:10))
      ]))));
     });
