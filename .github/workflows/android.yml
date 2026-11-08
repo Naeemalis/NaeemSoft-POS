@@ -1,6 +1,8 @@
 name: Android APK
 on:
   push:
+    branches: [main, feature/independent-invoices-no-stock]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 

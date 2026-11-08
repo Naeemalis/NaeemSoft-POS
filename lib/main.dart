@@ -59,7 +59,7 @@ class DashboardPage extends StatelessWidget {
    GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,childAspectRatio:2.2,children:[metric('مشتريات اليوم',money(x[1]),Icons.local_shipping_outlined),metric('عدد الأصناف',x[2].toString(),Icons.category_outlined),metric('المخزون الحالي',kg(x[3]),Icons.inventory_2_outlined),metric('النظام','محلي • محل واحد',Icons.storefront_outlined)]),
    const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('الوصول السريع',style:TextStyle(fontWeight:FontWeight.bold,fontSize:15))),
    GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,childAspectRatio:.9,children:[action('الأصناف',Icons.category,const ProductsPage()),action('الفواتير',Icons.receipt_long,const InvoicesPage()),action('الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),action('الزبائن',Icons.people,const PartiesPage(type:'customer')),action('الحسابات',Icons.account_balance,const AccountsPage()),action('المرتجعات',Icons.assignment_return,const ReturnsPage()),action('المسودات',Icons.drafts,const DraftsPage()),action('الإدارة',Icons.settings,const AdminPage())]),
-   const Padding(padding:EdgeInsets.all(8),child:Text('كل فاتورة بيع أو توريد تُرحّل إلى المخزون والحسابات، وتظهر في سجل الفواتير.',style:TextStyle(height:1.5)))
+   const Padding(padding:EdgeInsets.all(8),child:Text('فواتير الموردين وفواتير العملاء مستقلة. الكاشير لا يرتبط بالمخزون ولا يخصم منه.',style:TextStyle(height:1.5)))
   ]);
  });
 }
@@ -75,8 +75,7 @@ class _SalePageState extends State<SalePage>{
   final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
   final grams=saleMode=='weight'?(value*1000).round():(price>0?(value*1000/price).round():0);
   final id=p['id'] as int, old=cart[id]?['grams'] as int? ?? 0;
-  final stock=(p['stock_grams'] as num).toInt()-old;
-  if(grams<=0||grams>stock||price<=0){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(grams>stock?'المخزون غير كافٍ':'أدخل الرقم أولاً')));return;}
+  if(grams<=0||price<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية وسعراً صحيحين')));return;}
   setState((){cart[id]={'product_id':id,'name':p['name'],'grams':old+grams,'price_per_kg':price};keypadValue='';});
  }
  int get total=>cart.values.fold(0,(v,x)=>v+(((x['grams'] as int)*(x['price_per_kg'] as int))/1000).round());
@@ -120,7 +119,7 @@ class _SalePageState extends State<SalePage>{
    final invoiceTotal=total;
    final invoiceId=await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:paidAmount,dueDate:dueDate,draftId:draftId);
    activeDraftId=null;cart.clear();
-   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة بيع رقم $invoiceId'),content:Text('الإجمالي: '+money(invoiceTotal)+'\\nالمدفوع: '+money(paidAmount)+'\\nالمتبقي: '+money(invoiceTotal-paidAmount)+'\\nتم تحديث المخزون وحساب الزبون.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
+   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة بيع رقم $invoiceId'),content:Text('الإجمالي: '+money(invoiceTotal)+'\\nالمدفوع: '+money(paidAmount)+'\\nالمتبقي: '+money(invoiceTotal-paidAmount)+'\\nفاتورة بيع مستقلة؛ لم يتم فحص المخزون أو تغييره.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
@@ -134,7 +133,7 @@ class _SalePageState extends State<SalePage>{
      final p=ps[i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),
       Text(money(p['sale_price'] as num),maxLines:1,style:const TextStyle(fontSize:9)),
-      Text(kg(p['stock_grams'] as num),maxLines:1,style:const TextStyle(fontSize:8))
+      const Text('بيع مباشر',maxLines:1,style:TextStyle(fontSize:8))
      ]))));
     }));
    }),
@@ -191,7 +190,7 @@ class _PurchasePageState extends State<PurchasePage>{
    else{await ShopDb.instance.saveDraft(type:'purchase',items:cart,partyId:selectedSupplierId,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);}
    activeDraftId=draftId;final id=await ShopDb.instance.savePurchase(supplierId:selectedSupplierId!,items:cart,paid:paidAmount,dueDate:dueDate,draftId:draftId);
    activeDraftId=null;cart.clear();
-   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة توريد رقم $id'),content:Text('تم تسجيل التوريد بقيمة '+money(total)+'. تم تحديث المخزون وحساب المورد.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
+   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة توريد رقم $id'),content:Text('تم تسجيل التوريد بقيمة '+money(total)+'. لم يتم تغيير مخزون المبيعات.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
@@ -256,12 +255,96 @@ class _PartiesPageState extends State<PartiesPage>{
   body:FutureBuilder<List<Map<String,Object?>>>(future:rows(table),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((x)=>ListTile(leading:const Icon(Icons.person_outline),title:Text(x['name'] as String),subtitle:Text((x['phone']??'').toString()))).toList());}),
   floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة')));}
 }
-class InvoicesPage extends StatelessWidget {const InvoicesPage({super.key});@override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('الفواتير')),
- body:FutureBuilder<List<List<Map<String,Object?>>>>(future:Future.wait([rows('sales'),rows('purchases')]),builder:(c,s){
-  if(!s.hasData)return const Center(child:CircularProgressIndicator());
-  final all=<Map<String,Object?>>[...s.data![0].map((x)=>{...x,'kind':'بيع'}),...s.data![1].map((x)=>{...x,'kind':'توريد'})]..sort((a,b)=>(b['id'] as int).compareTo(a['id'] as int));
-  return ListView(children:all.map((x)=>ListTile(title:Text((x['kind'] as String)+' رقم '+x['id'].toString()),subtitle:Text(x['date'].toString()),trailing:Text(money(x['total'] as num)))).toList());
- }));}
+class InvoicesPage extends StatelessWidget {
+ const InvoicesPage({super.key});
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:const Text('الفواتير')),
+  body:FutureBuilder<List<List<Map<String,Object?>>>>(
+   future:Future.wait([rows('sales'),rows('purchases')]),
+   builder:(c,s){
+    if(!s.hasData)return const Center(child:CircularProgressIndicator());
+    final all=<Map<String,Object?>>[
+     ...s.data![0].map((x)=>{...x,'kind':'بيع'}),
+     ...s.data![1].map((x)=>{...x,'kind':'توريد'})
+    ]..sort((a,b)=>(b['id'] as int).compareTo(a['id'] as int));
+    if(all.isEmpty)return const Center(child:Text('لا توجد فواتير محفوظة بعد'));
+    return ListView.separated(
+     itemCount:all.length,separatorBuilder:(_,__)=>const Divider(height:1),
+     itemBuilder:(c,i){
+      final x=all[i],sale=x['kind']=='بيع';
+      return ListTile(
+       leading:CircleAvatar(child:Icon(sale?Icons.point_of_sale:Icons.local_shipping_outlined)),
+       title:Text((sale?'فاتورة بيع رقم ':'فاتورة مورد رقم ')+x['id'].toString()),
+       subtitle:Text(x['date'].toString()+' • '+money(x['paid'] as num)+' مدفوع • '+money((x['total'] as num)-(x['paid'] as num))+' متبقٍ'),
+       trailing:Text(money(x['total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
+       onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>InvoiceDetailPage(type:sale?'sale':'purchase',invoiceId:x['id'] as int))),
+      );
+     });
+   }));
+}
+
+class InvoiceDetailPage extends StatelessWidget {
+ final String type;
+ final int invoiceId;
+ const InvoiceDetailPage({super.key,required this.type,required this.invoiceId});
+ Future<Map<String,Object?>> load() async {
+  final sale=type=='sale';
+  final header=(await ShopDb.instance.query(sale?'sales':'purchases',orderBy:'id DESC'))
+    .firstWhere((x)=>x['id']==invoiceId);
+  final lines=await ShopDb.instance.db.rawQuery(
+   sale
+    ? 'SELECT si.*,p.name product_name FROM sale_items si LEFT JOIN products p ON p.id=si.product_id WHERE si.sale_id=? ORDER BY si.id'
+    : 'SELECT pi.*,p.name product_name FROM purchase_items pi LEFT JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id',
+   [invoiceId]);
+  String? party;
+  final partyId=header[sale?'customer_id':'supplier_id'];
+  if(partyId!=null){
+   final list=await ShopDb.instance.query(sale?'customers':'suppliers');
+   final found=list.where((x)=>x['id']==partyId);
+   if(found.isNotEmpty)party=found.first['name'] as String?;
+  }
+  return {'header':header,'lines':lines,'party':party??(sale?'نقدي / غير مسجل':'غير محدد')};
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:Text((type=='sale'?'فاتورة بيع #':'فاتورة مورد #')+invoiceId.toString())),
+  body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر فتح الفاتورة: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   final h=s.data!['header'] as Map<String,Object?>;
+   final lines=s.data!['lines'] as List<Map<String,Object?>>;
+   final sale=type=='sale',total=h['total'] as num,paid=h['paid'] as num;
+   return ListView(padding:const EdgeInsets.all(12),children:[
+    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Text(sale?'فاتورة مبيعات':'فاتورة توريد',style:Theme.of(c).textTheme.titleLarge),
+     Text('رقم الفاتورة: $invoiceId'),
+     Text('التاريخ: ${h['date']}'),
+     Text((sale?'الزبون: ':'المورد: ')+s.data!['party'].toString()),
+    ]))),
+    const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold))),
+    ...lines.map((x){
+     final quantity=sale?((x['quantity_grams'] as num)/1000):((x['quantity'] as num));
+     final unitPrice=sale?x['price_per_kg']:x['package_cost'];
+     return Card(child:ListTile(
+      title:Text((x['product_name']??'صنف محذوف').toString()),
+      subtitle:Text(sale?'الكمية: ${quantity.toStringAsFixed(3)} كجم • سعر الكيلو: ${money(unitPrice as num)}':'العبوات: ${x['packages']} • وزن العبوة: ${x['weight_each']} كجم • سعر العبوة: ${money(unitPrice as num)}'),
+      trailing:Text(money(x['line_total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
+     ));
+    }),
+    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[
+     _invoiceAmount('الإجمالي',total),
+     _invoiceAmount('المدفوع',paid),
+     const Divider(),
+     _invoiceAmount('المتبقي',total-paid),
+    ]))),
+    const Text('هذه الفاتورة مستقلة؛ لا يتم ترحيلها إلى مخزون المبيعات.'),
+   ]);
+  }));
+}
+
+Widget _invoiceAmount(String label,num amount)=>Padding(
+ padding:const EdgeInsets.symmetric(vertical:4),
+ child:Row(children:[Expanded(child:Text(label)),Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))]));
+
 
 
 class ReturnsPage extends StatefulWidget {
