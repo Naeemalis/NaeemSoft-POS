@@ -121,26 +121,31 @@ class _SalePageState extends State<SalePage>{
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
- @override Widget build(BuildContext c)=>Column(children:[
-  Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
-   if(!s.hasData)return const Center(child:CircularProgressIndicator());
-   return ListView.builder(scrollDirection:Axis.horizontal,padding:const EdgeInsets.all(4),itemCount:s.data!.length,itemBuilder:(c,i){
-     final p=s.data![i];return SizedBox(width:MediaQuery.of(c).size.width/7.2,child:Card(margin:const EdgeInsets.all(2),child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(3),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
-      Text(p['name'] as String,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),Text(money(p['sale_price'] as num),style:const TextStyle(fontSize:11)),Text(kg(p['stock_grams'] as num),style:const TextStyle(fontSize:10))
-     ])))));
-    });
-  })),
-  Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
-   Text('السلة: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
-   SegmentedButton<String>(segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first)),
-   Text('المدخل: '+(keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' فرنك':' كجم')),
-   Wrap(spacing:3,runSpacing:2,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح'])SizedBox(width:MediaQuery.of(c).size.width/7.5,height:29,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k)))]),
-
-   SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.values.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(kg(x['grams'] as int),style:const TextStyle(fontSize:10)),trailing:IconButton(visualDensity:VisualDensity.compact,iconSize:16,icon:const Icon(Icons.close),onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id']))))).toList())),
-   Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
-   const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع',style:const TextStyle(fontSize:11))))
-  ]))
- ]);
+ @override Widget build(BuildContext c) {
+  final w=MediaQuery.of(c).size.width;
+  return Column(children:[
+   FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
+    if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
+    final ps=s.data!, n=((s.data!.length+6)~/7).clamp(1,3);
+    return SizedBox(height:n*78.0,child:GridView.builder(physics:const NeverScrollableScrollPhysics(),padding:const EdgeInsets.all(3),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:7,crossAxisSpacing:3,mainAxisSpacing:3,childAspectRatio:.78),itemCount:ps.length,itemBuilder:(c,i){
+     final p=ps[i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+      Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),
+      Text(money(p['sale_price'] as num),maxLines:1,style:const TextStyle(fontSize:9)),
+      Text(kg(p['stock_grams'] as num),maxLines:1,style:const TextStyle(fontSize:8))
+     ]))));
+    }));
+   }),
+   const Divider(height:5),
+   Padding(padding:const EdgeInsets.symmetric(horizontal:8,vertical:2),child:Row(children:[const Text('السلة',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(cart.length.toString()+' أصناف • '+money(total),style:const TextStyle(fontWeight:FontWeight.bold))])),
+   Expanded(child:cart.isEmpty?const Center(child:Text('اختر الصنف ثم أدخل الكمية من لوحة الأرقام')):ListView(padding:const EdgeInsets.symmetric(horizontal:8),children:cart.values.map((x)=>Card(margin:const EdgeInsets.symmetric(vertical:2),child:ListTile(dense:true,title:Text(x['name'] as String,style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),subtitle:Text(kg(x['grams'] as int)+' × '+money(x['price_per_kg'] as int)+'/كجم',style:const TextStyle(fontSize:10)),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(money(((x['grams'] as int)*(x['price_per_kg'] as int)/1000).round()),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:30,height:30),iconSize:16,onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id'])),icon:const Icon(Icons.close))]))).toList())),
+   Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
+    Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
+    Wrap(spacing:3,runSpacing:3,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح'])SizedBox(width:(w-42)/7,height:30,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:12))))]),
+    Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:const Text('مسودة'))),const SizedBox(width:5),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:const Text('المسودات')))]),
+    SizedBox(width:double.infinity,height:42,child:FilledButton(onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع')))
+   ]))
+  ]);
+ }
 }
 class PurchasePage extends StatefulWidget {const PurchasePage({super.key});@override State<PurchasePage> createState()=>_PurchasePageState();}
 class _PurchasePageState extends State<PurchasePage>{
