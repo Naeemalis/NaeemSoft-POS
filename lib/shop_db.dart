@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 5,
+      version: 6,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -20,6 +20,7 @@ class ShopDb {
         await _createExtended(d);
         await _createDrafts(d);
         await _createReturns(d);
+        await _createIdempotency(d);
       },
       onUpgrade: (d, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -51,6 +52,11 @@ class ShopDb {
           await d.execute('ALTER TABLE stock_movements ADD COLUMN value_delta_djf INTEGER NOT NULL DEFAULT 0');
           await d.execute('UPDATE products SET inventory_value_djf = CAST(ROUND(stock_grams * COALESCE(cost,0) / 1000.0) AS INTEGER) WHERE inventory_value_djf=0 AND stock_grams>0');
         }
+        if (oldVersion < 6) {
+          await d.execute('ALTER TABLE purchases ADD COLUMN source_draft_id INTEGER');
+          await d.execute('ALTER TABLE sales ADD COLUMN source_draft_id INTEGER');
+          await _createIdempotency(d);
+        }
       },
     );
   }
@@ -69,7 +75,7 @@ class ShopDb {
     await d.execute('''CREATE TABLE purchases(
       id INTEGER PRIMARY KEY AUTOINCREMENT, supplier_id INTEGER, date TEXT NOT NULL,
       total REAL NOT NULL, paid REAL NOT NULL, note TEXT, due_date TEXT,
-      status TEXT NOT NULL DEFAULT 'posted',
+      status TEXT NOT NULL DEFAULT 'posted', source_draft_id INTEGER,
       FOREIGN KEY(supplier_id) REFERENCES suppliers(id))''');
     await d.execute('''CREATE TABLE purchase_items(
       id INTEGER PRIMARY KEY AUTOINCREMENT, purchase_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
@@ -79,7 +85,7 @@ class ShopDb {
       FOREIGN KEY(purchase_id) REFERENCES purchases(id), FOREIGN KEY(product_id) REFERENCES products(id))''');
     await d.execute('''CREATE TABLE sales(
       id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER, date TEXT NOT NULL,
-      total REAL NOT NULL, paid REAL NOT NULL, due_date TEXT, status TEXT NOT NULL DEFAULT 'posted',
+      total REAL NOT NULL, paid REAL NOT NULL, due_date TEXT, status TEXT NOT NULL DEFAULT 'posted', source_draft_id INTEGER,
       FOREIGN KEY(customer_id) REFERENCES customers(id))''');
     await d.execute('''CREATE TABLE sale_items(
       id INTEGER PRIMARY KEY AUTOINCREMENT, sale_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
@@ -139,6 +145,11 @@ class ShopDb {
     await d.execute('CREATE INDEX IF NOT EXISTS idx_payments_party_date ON payments(party_type, party_id, date)');
   }
 
+
+  Future<void> _createIdempotency(DatabaseExecutor d) async {
+    await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_source_draft ON purchases(source_draft_id) WHERE source_draft_id IS NOT NULL');
+    await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_source_draft ON sales(source_draft_id) WHERE source_draft_id IS NOT NULL');
+  }
 
   Future<void> _createDrafts(DatabaseExecutor d) async {
     await d.execute('''CREATE TABLE IF NOT EXISTS invoice_drafts(
@@ -370,13 +381,23 @@ class ShopDb {
     });
   }
 
-  Future<void> savePurchase({
+  Future<int> savePurchase({
     required int supplierId, required List<Map<String, dynamic>> items,
     required int paid, String? dueDate, String? note, DateTime? transactionDate,
+    int? draftId,
   }) async {
     if (items.isEmpty) throw Exception('أضف صنفاً واحداً على الأقل');
     final txDate = (transactionDate ?? DateTime.now()).toIso8601String();
-    await db.transaction((tx) async {
+    return db.transaction((tx) async {
+      if (draftId != null) {
+        final posted = await tx.query('purchases', columns: ['id'], where: 'source_draft_id = ?', whereArgs: [draftId], limit: 1);
+        if (posted.isNotEmpty) {
+          await tx.delete('invoice_drafts', where: 'id = ? AND invoice_type = ?', whereArgs: [draftId, 'purchase']);
+          return (posted.first['id'] as num).toInt();
+        }
+        final draft = await tx.query('invoice_drafts', where: 'id = ? AND invoice_type = ?', whereArgs: [draftId, 'purchase'], limit: 1);
+        if (draft.isEmpty) throw Exception('مسودة التوريد غير موجودة أو سبق ترحيلها');
+      }
       int total = 0;
       for (final x in items) {
         final packs = (x['packages'] as num).toInt();
@@ -389,6 +410,7 @@ class ShopDb {
       final purchaseId = await tx.insert('purchases', {
         'supplier_id': supplierId, 'date': txDate,
         'total': total, 'paid': paid, 'due_date': dueDate, 'note': note, 'status': 'posted',
+        'source_draft_id': draftId,
       });
       for (final x in items) {
         final packs = (x['packages'] as num).toInt();
@@ -429,16 +451,27 @@ class ShopDb {
           'invoice_id': purchaseId, 'amount': paid,
         });
       }
+      if (draftId != null) await tx.delete('invoice_drafts', where: 'id = ?', whereArgs: [draftId]);
+      return purchaseId;
     });
   }
 
-  Future<void> saveSale({
+  Future<int> saveSale({
     required int? customerId, required List<Map<String, dynamic>> items,
-    required int paid, String? dueDate, DateTime? transactionDate,
+    required int paid, String? dueDate, DateTime? transactionDate, int? draftId,
   }) async {
     if (items.isEmpty) throw Exception('السلة فارغة');
     final txDate = (transactionDate ?? DateTime.now()).toIso8601String();
-    await db.transaction((tx) async {
+    return db.transaction((tx) async {
+      if (draftId != null) {
+        final posted = await tx.query('sales', columns: ['id'], where: 'source_draft_id = ?', whereArgs: [draftId], limit: 1);
+        if (posted.isNotEmpty) {
+          await tx.delete('invoice_drafts', where: 'id = ? AND invoice_type = ?', whereArgs: [draftId, 'sale']);
+          return (posted.first['id'] as num).toInt();
+        }
+        final draft = await tx.query('invoice_drafts', where: 'id = ? AND invoice_type = ?', whereArgs: [draftId, 'sale'], limit: 1);
+        if (draft.isEmpty) throw Exception('مسودة البيع غير موجودة أو سبق ترحيلها');
+      }
       int total = 0;
       final itemCosts = <Map<String,int>>[];
       final requestedByProduct = <int,int>{};
@@ -467,6 +500,7 @@ class ShopDb {
       final saleId = await tx.insert('sales', {
         'customer_id': customerId, 'date': txDate,
         'total': total, 'paid': paid, 'due_date': dueDate, 'status': 'posted',
+        'source_draft_id': draftId,
       });
       for (var i = 0; i < items.length; i++) {
         final x = items[i];
@@ -500,6 +534,8 @@ class ShopDb {
           'payment_id': paymentId, 'invoice_type': 'sale', 'invoice_id': saleId, 'amount': paid,
         });
       }
+      if (draftId != null) await tx.delete('invoice_drafts', where: 'id = ?', whereArgs: [draftId]);
+      return saleId;
     });
   }
 
