@@ -52,16 +52,16 @@ class DashboardPage extends StatelessWidget {
  @override Widget build(BuildContext c)=>FutureBuilder<List<num>>(future:load(),builder:(c,s){
   if(!s.hasData)return const Center(child:CircularProgressIndicator());
   final x=s.data!;
-  return ListView(padding:const EdgeInsets.all(12),children:[
-   Card(color:Theme.of(c).colorScheme.primaryContainer,child:Padding(padding:const EdgeInsets.all(18),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-    const Text('مبيعات اليوم'),Text(money(x[0]),style:Theme.of(c).textTheme.headlineMedium)]))),
-   ListTile(title:const Text('مشتريات اليوم'),trailing:Text(money(x[1]))),
-   ListTile(title:const Text('عدد الأصناف'),trailing:Text(x[2].toString())),
-   ListTile(title:const Text('كمية المخزون'),trailing:Text(kg(x[3]))),
-   const Padding(padding:EdgeInsets.all(12),child:Text('نظام محلي لمحل واحد. البيع بالكيلو أو حسب المبلغ، والتوريد بوحدات وأوزان متغيرة.',style:TextStyle(height:1.6)))
+  Widget metric(String label,String value,IconData icon)=>Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[CircleAvatar(child:Icon(icon)),const SizedBox(width:8),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(fontSize:11)),Text(value,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:14))]))])));
+  Widget action(String label,IconData icon,Widget page)=>Card(child:InkWell(onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>page)),child:Padding(padding:const EdgeInsets.symmetric(vertical:12,horizontal:5),child:Column(children:[Icon(icon,size:24),const SizedBox(height:5),Text(label,style:const TextStyle(fontSize:10,fontWeight:FontWeight.w600))]))));
+  return ListView(padding:const EdgeInsets.all(10),children:[
+   Card(color:Theme.of(c).colorScheme.primaryContainer,child:Padding(padding:const EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('ملخص اليوم'),Text(money(x[0]),style:Theme.of(c).textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),const Text('إجمالي فواتير البيع المسجلة اليوم')]))),
+   GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,childAspectRatio:2.2,children:[metric('مشتريات اليوم',money(x[1]),Icons.local_shipping_outlined),metric('عدد الأصناف',x[2].toString(),Icons.category_outlined),metric('المخزون الحالي',kg(x[3]),Icons.inventory_2_outlined),metric('النظام','محلي • محل واحد',Icons.storefront_outlined)]),
+   const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('الوصول السريع',style:TextStyle(fontWeight:FontWeight.bold,fontSize:15))),
+   GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,childAspectRatio:.9,children:[action('الأصناف',Icons.category,const ProductsPage()),action('الفواتير',Icons.receipt_long,const InvoicesPage()),action('الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),action('الزبائن',Icons.people,const PartiesPage(type:'customer')),action('الحسابات',Icons.account_balance,const AccountsPage()),action('المرتجعات',Icons.assignment_return,const ReturnsPage()),action('المسودات',Icons.drafts,const DraftsPage()),action('الإدارة',Icons.settings,const AdminPage())]),
+   const Padding(padding:EdgeInsets.all(8),child:Text('كل فاتورة بيع أو توريد تُرحّل إلى المخزون والحسابات، وتظهر في سجل الفواتير.',style:TextStyle(height:1.5)))
   ]);
  });
-}
 class SalePage extends StatefulWidget {const SalePage({super.key});@override State<SalePage> createState()=>_SalePageState();}
 class _SalePageState extends State<SalePage>{
  final Map<int,Map<String,dynamic>> cart={};
