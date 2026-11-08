@@ -442,21 +442,10 @@ class ShopDb {
           'unit_cost': grams == 0 ? 0 : lineTotal / (grams / 1000),
           'line_total': lineTotal, 'package_cost': packageCost, 'kg_cost': kgCost,
         });
-        final currentRows = await tx.query('products', columns: ['stock_grams','inventory_value_djf'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
-        if (currentRows.isEmpty) throw Exception('الصنف غير موجود');
-        final addedValue = lineTotal;
-        await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams + ?, stock = (stock_grams + ?) / 1000.0, inventory_value_djf = inventory_value_djf + ? WHERE id = ?',
-            [grams, grams, addedValue, x['product_id']]);
-        await tx.insert('stock_movements', {
-          'product_id': x['product_id'], 'movement_type': 'purchase',
-          'source_type': 'purchase', 'source_id': purchaseId, 'quantity_grams': grams,
-          'unit_cost_per_kg': kgCost, 'value_delta_djf': addedValue, 'created_at': txDate,
-        });
-        await tx.insert('purchase_batches', {
-          'purchase_item_id': itemId, 'product_id': x['product_id'],
-          'quantity_grams': grams, 'remaining_grams': grams, 'cost_per_kg': kgCost,
-          'expiry_date': x['expiry_date'],
-        });
+        final productExists = await tx.query('products', columns: ['id'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
+        if (productExists.isEmpty) throw Exception('الصنف غير موجود');
+        // Supplier invoices are independent documents: they never create or change sale stock.
+
       }
       if (paid > 0) {
         final paymentId = await tx.insert('payments', {
@@ -490,27 +479,11 @@ class ShopDb {
         if (draft.isEmpty) throw Exception('مسودة البيع غير موجودة أو سبق ترحيلها');
       }
       int total = 0;
-      final itemCosts = <Map<String,int>>[];
-      final requestedByProduct = <int,int>{};
       for (final x in items) {
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
-        final product = await tx.query('products', where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
-        if (product.isEmpty) throw Exception('الصنف غير موجود');
         if (grams <= 0 || price < 0) throw Exception('راجع كمية وسعر الصنف');
-        final productId = (x['product_id'] as num).toInt();
-        requestedByProduct[productId] = (requestedByProduct[productId] ?? 0) + grams;
         total += ((grams * price) / 1000).round();
-        final stockGrams = (product.first['stock_grams'] as num).toInt();
-        final stockValue = (product.first['inventory_value_djf'] as num).toInt();
-        final costPerKg = stockGrams > 0 ? ((stockValue * 1000) / stockGrams).round() : 0;
-        itemCosts.add({'cost': ((grams * costPerKg) / 1000).round(), 'costPerKg': costPerKg});
-      }
-      for (final entry in requestedByProduct.entries) {
-        final stock = await tx.query('products', columns: ['stock_grams','name'], where: 'id = ?', whereArgs: [entry.key], limit: 1);
-        if (stock.isEmpty || (stock.first['stock_grams'] as num).toInt() < entry.value) {
-          throw Exception('الكمية الإجمالية غير كافية: ${stock.isEmpty ? entry.key : stock.first['name']}');
-        }
       }
       if (paid < 0 || paid > total) throw Exception('قيمة المدفوع غير صحيحة');
       if (customerId == null && paid != total) throw Exception('البيع الآجل يتطلب اختيار زبون مسجل');
@@ -524,23 +497,15 @@ class ShopDb {
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
         final line = ((grams * price) / 1000).round();
-        final cost = itemCosts[i];
         await tx.insert('sale_items', {
           'sale_id': saleId, 'product_id': x['product_id'],
           'quantity': grams / 1000, 'unit_price': price,
           'line_total': line, 'quantity_grams': grams, 'price_per_kg': price,
-          'cost_total_djf': cost['cost'],
-          'cost_per_kg_snapshot': cost['costPerKg'],
+          'cost_total_djf': 0,
+          'cost_per_kg_snapshot': 0,
         });
-        final costValue = cost['cost']!;
-        await tx.rawUpdate('UPDATE products SET stock_grams = stock_grams - ?, stock = (stock_grams - ?) / 1000.0, inventory_value_djf = MAX(0, inventory_value_djf - ?) WHERE id = ?',
-            [grams, grams, costValue, x['product_id']]);
-        await tx.insert('stock_movements', {
-          'product_id': x['product_id'], 'movement_type': 'sale',
-          'source_type': 'sale', 'source_id': saleId, 'quantity_grams': -grams,
-          'unit_cost_per_kg': cost['costPerKg'],
-          'value_delta_djf': -costValue, 'created_at': txDate,
-        });
+        // The sales cashier is standalone and never reads, validates, or decrements stock.
+
       }
       if (customerId != null && paid > 0) {
         final paymentId = await tx.insert('payments', {
