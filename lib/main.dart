@@ -255,12 +255,96 @@ class _PartiesPageState extends State<PartiesPage>{
   body:FutureBuilder<List<Map<String,Object?>>>(future:rows(table),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((x)=>ListTile(leading:const Icon(Icons.person_outline),title:Text(x['name'] as String),subtitle:Text((x['phone']??'').toString()))).toList());}),
   floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة')));}
 }
-class InvoicesPage extends StatelessWidget {const InvoicesPage({super.key});@override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('الفواتير')),
- body:FutureBuilder<List<List<Map<String,Object?>>>>(future:Future.wait([rows('sales'),rows('purchases')]),builder:(c,s){
-  if(!s.hasData)return const Center(child:CircularProgressIndicator());
-  final all=<Map<String,Object?>>[...s.data![0].map((x)=>{...x,'kind':'بيع'}),...s.data![1].map((x)=>{...x,'kind':'توريد'})]..sort((a,b)=>(b['id'] as int).compareTo(a['id'] as int));
-  return ListView(children:all.map((x)=>ListTile(title:Text((x['kind'] as String)+' رقم '+x['id'].toString()),subtitle:Text(x['date'].toString()),trailing:Text(money(x['total'] as num)))).toList());
- }));}
+class InvoicesPage extends StatelessWidget {
+ const InvoicesPage({super.key});
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:const Text('الفواتير')),
+  body:FutureBuilder<List<List<Map<String,Object?>>>>(
+   future:Future.wait([rows('sales'),rows('purchases')]),
+   builder:(c,s){
+    if(!s.hasData)return const Center(child:CircularProgressIndicator());
+    final all=<Map<String,Object?>>[
+     ...s.data![0].map((x)=>{...x,'kind':'بيع'}),
+     ...s.data![1].map((x)=>{...x,'kind':'توريد'})
+    ]..sort((a,b)=>(b['id'] as int).compareTo(a['id'] as int));
+    if(all.isEmpty)return const Center(child:Text('لا توجد فواتير محفوظة بعد'));
+    return ListView.separated(
+     itemCount:all.length,separatorBuilder:(_,__)=>const Divider(height:1),
+     itemBuilder:(c,i){
+      final x=all[i],sale=x['kind']=='بيع';
+      return ListTile(
+       leading:CircleAvatar(child:Icon(sale?Icons.point_of_sale:Icons.local_shipping_outlined)),
+       title:Text((sale?'فاتورة بيع رقم ':'فاتورة مورد رقم ')+x['id'].toString()),
+       subtitle:Text(x['date'].toString()+' • '+money(x['paid'] as num)+' مدفوع • '+money((x['total'] as num)-(x['paid'] as num))+' متبقٍ'),
+       trailing:Text(money(x['total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
+       onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>InvoiceDetailPage(type:sale?'sale':'purchase',invoiceId:x['id'] as int))),
+      );
+     });
+   }));
+}
+
+class InvoiceDetailPage extends StatelessWidget {
+ final String type;
+ final int invoiceId;
+ const InvoiceDetailPage({super.key,required this.type,required this.invoiceId});
+ Future<Map<String,Object?>> load() async {
+  final sale=type=='sale';
+  final header=(await ShopDb.instance.query(sale?'sales':'purchases',orderBy:'id DESC'))
+    .firstWhere((x)=>x['id']==invoiceId);
+  final lines=await ShopDb.instance.db.rawQuery(
+   sale
+    ? 'SELECT si.*,p.name product_name FROM sale_items si LEFT JOIN products p ON p.id=si.product_id WHERE si.sale_id=? ORDER BY si.id'
+    : 'SELECT pi.*,p.name product_name FROM purchase_items pi LEFT JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id',
+   [invoiceId]);
+  String? party;
+  final partyId=header[sale?'customer_id':'supplier_id'];
+  if(partyId!=null){
+   final list=await ShopDb.instance.query(sale?'customers':'suppliers');
+   final found=list.where((x)=>x['id']==partyId);
+   if(found.isNotEmpty)party=found.first['name'] as String?;
+  }
+  return {'header':header,'lines':lines,'party':party??(sale?'نقدي / غير مسجل':'غير محدد')};
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:Text((type=='sale'?'فاتورة بيع #':'فاتورة مورد #')+invoiceId.toString())),
+  body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر فتح الفاتورة: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   final h=s.data!['header'] as Map<String,Object?>;
+   final lines=s.data!['lines'] as List<Map<String,Object?>>;
+   final sale=type=='sale',total=h['total'] as num,paid=h['paid'] as num;
+   return ListView(padding:const EdgeInsets.all(12),children:[
+    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Text(sale?'فاتورة مبيعات':'فاتورة توريد',style:Theme.of(c).textTheme.titleLarge),
+     Text('رقم الفاتورة: $invoiceId'),
+     Text('التاريخ: ${h['date']}'),
+     Text((sale?'الزبون: ':'المورد: ')+s.data!['party'].toString()),
+    ]))),
+    const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold))),
+    ...lines.map((x){
+     final quantity=sale?((x['quantity_grams'] as num)/1000):((x['quantity'] as num));
+     final unitPrice=sale?x['price_per_kg']:x['package_cost'];
+     return Card(child:ListTile(
+      title:Text((x['product_name']??'صنف محذوف').toString()),
+      subtitle:Text(sale?'الكمية: ${quantity.toStringAsFixed(3)} كجم • سعر الكيلو: ${money(unitPrice as num)}':'العبوات: ${x['packages']} • وزن العبوة: ${x['weight_each']} كجم • سعر العبوة: ${money(unitPrice as num)}'),
+      trailing:Text(money(x['line_total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
+     ));
+    }),
+    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[
+     _invoiceAmount('الإجمالي',total),
+     _invoiceAmount('المدفوع',paid),
+     const Divider(),
+     _invoiceAmount('المتبقي',total-paid),
+    ]))),
+    const Text('هذه الفاتورة مستقلة؛ لا يتم ترحيلها إلى مخزون المبيعات.'),
+   ]);
+  }));
+}
+
+Widget _invoiceAmount(String label,num amount)=>Padding(
+ padding:const EdgeInsets.symmetric(vertical:4),
+ child:Row(children:[Expanded(child:Text(label)),Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))]));
+
 
 
 class ReturnsPage extends StatefulWidget {
