@@ -147,7 +147,7 @@ class _SalePageState extends State<SalePage>{
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ترحيل الفاتورة'))])));
   if(ok!=true)return;
-  try{await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim());if(activeDraftId!=null)await ShopDb.instance.deleteDraft(activeDraftId!);activeDraftId=null;cart.clear();if(mounted)setState((){});}
+  try{await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim(),draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted)setState((){});}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  @override Widget build(BuildContext c)=>Column(children:[
@@ -204,7 +204,7 @@ class _PurchasePageState extends State<PurchasePage>{
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ترحيل'))])));
   if(ok!=true)return;if(supplier==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اختر المورد أولاً')));return;}
-  try{await ShopDb.instance.savePurchase(supplierId:supplier!,items:cart,paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim());if(activeDraftId!=null)await ShopDb.instance.deleteDraft(activeDraftId!);activeDraftId=null;cart.clear();if(mounted)setState((){});}
+  try{await ShopDb.instance.savePurchase(supplierId:supplier!,items:cart,paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim(),draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted)setState((){});}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  @override Widget build(BuildContext c)=>Column(children:[
