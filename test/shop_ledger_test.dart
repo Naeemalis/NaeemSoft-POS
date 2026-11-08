@@ -15,157 +15,98 @@ void main() {
     await shop.close();
   });
 
-  test('60-day shop ledger: purchases, weighted cost, split sales and credit', () async {
-    final supplier = await shop.db.insert('suppliers', {'name': 'مورد الخضار'});
-    final customer = await shop.db.insert('customers', {'name': 'زبون آجل'});
-    final onion = await shop.addProduct('بصل اختبار', 'جوان', 50000, 250);
+  test('supplier invoice is independent and does not increase sales stock', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد مستقل'});
+    final product = await shop.addProduct('بصل', 'جوان', 50000, 250);
 
-    await shop.savePurchase(
+    final id = await shop.savePurchase(
       supplierId: supplier,
-      transactionDate: DateTime(2026, 9, 1),
       paid: 10000,
       items: [
-        {'product_id': onion, 'unit': 'جوان', 'packages': 2, 'weight_grams': 50000, 'package_cost': 25000},
+        {'product_id': product, 'unit': 'جوان', 'packages': 2,
+         'weight_grams': 50000, 'package_cost': 25000},
       ],
     );
-    var product = (await shop.db.query('products', where: 'id=?', whereArgs: [onion])).single;
-    expect(product['stock_grams'], 100000);
-    expect(product['inventory_value_djf'], 50000);
 
-    await shop.saveSale(
+    expect(id, greaterThan(0));
+    final stock = await shop.db.query('products', where: 'id=?', whereArgs: [product]);
+    expect(stock.single['stock_grams'], 0);
+    expect(await shop.db.query('stock_movements'), isEmpty);
+    final invoice = await shop.db.query('purchases', where: 'id=?', whereArgs: [id]);
+    expect(invoice.single['total'], 50000);
+    expect(invoice.single['paid'], 10000);
+  });
+
+  test('cashier invoice sells without checking or changing stock', () async {
+    final customer = await shop.db.insert('customers', {'name': 'زبون'});
+    final product = await shop.addProduct('طماطم', 'صندوق', 10000, 200);
+
+    final id = await shop.saveSale(
       customerId: customer,
-      transactionDate: DateTime(2026, 9, 15),
       paid: 500,
-      items: [{'product_id': onion, 'grams': 10000, 'price_per_kg': 200}],
+      items: [
+        {'product_id': product, 'grams': 5000, 'price_per_kg': 200},
+      ],
     );
-    product = (await shop.db.query('products', where: 'id=?', whereArgs: [onion])).single;
-    expect(product['stock_grams'], 90000);
-    expect(product['inventory_value_djf'], 45000);
+
+    expect(id, greaterThan(0));
+    final stock = await shop.db.query('products', where: 'id=?', whereArgs: [product]);
+    expect(stock.single['stock_grams'], 0);
+    expect(await shop.db.query('stock_movements'), isEmpty);
+    final invoice = await shop.db.query('sales', where: 'id=?', whereArgs: [id]);
+    expect(invoice.single['total'], 1000);
+    expect(invoice.single['paid'], 500);
+  });
+
+  test('supplier and customer invoices and balances remain separate', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final customer = await shop.db.insert('customers', {'name': 'زبون'});
+    final product = await shop.addProduct('ليمون', 'جوان', 3000, 300);
 
     await shop.savePurchase(
-      supplierId: supplier,
-      transactionDate: DateTime(2026, 10, 10),
-      paid: 0,
+      supplierId: supplier, paid: 0,
       items: [
-        {'product_id': onion, 'unit': 'جوان', 'packages': 1, 'weight_grams': 50000, 'package_cost': 30000},
+        {'product_id': product, 'unit': 'جوان', 'packages': 1,
+         'weight_grams': 3000, 'package_cost': 900},
       ],
     );
-
-    // Two separate cart lines for the same product must each retain their own COGS.
     await shop.saveSale(
-      customerId: customer,
-      transactionDate: DateTime(2026, 10, 30),
-      paid: 1000,
-      items: [
-        {'product_id': onion, 'grams': 10000, 'price_per_kg': 250},
-        {'product_id': onion, 'grams': 10000, 'price_per_kg': 250},
-      ],
+      customerId: customer, paid: 0,
+      items: [{'product_id': product, 'grams': 3000, 'price_per_kg': 500}],
     );
 
-    product = (await shop.db.query('products', where: 'id=?', whereArgs: [onion])).single;
-    expect(product['stock_grams'], 120000);
-    final items = await shop.db.rawQuery(
-      'SELECT SUM(cost_total_djf) AS c FROM sale_items',
-    );
-    expect(items.single['c'], 15720);
-
-    final sales = await shop.db.rawQuery(
-      'SELECT SUM(total-paid) AS due FROM sales WHERE customer_id=?',
-      [customer],
-    );
-    expect(sales.single['due'], 5500);
-
-    final purchases = await shop.db.rawQuery(
-      'SELECT SUM(total-paid) AS due FROM purchases WHERE supplier_id=?',
+    final supplierDue = await shop.db.rawQuery(
+      'SELECT COALESCE(SUM(total-paid),0) due FROM purchases WHERE supplier_id=?',
       [supplier],
     );
-    expect(purchases.single['due'], 70000);
-
-    final movements = await shop.db.rawQuery(
-      'SELECT SUM(quantity_grams) AS q, SUM(value_delta_djf) AS v FROM stock_movements WHERE product_id=?',
-      [onion],
+    final customerDue = await shop.db.rawQuery(
+      'SELECT COALESCE(SUM(total-paid),0) due FROM sales WHERE customer_id=?',
+      [customer],
     );
-    expect(movements.single['q'], 120000);
-    expect(movements.single['v'], 64280);
-
-    // Aggregate validation must reject two individually valid lines whose sum exceeds stock.
-    await expectLater(
-      shop.saveSale(
-        customerId: customer,
-        paid: 0,
-        items: [
-          {'product_id': onion, 'grams': 70000, 'price_per_kg': 250},
-          {'product_id': onion, 'grams': 70000, 'price_per_kg': 250},
-        ],
-      ),
-      throwsA(isA<Exception>()),
-    );
-    product = (await shop.db.query('products', where: 'id=?', whereArgs: [onion])).single;
-    expect(product['stock_grams'], 120000);
+    expect(supplierDue.single['due'], 900);
+    expect(customerDue.single['due'], 1500);
+    expect(await shop.db.query('stock_movements'), isEmpty);
   });
 
-  test('posting the same saved draft twice creates only one invoice and one stock movement set', () async {
-    final supplier = await shop.db.insert('suppliers', {'name': 'مورد اختبار التكرار'});
-    final productId = await shop.addProduct('طماطم اختبار التكرار', 'صندوق', 10000, 200);
-    final purchaseItems = [
-      {'product_id': productId, 'unit': 'صندوق', 'packages': 2, 'weight_grams': 10000, 'package_cost': 1000},
+  test('posting the same draft twice does not duplicate an invoice', () async {
+    final customer = await shop.db.insert('customers', {'name': 'زبون'});
+    final product = await shop.addProduct('خيار', 'صندوق', 10000, 200);
+    final items = [
+      {'product_id': product, 'grams': 1000, 'price_per_kg': 200},
     ];
-    final purchaseDraftId = await shop.saveDraft(
-      type: 'purchase',
-      items: purchaseItems,
-      total: 2000,
+    final draft = await shop.saveDraft(
+      type: 'sale', items: items, total: 200, paid: 200,
     );
 
-    final firstPurchaseId = await shop.savePurchase(
-      supplierId: supplier,
-      items: purchaseItems,
-      paid: 0,
-      draftId: purchaseDraftId,
+    final first = await shop.saveSale(
+      customerId: customer, items: items, paid: 200, draftId: draft,
     );
-    final repeatedPurchaseId = await shop.savePurchase(
-      supplierId: supplier,
-      items: purchaseItems,
-      paid: 0,
-      draftId: purchaseDraftId,
+    final second = await shop.saveSale(
+      customerId: customer, items: items, paid: 200, draftId: draft,
     );
 
-    expect(repeatedPurchaseId, firstPurchaseId);
-    expect(await shop.db.rawQuery('SELECT id FROM purchases WHERE source_draft_id=?', [purchaseDraftId]), hasLength(1));
-    expect(await shop.db.rawQuery('SELECT id FROM invoice_drafts WHERE id=?', [purchaseDraftId]), isEmpty);
-
-    var product = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
-    expect(product['stock_grams'], 20000);
-
-    final saleItems = [
-      {'product_id': productId, 'grams': 1000, 'price_per_kg': 200},
-    ];
-    final saleDraftId = await shop.saveDraft(
-      type: 'sale',
-      items: saleItems,
-      total: 200,
-      paid: 200,
-    );
-    final firstSaleId = await shop.saveSale(
-      customerId: null,
-      items: saleItems,
-      paid: 200,
-      draftId: saleDraftId,
-    );
-    final repeatedSaleId = await shop.saveSale(
-      customerId: null,
-      items: saleItems,
-      paid: 200,
-      draftId: saleDraftId,
-    );
-
-    expect(repeatedSaleId, firstSaleId);
-    expect(await shop.db.rawQuery('SELECT id FROM sales WHERE source_draft_id=?', [saleDraftId]), hasLength(1));
-    expect(await shop.db.rawQuery('SELECT id FROM invoice_drafts WHERE id=?', [saleDraftId]), isEmpty);
-    product = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
-    expect(product['stock_grams'], 19000);
-
-    final movementCount = await shop.db.rawQuery('SELECT COUNT(*) n FROM stock_movements WHERE product_id=?', [productId]);
-    expect(movementCount.single['n'], 2);
+    expect(second, first);
+    expect(await shop.db.query('sales', where: 'source_draft_id=?', whereArgs: [draft]), hasLength(1));
+    expect(await shop.db.query('stock_movements'), isEmpty);
   });
-
 }
