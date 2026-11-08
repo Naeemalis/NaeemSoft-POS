@@ -116,8 +116,10 @@ class _SalePageState extends State<SalePage>{
     await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),partyId:customer,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);
    }
    activeDraftId=draftId;
-   await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:paidAmount,dueDate:dueDate,draftId:draftId);
-   activeDraftId=null;cart.clear();if(mounted)setState((){});
+   final invoiceTotal=total;
+   final invoiceId=await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:paidAmount,dueDate:dueDate,draftId:draftId);
+   activeDraftId=null;cart.clear();
+   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة بيع رقم $invoiceId'),content:Text('الإجمالي: '+money(invoiceTotal)+'\\nالمدفوع: '+money(paidAmount)+'\\nالمتبقي: '+money(invoiceTotal-paidAmount)+'\\nتم تحديث المخزون وحساب الزبون.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
