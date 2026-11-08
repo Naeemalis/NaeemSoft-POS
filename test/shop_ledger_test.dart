@@ -103,4 +103,69 @@ void main() {
     product = (await shop.db.query('products', where: 'id=?', whereArgs: [onion])).single;
     expect(product['stock_grams'], 120000);
   });
+
+  test('posting the same saved draft twice creates only one invoice and one stock movement set', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد اختبار التكرار'});
+    final productId = await shop.addProduct('طماطم اختبار التكرار', 'صندوق', 10000, 200);
+    final purchaseItems = [
+      {'product_id': productId, 'unit': 'صندوق', 'packages': 2, 'weight_grams': 10000, 'package_cost': 1000},
+    ];
+    final purchaseDraftId = await shop.saveDraft(
+      type: 'purchase',
+      items: purchaseItems,
+      total: 2000,
+    );
+
+    final firstPurchaseId = await shop.savePurchase(
+      supplierId: supplier,
+      items: purchaseItems,
+      paid: 0,
+      draftId: purchaseDraftId,
+    );
+    final repeatedPurchaseId = await shop.savePurchase(
+      supplierId: supplier,
+      items: purchaseItems,
+      paid: 0,
+      draftId: purchaseDraftId,
+    );
+
+    expect(repeatedPurchaseId, firstPurchaseId);
+    expect(await shop.db.rawQuery('SELECT id FROM purchases WHERE source_draft_id=?', [purchaseDraftId]), hasLength(1));
+    expect(await shop.db.rawQuery('SELECT id FROM invoice_drafts WHERE id=?', [purchaseDraftId]), isEmpty);
+
+    var product = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
+    expect(product['stock_grams'], 20000);
+
+    final saleItems = [
+      {'product_id': productId, 'grams': 1000, 'price_per_kg': 200},
+    ];
+    final saleDraftId = await shop.saveDraft(
+      type: 'sale',
+      items: saleItems,
+      total: 200,
+      paid: 200,
+    );
+    final firstSaleId = await shop.saveSale(
+      customerId: null,
+      items: saleItems,
+      paid: 200,
+      draftId: saleDraftId,
+    );
+    final repeatedSaleId = await shop.saveSale(
+      customerId: null,
+      items: saleItems,
+      paid: 200,
+      draftId: saleDraftId,
+    );
+
+    expect(repeatedSaleId, firstSaleId);
+    expect(await shop.db.rawQuery('SELECT id FROM sales WHERE source_draft_id=?', [saleDraftId]), hasLength(1));
+    expect(await shop.db.rawQuery('SELECT id FROM invoice_drafts WHERE id=?', [saleDraftId]), isEmpty);
+    product = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
+    expect(product['stock_grams'], 19000);
+
+    final movementCount = await shop.db.rawQuery('SELECT COUNT(*) n FROM stock_movements WHERE product_id=?', [productId]);
+    expect(movementCount.single['n'], 2);
+  });
+
 }
