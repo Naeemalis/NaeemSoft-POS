@@ -46,15 +46,27 @@ class ShopDb {
           await _createReturns(d);
         }
         if (oldVersion < 5) {
-          await d.execute('ALTER TABLE products ADD COLUMN inventory_value_djf INTEGER NOT NULL DEFAULT 0');
-          await d.execute('ALTER TABLE sale_items ADD COLUMN cost_total_djf INTEGER NOT NULL DEFAULT 0');
-          await d.execute('ALTER TABLE sale_items ADD COLUMN cost_per_kg_snapshot INTEGER NOT NULL DEFAULT 0');
-          await d.execute('ALTER TABLE stock_movements ADD COLUMN value_delta_djf INTEGER NOT NULL DEFAULT 0');
+          if (!await _hasColumn(d, 'products', 'inventory_value_djf')) {
+            await d.execute('ALTER TABLE products ADD COLUMN inventory_value_djf INTEGER NOT NULL DEFAULT 0');
+          }
+          if (!await _hasColumn(d, 'sale_items', 'cost_total_djf')) {
+            await d.execute('ALTER TABLE sale_items ADD COLUMN cost_total_djf INTEGER NOT NULL DEFAULT 0');
+          }
+          if (!await _hasColumn(d, 'sale_items', 'cost_per_kg_snapshot')) {
+            await d.execute('ALTER TABLE sale_items ADD COLUMN cost_per_kg_snapshot INTEGER NOT NULL DEFAULT 0');
+          }
+          if (!await _hasColumn(d, 'stock_movements', 'value_delta_djf')) {
+            await d.execute('ALTER TABLE stock_movements ADD COLUMN value_delta_djf INTEGER NOT NULL DEFAULT 0');
+          }
           await d.execute('UPDATE products SET inventory_value_djf = CAST(ROUND(stock_grams * COALESCE(cost,0) / 1000.0) AS INTEGER) WHERE inventory_value_djf=0 AND stock_grams>0');
         }
         if (oldVersion < 6) {
-          await d.execute('ALTER TABLE purchases ADD COLUMN source_draft_id INTEGER');
-          await d.execute('ALTER TABLE sales ADD COLUMN source_draft_id INTEGER');
+          if (!await _hasColumn(d, 'purchases', 'source_draft_id')) {
+            await d.execute('ALTER TABLE purchases ADD COLUMN source_draft_id INTEGER');
+          }
+          if (!await _hasColumn(d, 'sales', 'source_draft_id')) {
+            await d.execute('ALTER TABLE sales ADD COLUMN source_draft_id INTEGER');
+          }
           await _createIdempotency(d);
         }
       },
@@ -62,6 +74,11 @@ class ShopDb {
   }
 
   Future<void> close() async { if (db.isOpen) await db.close(); }
+
+  Future<bool> _hasColumn(DatabaseExecutor d, String table, String column) async {
+    final columns = await d.rawQuery('PRAGMA table_info($table)');
+    return columns.any((row) => row['name'] == column);
+  }
 
   Future<void> _createBase(DatabaseExecutor d) async {
     await d.execute('''CREATE TABLE products(
