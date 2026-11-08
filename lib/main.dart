@@ -59,7 +59,7 @@ class DashboardPage extends StatelessWidget {
    GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,childAspectRatio:2.2,children:[metric('مشتريات اليوم',money(x[1]),Icons.local_shipping_outlined),metric('عدد الأصناف',x[2].toString(),Icons.category_outlined),metric('المخزون الحالي',kg(x[3]),Icons.inventory_2_outlined),metric('النظام','محلي • محل واحد',Icons.storefront_outlined)]),
    const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('الوصول السريع',style:TextStyle(fontWeight:FontWeight.bold,fontSize:15))),
    GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,childAspectRatio:.9,children:[action('الأصناف',Icons.category,const ProductsPage()),action('الفواتير',Icons.receipt_long,const InvoicesPage()),action('الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),action('الزبائن',Icons.people,const PartiesPage(type:'customer')),action('الحسابات',Icons.account_balance,const AccountsPage()),action('المرتجعات',Icons.assignment_return,const ReturnsPage()),action('المسودات',Icons.drafts,const DraftsPage()),action('الإدارة',Icons.settings,const AdminPage())]),
-   const Padding(padding:EdgeInsets.all(8),child:Text('كل فاتورة بيع أو توريد تُرحّل إلى المخزون والحسابات، وتظهر في سجل الفواتير.',style:TextStyle(height:1.5)))
+   const Padding(padding:EdgeInsets.all(8),child:Text('فواتير الموردين وفواتير العملاء مستقلة. الكاشير لا يرتبط بالمخزون ولا يخصم منه.',style:TextStyle(height:1.5)))
   ]);
  });
 }
@@ -75,8 +75,7 @@ class _SalePageState extends State<SalePage>{
   final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
   final grams=saleMode=='weight'?(value*1000).round():(price>0?(value*1000/price).round():0);
   final id=p['id'] as int, old=cart[id]?['grams'] as int? ?? 0;
-  final stock=(p['stock_grams'] as num).toInt()-old;
-  if(grams<=0||grams>stock||price<=0){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(grams>stock?'المخزون غير كافٍ':'أدخل الرقم أولاً')));return;}
+  if(grams<=0||price<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية وسعراً صحيحين')));return;}
   setState((){cart[id]={'product_id':id,'name':p['name'],'grams':old+grams,'price_per_kg':price};keypadValue='';});
  }
  int get total=>cart.values.fold(0,(v,x)=>v+(((x['grams'] as int)*(x['price_per_kg'] as int))/1000).round());
@@ -120,7 +119,7 @@ class _SalePageState extends State<SalePage>{
    final invoiceTotal=total;
    final invoiceId=await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:paidAmount,dueDate:dueDate,draftId:draftId);
    activeDraftId=null;cart.clear();
-   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة بيع رقم $invoiceId'),content:Text('الإجمالي: '+money(invoiceTotal)+'\\nالمدفوع: '+money(paidAmount)+'\\nالمتبقي: '+money(invoiceTotal-paidAmount)+'\\nتم تحديث المخزون وحساب الزبون.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
+   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة بيع رقم $invoiceId'),content:Text('الإجمالي: '+money(invoiceTotal)+'\\nالمدفوع: '+money(paidAmount)+'\\nالمتبقي: '+money(invoiceTotal-paidAmount)+'\\nفاتورة بيع مستقلة؛ لم يتم فحص المخزون أو تغييره.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
@@ -134,7 +133,7 @@ class _SalePageState extends State<SalePage>{
      final p=ps[i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),
       Text(money(p['sale_price'] as num),maxLines:1,style:const TextStyle(fontSize:9)),
-      Text(kg(p['stock_grams'] as num),maxLines:1,style:const TextStyle(fontSize:8))
+      const Text('بيع مباشر',maxLines:1,style:TextStyle(fontSize:8))
      ]))));
     }));
    }),
@@ -191,7 +190,7 @@ class _PurchasePageState extends State<PurchasePage>{
    else{await ShopDb.instance.saveDraft(type:'purchase',items:cart,partyId:selectedSupplierId,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);}
    activeDraftId=draftId;final id=await ShopDb.instance.savePurchase(supplierId:selectedSupplierId!,items:cart,paid:paidAmount,dueDate:dueDate,draftId:draftId);
    activeDraftId=null;cart.clear();
-   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة توريد رقم $id'),content:Text('تم تسجيل التوريد بقيمة '+money(total)+'. تم تحديث المخزون وحساب المورد.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
+   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة توريد رقم $id'),content:Text('تم تسجيل التوريد بقيمة '+money(total)+'. لم يتم تغيير مخزون المبيعات.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
