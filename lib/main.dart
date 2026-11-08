@@ -67,59 +67,16 @@ class _SalePageState extends State<SalePage>{
  final Map<int,Map<String,dynamic>> cart={};
  int? activeDraftId;
  bool posting=false;
+ String keypadValue=''; String saleMode='weight';
+ void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else keypadValue+=k;});}
  Future<void> add(Map<String,Object?> p) async {
-  final g=TextEditingController(text:'1000'),a=TextEditingController();
-  final priceController=TextEditingController(text:(p['sale_price'] as num).round().toString());
-  String mode='weight';
-  final stock=(p['stock_grams'] as num).toInt()-(cart[p['id'] as int]?['grams'] as int? ?? 0);
-  int currentPrice()=>int.tryParse(priceController.text.trim())??0;
-  int calculatedGrams(){
-   final price=currentPrice();
-   if(mode=='weight') return int.tryParse(g.text.trim())??0;
-   final amount=int.tryParse(a.text.trim())??0;
-   if(price<=0||amount<=0)return 0;
-   return ((amount*1000)/price).round();
-  }
-  int calculatedAmount(){
-   final grams=calculatedGrams(),price=currentPrice();
-   if(grams<=0||price<=0)return 0;
-   return ((grams*price)/1000).round();
-  }
-  final result=await showDialog<Map<String,int>>(context:context,builder:(c)=>StatefulBuilder(builder:(c,setD)=>AlertDialog(
-   title:Text('بيع '+(p['name'] as String)),
-   content:Column(mainAxisSize:MainAxisSize.min,children:[
-    SegmentedButton<String>(
-     segments:const[ButtonSegment(value:'weight',label:Text('إدخال الوزن')),ButtonSegment(value:'amount',label:Text('إدخال المبلغ'))],
-     selected:{mode},onSelectionChanged:(v)=>setD(()=>mode=v.first)),
-    const SizedBox(height:12),
-    TextField(controller:priceController,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'سعر البيع الذي تحدده لهذه العملية / كجم',suffixText:'DJF',border:OutlineInputBorder())),
-    const SizedBox(height:8),
-    if(mode=='weight')
-     TextField(controller:g,keyboardType:const TextInputType.numberWithOptions(decimal:true),onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'الوزن بالجرام',suffixText:'جرام',border:OutlineInputBorder()))
-    else
-     TextField(controller:a,keyboardType:TextInputType.number,onChanged:(_)=>setD((){}),decoration:const InputDecoration(labelText:'المبلغ الذي حدده الزبون',suffixText:'DJF',border:OutlineInputBorder())),
-    const SizedBox(height:10),
-    Text('السعر المعتمد لهذه العملية: '+money(currentPrice())+' / كجم'),
-    const SizedBox(height:8),
-    Container(width:double.infinity,padding:const EdgeInsets.all(12),decoration:BoxDecoration(color:Theme.of(c).colorScheme.surfaceContainerHighest,borderRadius:BorderRadius.circular(10)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-     Text('الوزن المحسوب: '+calculatedGrams().toString()+' جرام',style:const TextStyle(fontWeight:FontWeight.bold)),
-     Text('قيمة البيع المحسوبة: '+money(calculatedAmount())),
-     Text('المتاح في المخزون: '+stock.toString()+' جرام')
-    ])),
-    if(calculatedGrams()>stock)const Padding(padding:EdgeInsets.only(top:8),child:Text('الكمية المطلوبة أكبر من المخزون المتاح',style:TextStyle(color:Colors.red)))
-   ]),
-   actions:[
-    TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),
-    FilledButton(onPressed:(){
-     final grams=calculatedGrams();
-     if(grams<=0||grams>stock||currentPrice()<=0)return;
-     Navigator.pop(c,{'grams':grams,'price':currentPrice()});
-    },child:const Text('إضافة للسلة'))
-   ])));
-  g.dispose();a.dispose();priceController.dispose();
-  if(result==null||result['grams']!<=0)return;
-  final id=p['id'] as int;
-  setState(()=>cart[id]={'product_id':id,'name':p['name'],'grams':(cart[id]?['grams']??0)+result['grams']!,'price_per_kg':result['price']!});
+  final price=(p['sale_price'] as num).round();
+  final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
+  final grams=saleMode=='weight'?(value*1000).round():(price>0?(value*1000/price).round():0);
+  final id=p['id'] as int, old=cart[id]?['grams'] as int? ?? 0;
+  final stock=(p['stock_grams'] as num).toInt()-old;
+  if(grams<=0||grams>stock||price<=0){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(grams>stock?'المخزون غير كافٍ':'أدخل الرقم أولاً')));return;}
+  setState((){cart[id]={'product_id':id,'name':p['name'],'grams':old+grams,'price_per_kg':price};keypadValue='';});
  }
  int get total=>cart.values.fold(0,(v,x)=>v+(((x['grams'] as int)*(x['price_per_kg'] as int))/1000).round());
  Future<void> saveDraft() async {
@@ -175,6 +132,10 @@ class _SalePageState extends State<SalePage>{
   })),
   Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
    Text('السلة: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
+   SegmentedButton<String>(segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first)),
+   Text('المدخل: '+(keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' فرنك':' كجم')),
+   Wrap(spacing:3,runSpacing:2,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح'])SizedBox(width:MediaQuery.of(c).size.width/7.5,height:29,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k)))]),
+
    SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.values.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(kg(x['grams'] as int),style:const TextStyle(fontSize:10)),trailing:IconButton(visualDensity:VisualDensity.compact,iconSize:16,icon:const Icon(Icons.close),onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id']))))).toList())),
    Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
    const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع',style:const TextStyle(fontSize:11))))
@@ -186,14 +147,13 @@ class _PurchasePageState extends State<PurchasePage>{
  final List<Map<String,dynamic>> cart=[];
  int? activeDraftId;
  bool posting=false;
+ String keypadValue=''; String purchaseField='packages'; int packageCount=1,packageWeight=0,packageCost=0;
+ void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else keypadValue+=k;});}
+ void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else if(purchaseField=='weight')packageWeight=(v*1000).round();else packageCost=v.toInt();keypadValue='';});}
  Future<void> add(Map<String,Object?> p) async {
-  final n=TextEditingController(text:'1'),w=TextEditingController(text:((p['default_weight'] as num)*1000).round().toString()),cost=TextEditingController(text:'0'),unit=TextEditingController(text:p['purchase_unit'] as String);
-  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:Text('توريد '+(p['name'] as String)),content:Column(mainAxisSize:MainAxisSize.min,children:[
-   field(unit,'وحدة الشراء'),field(n,'عدد الوحدات',number:true),field(w,'وزن الوحدة بالجرام',number:true),field(cost,'تكلفة الوحدة كاملة',number:true)
-  ]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('إضافة'))]));
-  if(ok!=true)return;
-  final count=int.tryParse(n.text)??0,weight=int.tryParse(w.text)??0,price=int.tryParse(cost.text)??0;
-  if(count>0&&weight>0&&price>=0)setState(()=>cart.add({'product_id':p['id'],'name':p['name'],'unit':unit.text,'packages':count,'weight_grams':weight,'package_cost':price}));
+  final count=packageCount, weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round(), price=packageCost;
+  if(count<=0||weight<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('حدد العدد والوزن والتكلفة بلوحة الأرقام')));return;}
+  setState(()=>cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price}));
  }
  int get total=>cart.fold(0,(v,x)=>v+(x['packages'] as int)*(x['package_cost'] as int));
  Future<void> saveDraft() async {
@@ -246,6 +206,10 @@ class _PurchasePageState extends State<PurchasePage>{
   })),
   Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
    Text('سلة التوريد: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
+   Wrap(spacing:3,children:[for(final x in ['packages','weight','cost'])ChoiceChip(label:Text(x=='packages'?'عدد الجوان':x=='weight'?'وزن الجوان بالكيلو':'تكلفة الجوان'),selected:purchaseField==x,onSelected:(_)=>setState(()=>purchaseField=x))]),
+   Text('الرقم: '+(keypadValue.isEmpty?'0':keypadValue)+' • العدد '+packageCount.toString()+' • الوزن '+(packageWeight/1000).toStringAsFixed(2)+' كجم • التكلفة '+packageCost.toString(),style:const TextStyle(fontSize:10)),
+   Wrap(spacing:3,runSpacing:2,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح'])SizedBox(width:MediaQuery.of(c).size.width/7.5,height:27,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k))),FilledButton(onPressed:applyKeypad,child:const Text('اعتماد الرقم'))]),
+
    SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(x['packages'].toString()+' × '+(x['unit'] as String)+' • '+kg((x['packages'] as int)*(x['weight_grams'] as int)),style:const TextStyle(fontSize:10)),trailing:Text(money((x['packages'] as int)*(x['package_cost'] as int)),style:const TextStyle(fontSize:10)))).toList())),
    Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
    const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:posting?null:save,child:Text(posting?'جارٍ ترحيل التوريد...':'اختيار المورد وترحيل التوريد',style:const TextStyle(fontSize:11))))
