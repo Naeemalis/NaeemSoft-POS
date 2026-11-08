@@ -436,7 +436,7 @@ class ShopDb {
         final grams = packs * weight;
         final kgCost = grams == 0 ? 0 : (total == 0 ? 0 : ((packageCost * 1000) / weight).round());
         final lineTotal = packs * packageCost;
-        final itemId = await tx.insert('purchase_items', {
+        await tx.insert('purchase_items', {
           'purchase_id': purchaseId, 'product_id': x['product_id'], 'unit': x['unit'],
           'packages': packs, 'weight_each': weight / 1000, 'quantity': grams / 1000,
           'unit_cost': grams == 0 ? 0 : lineTotal / (grams / 1000),
