@@ -62,6 +62,7 @@ class DashboardPage extends StatelessWidget {
    const Padding(padding:EdgeInsets.all(8),child:Text('كل فاتورة بيع أو توريد تُرحّل إلى المخزون والحسابات، وتظهر في سجل الفواتير.',style:TextStyle(height:1.5)))
   ]);
  });
+}
 class SalePage extends StatefulWidget {const SalePage({super.key});@override State<SalePage> createState()=>_SalePageState();}
 class _SalePageState extends State<SalePage>{
  final Map<int,Map<String,dynamic>> cart={};
