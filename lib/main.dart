@@ -66,6 +66,7 @@ class SalePage extends StatefulWidget {const SalePage({super.key});@override Sta
 class _SalePageState extends State<SalePage>{
  final Map<int,Map<String,dynamic>> cart={};
  int? activeDraftId;
+ bool posting=false;
  Future<void> add(Map<String,Object?> p) async {
   final g=TextEditingController(text:'1000'),a=TextEditingController();
   final priceController=TextEditingController(text:(p['sale_price'] as num).round().toString());
@@ -133,7 +134,7 @@ class _SalePageState extends State<SalePage>{
   setState((){activeDraftId=draft['id'] as int;cart.clear();for(final x in items){cart[x['product_id'] as int]=x;}});
  }
  Future<void> checkout() async {
-  if(cart.isEmpty)return;
+  if(posting||cart.isEmpty)return;
   final customers=await rows('customers');int? customer;
   final paid=TextEditingController(text:total.toString()),due=TextEditingController();
   final ok=await showDialog<bool>(context:context,builder:(c)=>StatefulBuilder(builder:(c,setD)=>AlertDialog(
@@ -147,8 +148,21 @@ class _SalePageState extends State<SalePage>{
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ترحيل الفاتورة'))])));
   if(ok!=true)return;
-  try{await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim(),draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted)setState((){});}
-  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  setState(()=>posting=true);
+  int? draftId=activeDraftId;
+  final paidAmount=int.tryParse(paid.text)??0;
+  final dueDate=due.text.trim().isEmpty?null:due.text.trim();
+  try{
+   if(draftId==null){
+    draftId=await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),partyId:customer,total:total,paid:paidAmount,dueDate:dueDate);
+   }else{
+    await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),partyId:customer,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);
+   }
+   activeDraftId=draftId;
+   await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:paidAmount,dueDate:dueDate,draftId:draftId);
+   activeDraftId=null;cart.clear();if(mounted)setState((){});
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  finally{if(mounted)setState(()=>posting=false);}
  }
  @override Widget build(BuildContext c)=>Column(children:[
   Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
@@ -162,8 +176,8 @@ class _SalePageState extends State<SalePage>{
   Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
    Text('السلة: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
    SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.values.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(kg(x['grams'] as int),style:const TextStyle(fontSize:10)),trailing:IconButton(visualDensity:VisualDensity.compact,iconSize:16,icon:const Icon(Icons.close),onPressed:()=>setState(()=>cart.remove(x['product_id']))))).toList())),
-   Row(children:[Expanded(child:OutlinedButton(onPressed:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
-   const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:checkout,child:const Text('إتمام البيع',style:TextStyle(fontSize:11))))
+   Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
+   const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع',style:const TextStyle(fontSize:11))))
   ]))
  ]);
 }
@@ -171,6 +185,7 @@ class PurchasePage extends StatefulWidget {const PurchasePage({super.key});@over
 class _PurchasePageState extends State<PurchasePage>{
  final List<Map<String,dynamic>> cart=[];
  int? activeDraftId;
+ bool posting=false;
  Future<void> add(Map<String,Object?> p) async {
   final n=TextEditingController(text:'1'),w=TextEditingController(text:((p['default_weight'] as num)*1000).round().toString()),cost=TextEditingController(text:'0'),unit=TextEditingController(text:p['purchase_unit'] as String);
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:Text('توريد '+(p['name'] as String)),content:Column(mainAxisSize:MainAxisSize.min,children:[
@@ -193,7 +208,7 @@ class _PurchasePageState extends State<PurchasePage>{
   setState((){activeDraftId=draft['id'] as int;cart..clear()..addAll(items);});
  }
  Future<void> save() async {
-  if(cart.isEmpty)return;final suppliers=await rows('suppliers');int? supplier;
+  if(posting||cart.isEmpty)return;final suppliers=await rows('suppliers');int? supplier;
   final paid=TextEditingController(text:'0'),due=TextEditingController();
   final ok=await showDialog<bool>(context:context,builder:(c)=>StatefulBuilder(builder:(c,setD)=>AlertDialog(
    title:const Text('فاتورة التوريد'),
@@ -204,8 +219,21 @@ class _PurchasePageState extends State<PurchasePage>{
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ترحيل'))])));
   if(ok!=true)return;if(supplier==null){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اختر المورد أولاً')));return;}
-  try{await ShopDb.instance.savePurchase(supplierId:supplier!,items:cart,paid:int.tryParse(paid.text)??0,dueDate:due.text.trim().isEmpty?null:due.text.trim(),draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted)setState((){});}
-  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  setState(()=>posting=true);
+  int? draftId=activeDraftId;
+  final paidAmount=int.tryParse(paid.text)??0;
+  final dueDate=due.text.trim().isEmpty?null:due.text.trim();
+  try{
+   if(draftId==null){
+    draftId=await ShopDb.instance.saveDraft(type:'purchase',items:cart,partyId:supplier,total:total,paid:paidAmount,dueDate:dueDate);
+   }else{
+    await ShopDb.instance.saveDraft(type:'purchase',items:cart,partyId:supplier,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);
+   }
+   activeDraftId=draftId;
+   await ShopDb.instance.savePurchase(supplierId:supplier!,items:cart,paid:paidAmount,dueDate:dueDate,draftId:draftId);
+   activeDraftId=null;cart.clear();if(mounted)setState((){});
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+  finally{if(mounted)setState(()=>posting=false);}
  }
  @override Widget build(BuildContext c)=>Column(children:[
   Expanded(child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
@@ -219,8 +247,8 @@ class _PurchasePageState extends State<PurchasePage>{
   Padding(padding:const EdgeInsets.fromLTRB(5,2,5,4),child:Column(mainAxisSize:MainAxisSize.min,children:[
    Text('سلة التوريد: '+cart.length.toString()+' • '+money(total),style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),
    SizedBox(height:cart.isEmpty?0:58,child:ListView(shrinkWrap:true,children:cart.map((x)=>ListTile(dense:true,visualDensity:VisualDensity.compact,contentPadding:EdgeInsets.zero,title:Text(x['name'] as String,style:const TextStyle(fontSize:11)),subtitle:Text(x['packages'].toString()+' × '+(x['unit'] as String)+' • '+kg((x['packages'] as int)*(x['weight_grams'] as int)),style:const TextStyle(fontSize:10)),trailing:Text(money((x['packages'] as int)*(x['package_cost'] as int)),style:const TextStyle(fontSize:10)))).toList())),
-   Row(children:[Expanded(child:OutlinedButton(onPressed:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
-   const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:save,child:const Text('اختيار المورد وترحيل التوريد',style:TextStyle(fontSize:11))))
+   Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('مسودة',style:TextStyle(fontSize:10)))),const SizedBox(width:3),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,style:OutlinedButton.styleFrom(visualDensity:VisualDensity.compact,padding:const EdgeInsets.symmetric(vertical:4)),child:const Text('المسودات',style:TextStyle(fontSize:10))))]),
+   const SizedBox(height:2),SizedBox(width:double.infinity,height:34,child:FilledButton(style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),onPressed:posting?null:save,child:Text(posting?'جارٍ ترحيل التوريد...':'اختيار المورد وترحيل التوريد',style:const TextStyle(fontSize:11))))
   ]))
  ]);
 }
