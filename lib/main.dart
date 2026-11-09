@@ -604,14 +604,32 @@ class _DraftsPageState extends State<DraftsPage>{
   }));
 }
 
-class AccountsPage extends StatelessWidget {const AccountsPage({super.key});@override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('ملخص الحسابات')),
- body:FutureBuilder<List<List<Map<String,Object?>>>>(future:Future.wait([rows('customers'),rows('suppliers'),rows('sales'),rows('purchases'),rows('returns')]),builder:(c,s){
-  if(!s.hasData)return const Center(child:CircularProgressIndicator());final x=s.data!;
-  final customerReturns=x[4].where((r)=>r['return_type']=='customer').fold<num>(0,(v,r)=>v+(r['total'] as num)-(r['cash_paid'] as num));
-  final supplierReturns=x[4].where((r)=>r['return_type']=='supplier').fold<num>(0,(v,r)=>v+(r['total'] as num));
-  final cd=x[2].fold<num>(0,(v,r)=>v+(r['total'] as num)-(r['paid'] as num))-customerReturns;
-  final sd=x[3].fold<num>(0,(v,r)=>v+(r['total'] as num)-(r['paid'] as num))-supplierReturns;
-  return ListView(children:[ListTile(title:Text('عدد الزبائن: '+x[0].length.toString()),trailing:Text(money(cd))),
-   ListTile(title:Text('عدد الموردين: '+x[1].length.toString()),trailing:Text(money(sd))),
-   const Padding(padding:EdgeInsets.all(12),child:Text('ملخص أولي. كشف الحساب التفصيلي وتوزيع الدفعات يحتاجان اختباراً إضافياً قبل الاعتماد المحاسبي.',style:TextStyle(height:1.6)))]);
- }));}
+class AccountsPage extends StatelessWidget {
+ const AccountsPage({super.key});
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:const Text('ملخص الحسابات')),
+  body:FutureBuilder<List<List<Map<String,Object?>>>>(
+   future:Future.wait([rows('customers'),rows('suppliers'),rows('sales'),rows('purchases'),rows('returns'),rows('payments')]),
+   builder:(c,s){
+    if(!s.hasData)return const Center(child:CircularProgressIndicator());
+    if(s.hasError)return Center(child:Text('تعذر حساب الأرصدة: ${s.error}'));
+    final x=s.data!;
+    final customerOpening=x[0].fold<num>(0,(v,r)=>v+((r['opening_balance'] as num?)??0));
+    final supplierOpening=x[1].fold<num>(0,(v,r)=>v+((r['opening_balance'] as num?)??0));
+    final customerSales=x[2].fold<num>(0,(v,r)=>v+(r['total'] as num));
+    final supplierPurchases=x[3].fold<num>(0,(v,r)=>v+(r['total'] as num));
+    final customerPayments=x[5].where((r)=>r['party_type']=='customer').fold<num>(0,(v,r)=>v+(r['amount'] as num));
+    final supplierPayments=x[5].where((r)=>r['party_type']=='supplier').fold<num>(0,(v,r)=>v+(r['amount'] as num));
+    final customerReturns=x[4].where((r)=>r['return_type']=='customer').fold<num>(0,(v,r)=>v+(r['total'] as num));
+    final supplierReturns=x[4].where((r)=>r['return_type']=='supplier').fold<num>(0,(v,r)=>v+(r['total'] as num));
+    final cd=customerOpening+customerSales-customerPayments-customerReturns;
+    final sd=supplierOpening+supplierPurchases-supplierPayments-supplierReturns;
+    return ListView(padding:const EdgeInsets.all(12),children:[
+     Card(child:ListTile(leading:const Icon(Icons.people),title:Text('حسابات الزبائن • ${x[0].length}'),subtitle:const Text('افتح قائمة الزبائن لكشف كل حساب'),trailing:Text(money(cd),style:const TextStyle(fontWeight:FontWeight.bold)),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>const PartiesPage(type:'customer'))))),
+     Card(child:ListTile(leading:const Icon(Icons.local_shipping),title:Text('حسابات الموردين • ${x[1].length}'),subtitle:const Text('افتح قائمة الموردين لكشف كل حساب'),trailing:Text(money(sd),style:const TextStyle(fontWeight:FontWeight.bold)),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>const PartiesPage(type:'supplier'))))),
+     const Padding(padding:EdgeInsets.all(12),child:Text('الأرصدة تشمل الفواتير والدفعات والمرتجعات والأرصدة الافتتاحية المسجلة.',style:TextStyle(height:1.5))),
+    ]);
+   },
+  ),
+ );
+}
