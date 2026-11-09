@@ -474,7 +474,7 @@ Future<File> _buildInvoicePdf({
   final name=(x['product_name']??'صنف محذوف').toString();
   final quantity=sale
     ? '${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كجم'
-    : '${x['packages']} عبوة × ${x['weight_each']} كجم';
+    : '${x['packages']} حبة • وزن الحبة ${x['weight_each']} كجم';
   final unit=sale
     ? 'سعر الكيلو: ${money(x['price_per_kg'] as num)}'
     : 'سعر العبوة: ${money(x['package_cost'] as num)}';
@@ -680,7 +680,7 @@ class AccountsPage extends StatelessWidget {
   final db=ShopDb.instance.db;
   final r=await db.rawQuery("SELECT COALESCE(SUM(total-paid),0) v FROM sales WHERE status='posted'");
   final p=await db.rawQuery("SELECT COALESCE(SUM(total-paid),0) v FROM purchases WHERE status='posted'");
-  final cr=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM returns WHERE return_type='customer'");
+  final cr=await db.rawQuery("SELECT COALESCE(SUM(total-cash_paid),0) v FROM returns WHERE return_type='customer'");
   final sr=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM returns WHERE return_type='supplier'");
   final s=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM sales WHERE status='posted'");
   final b=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM purchases WHERE status='posted'");
@@ -702,6 +702,7 @@ class AccountsPage extends StatelessWidget {
    ]);
   }),
 );
+}
 
 class DraftsPage extends StatefulWidget {
  final String? type;
