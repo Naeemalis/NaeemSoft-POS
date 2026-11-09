@@ -307,7 +307,6 @@ class ShopDb {
       final customerId = type == 'customer' ? invoice.first['customer_id'] as int? : null;
       final supplierId = type == 'supplier' ? invoice.first['supplier_id'] as int? : null;
       int total = 0;
-      final supplierReturnByProduct=<int,int>{};
       for (final item in items) {
         final grams=(item['grams'] as num).toInt();
         final sourceId=(item['source_item_id'] as num).toInt();
@@ -323,13 +322,6 @@ class ShopDb {
         final productId=(source.first['product_id'] as num).toInt();
         final price=type=='customer'?(source.first['price_per_kg'] as num).toInt():((source.first['quantity'] as num)>0?((source.first['line_total'] as num)/(source.first['quantity'] as num)).round():0);
         total += ((grams*price)/1000).round();
-        if(type=='supplier') supplierReturnByProduct[productId]=(supplierReturnByProduct[productId]??0)+grams;
-      }
-      if(type=='supplier'){
-        for(final entry in supplierReturnByProduct.entries){
-          final stock=await tx.query('products',columns:['stock_grams'],where:'id=?',whereArgs:[entry.key],limit:1);
-          if(stock.isEmpty || (stock.first['stock_grams'] as num).toInt()<entry.value) throw Exception('المخزون لا يكفي لإرجاع الكمية الإجمالية لهذا الصنف للمورد');
-        }
       }
       if(cashPaid<0 || cashPaid>total || (type=='supplier' && cashPaid!=0)) throw Exception('قيمة التسوية غير صحيحة');
       final returnId=await tx.insert('returns',{
@@ -353,30 +345,7 @@ class ShopDb {
           'quantity_grams':grams,'unit_price':price,'line_total':line,
           'cost_per_kg':type=='customer'?((source['cost_per_kg_snapshot'] as num?)?.toInt()??0):((source['kg_cost'] as num?)?.toInt()??0),
         });
-        final delta=type=='customer'?grams:-grams;
-        final productRows=await tx.query('products',columns:['stock_grams','inventory_value_djf'],where:'id=?',whereArgs:[productId],limit:1);
-        final currentGrams=(productRows.first['stock_grams'] as num).toInt();
-        final currentValue=(productRows.first['inventory_value_djf'] as num).toInt();
-        int valueDelta;
-        int movementCost;
-        if(type=='customer'){
-          final originalGrams=(source['quantity_grams'] as num).toInt();
-          final originalCost=(source['cost_total_djf'] as num?)?.toInt()??0;
-          valueDelta=originalGrams>0?((originalCost*grams)/originalGrams).round():0;
-          movementCost=(source['cost_per_kg_snapshot'] as num?)?.toInt()??0;
-        }else{
-          movementCost=currentGrams>0?((currentValue*1000)/currentGrams).round():0;
-          valueDelta=-((grams*movementCost)/1000).round();
-        }
-        if(type=='supplier' && currentGrams<grams) throw Exception('المخزون لا يكفي لمرتجع المورد');
-        await tx.rawUpdate('UPDATE products SET stock_grams=stock_grams+?, stock=(stock_grams+?)/1000.0, inventory_value_djf=MAX(0,inventory_value_djf+?) WHERE id=?',[delta,delta,valueDelta,productId]);
-        await tx.insert('stock_movements',{
-          'product_id':productId,'movement_type':'adjustment',
-          'source_type':type=='customer'?'customer_return':'supplier_return',
-          'source_id':returnId,'quantity_grams':delta,
-          'unit_cost_per_kg':movementCost,'value_delta_djf':valueDelta,
-          'created_at':DateTime.now().toIso8601String(),'note':type=='customer'?'مرتجع زبون':'مرتجع مورد',
-        });
+        // Returns are financial documents only; this cashier system does not update stock.
       }
       return returnId;
     });
