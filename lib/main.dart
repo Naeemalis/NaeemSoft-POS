@@ -128,7 +128,6 @@ class _SalePageState extends State<SalePage>{
  }
 
  @override Widget build(BuildContext c) {
-  final w=MediaQuery.of(c).size.width;
   return Column(children:[
    FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
     if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
@@ -698,36 +697,3 @@ class _DraftsPageState extends State<DraftsPage>{
       PopupMenuItem(value:'open',child:Text('استعادة المسودة')),PopupMenuItem(value:'delete',child:Text('حذف المسودة'))]),
      onTap:()async{final full=await ShopDb.instance.getDraft(d['id'] as int);if(context.mounted)Navigator.pop(context,full);},
     ));
-   }).toList());
-  }));
-}
-
-class AccountsPage extends StatelessWidget {
- const AccountsPage({super.key});
- @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('ملخص الحسابات')),
-  body:FutureBuilder<List<List<Map<String,Object?>>>>(
-   future:Future.wait([rows('customers'),rows('suppliers'),rows('sales'),rows('purchases'),rows('returns'),rows('payments')]),
-   builder:(c,s){
-    if(!s.hasData)return const Center(child:CircularProgressIndicator());
-    if(s.hasError)return Center(child:Text('تعذر حساب الأرصدة: ${s.error}'));
-    final x=s.data!;
-    final customerOpening=x[0].fold<num>(0,(v,r)=>v+((r['opening_balance'] as num?)??0));
-    final supplierOpening=x[1].fold<num>(0,(v,r)=>v+((r['opening_balance'] as num?)??0));
-    final customerSales=x[2].fold<num>(0,(v,r)=>v+(r['total'] as num));
-    final supplierPurchases=x[3].fold<num>(0,(v,r)=>v+(r['total'] as num));
-    final customerPayments=x[5].where((r)=>r['party_type']=='customer').fold<num>(0,(v,r)=>v+(r['amount'] as num));
-    final supplierPayments=x[5].where((r)=>r['party_type']=='supplier').fold<num>(0,(v,r)=>v+(r['amount'] as num));
-    final customerReturns=x[4].where((r)=>r['return_type']=='customer').fold<num>(0,(v,r)=>v+(r['total'] as num));
-    final supplierReturns=x[4].where((r)=>r['return_type']=='supplier').fold<num>(0,(v,r)=>v+(r['total'] as num));
-    final cd=customerOpening+customerSales-customerPayments-customerReturns;
-    final sd=supplierOpening+supplierPurchases-supplierPayments-supplierReturns;
-    return ListView(padding:const EdgeInsets.all(12),children:[
-     Card(child:ListTile(leading:const Icon(Icons.people),title:Text('حسابات الزبائن • ${x[0].length}'),subtitle:const Text('افتح قائمة الزبائن لكشف كل حساب'),trailing:Text(money(cd),style:const TextStyle(fontWeight:FontWeight.bold)),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>const PartiesPage(type:'customer'))))),
-     Card(child:ListTile(leading:const Icon(Icons.local_shipping),title:Text('حسابات الموردين • ${x[1].length}'),subtitle:const Text('افتح قائمة الموردين لكشف كل حساب'),trailing:Text(money(sd),style:const TextStyle(fontWeight:FontWeight.bold)),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>const PartiesPage(type:'supplier'))))),
-     const Padding(padding:EdgeInsets.all(12),child:Text('الأرصدة تشمل الفواتير والدفعات والمرتجعات والأرصدة الافتتاحية المسجلة.',style:TextStyle(height:1.5))),
-    ]);
-   },
-  ),
- );
-}
