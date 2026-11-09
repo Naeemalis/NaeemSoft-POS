@@ -72,7 +72,7 @@ class _SalePageState extends State<SalePage>{
  int? activeDraftId;
  bool posting=false;
  String keypadValue=''; String saleMode='weight';
- void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else keypadValue+=k;});}
+ void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(k=='½')keypadValue='0.5';else if(k=='¼')keypadValue='0.25';else if(k=='1 كجم')keypadValue='1';else keypadValue+=k;});}
  Future<void> add(Map<String,Object?> p) async {
   final price=(p['sale_price'] as num).round();
   final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
@@ -131,7 +131,7 @@ class _SalePageState extends State<SalePage>{
   return Column(children:[
    FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
     if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
-    final ps=s.data!, n=((s.data!.length+6)~/7).clamp(1,3);
+    final ps=s.data!, n=((s.data!.length+6)~/7).clamp(1,1000);
     return SizedBox(height:n*78.0,child:GridView.builder(physics:const NeverScrollableScrollPhysics(),padding:const EdgeInsets.all(3),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:7,crossAxisSpacing:3,mainAxisSpacing:3,childAspectRatio:.78),itemCount:ps.length,itemBuilder:(c,i){
      final p=ps[i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),
@@ -148,7 +148,7 @@ class _SalePageState extends State<SalePage>{
     }).toList())),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
-    Wrap(spacing:3,runSpacing:3,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح'])SizedBox(width:(w-42)/7,height:30,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:12))))]),
+    Wrap(spacing:3,runSpacing:3,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح',if(saleMode=='weight')'½',if(saleMode=='weight')'¼',if(saleMode=='weight')'1 كجم'])SizedBox(width:(w-42)/7,height:30,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:12))))]),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:const Text('مسودة'))),const SizedBox(width:5),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:const Text('المسودات')))]),
     SizedBox(width:double.infinity,height:42,child:FilledButton(onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع')))
    ]))
