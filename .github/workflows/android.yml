@@ -16,10 +16,23 @@ jobs:
           channel: stable
       # Generate the standard Android Gradle project files missing from this repository.
       - run: flutter create --platforms=android --project-name naeemsoft_pos .
-      # Use the official direct download host to avoid GitHub release redirect timeouts.
+      # Pin Gradle's generated distribution URL to a mirror that avoids GitHub's intermittent 504 redirects.
       - name: Configure Gradle and Maven mirrors
         run: |
-          sed -i -E 's#services.gradle.org/distributions/gradle-([0-9.]+)-all.zip#downloads.gradle.org/distributions/gradle-\1-bin.zip#' android/gradle/wrapper/gradle-wrapper.properties
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path = Path("android/gradle/wrapper/gradle-wrapper.properties")
+          content = path.read_text()
+          match = re.search(r"gradle-([0-9.]+)-bin\\.zip", content)
+          if not match:
+              raise SystemExit("Could not detect generated Gradle version")
+          version = match.group(1)
+          url = f"distributionUrl=https\\://mirrors.aliyun.com/gradle/distributions/v{version}/gradle-{version}-bin.zip"
+          content = re.sub(r"^distributionUrl=.*$", url, content, flags=re.MULTILINE)
+          path.write_text(content)
+          print(f"Configured Gradle {version} mirror: {url}")
+          PY
           sed -i 's#mavenCentral()#maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2") }; mavenCentral()#g' android/settings.gradle.kts android/build.gradle.kts
       # Flutter's generated counter test targets MyApp; this project uses NaeemSoftApp.
       - run: rm -f test/widget_test.dart
