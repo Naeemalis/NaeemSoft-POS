@@ -462,7 +462,7 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
     if(tx.isNotEmpty)SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
      columns:const [DataColumn(label:Text('التاريخ')),DataColumn(label:Text('البيان')),DataColumn(label:Text('مدين')),DataColumn(label:Text('دائن')),DataColumn(label:Text('الرصيد'))],
      rows:[
-      DataRow(cells:[const DataCell(Text('—')),const DataCell(Text('رصيد مرحل')),DataCell(Text(customer?'—':money(opening.abs()))),DataCell(Text(customer?money(opening.abs()):'—')),DataCell(Text(money(opening)))]),
+      DataRow(cells:[const DataCell(Text('—')),const DataCell(Text('رصيد مرحل')),DataCell(Text(customer?money(opening.abs()):'—')),DataCell(Text(customer?'—':money(opening.abs()))),DataCell(Text(money(opening)))]),
       ...tx.map((x){
        final amount=x['amount'] as num,dir=x['direction'] as int;
        final debit=(customer?dir>0:dir<0)?amount:0,credit=(customer?dir<0:dir>0)?amount:0;
