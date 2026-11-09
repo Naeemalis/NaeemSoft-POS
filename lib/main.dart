@@ -416,12 +416,14 @@ Future<File> _buildInvoicePdf({
  ]);
  final sale=type=='sale';
  final total=header['total'] as num, paid=header['paid'] as num;
+ final rawDate=DateTime.tryParse((header['date']??'').toString());
+ final invoiceDate=rawDate==null?(header['date']??'').toString():DateFormat('yyyy-MM-dd  HH:mm').format(rawDate);
  final receiptHeight=(112 + lines.length*24).clamp(150, 500).toDouble();
  final sections=<PdfSection>[
   PdfSection.h1('NaeemSoft POS'),
   PdfSection.h2(sale?'فاتورة بيع':'فاتورة توريد'),
   PdfSection.paragraph('رقم الفاتورة: $invoiceId'),
-  PdfSection.paragraph('التاريخ: ${header['date']}'),
+  PdfSection.paragraph('التاريخ: $invoiceDate'),
   PdfSection.paragraph('${sale?'الزبون':'المورد'}: $party'),
   PdfSection.divider(),
   PdfSection.h2('تفاصيل الأصناف'),
