@@ -342,25 +342,52 @@ class PartyStatementPage extends StatefulWidget {
 }
 class _PartyStatementPageState extends State<PartyStatementPage>{
  bool saving=false;
+ DateTime? fromDate,toDate;
+ String dateText(DateTime? d)=>d==null?'من البداية':DateFormat('yyyy-MM-dd').format(d);
+ Future<void> chooseDate(bool isFrom) async {
+  final picked=await showDatePicker(context:context,initialDate:(isFrom?fromDate:toDate)??DateTime.now(),firstDate:DateTime(2000),lastDate:DateTime(2100));
+  if(picked!=null&&mounted)setState(()=>isFrom?fromDate=picked:toDate=picked);
+ }
  Future<Map<String,Object?>> load() async {
-  final customer=widget.type=='customer';
-  final db=ShopDb.instance.db;
+  final customer=widget.type=='customer',db=ShopDb.instance.db;
   final table=customer?'customers':'suppliers';
-  final party=(await db.query(table,where:'id=?',whereArgs:[widget.partyId],limit:1)).first;
-  final invoiceTable=customer?'sales':'purchases';
-  final partyColumn=customer?'customer_id':'supplier_id';
-  final invoices=await db.query(invoiceTable,where:'$partyColumn=?',whereArgs:[widget.partyId],orderBy:'date');
-  final payments=await db.query('payments',where:'party_type=? AND party_id=?',whereArgs:[widget.type,widget.partyId],orderBy:'date');
+  final found=await db.query(table,where:'id=?',whereArgs:[widget.partyId],limit:1);
+  if(found.isEmpty)throw Exception('الحساب غير موجود');
+  final party=found.first;
+  final invoiceTable=customer?'sales':'purchases',partyColumn=customer?'customer_id':'supplier_id';
+  final invoices=await db.query(invoiceTable,where:'$partyColumn=?',whereArgs:[widget.partyId],orderBy:'date,id');
+  final payments=await db.query('payments',where:'party_type=? AND party_id=?',whereArgs:[widget.type,widget.partyId],orderBy:'date,id');
   final returnColumn=customer?'customer_id':'supplier_id';
-  final returns=await db.query('returns',where:'$returnColumn=?',whereArgs:[widget.partyId],orderBy:'date');
-  final tx=<Map<String,Object?>>[];
-  for(final x in invoices){tx.add({'date':x['date'],'label':'${customer?'فاتورة بيع':'فاتورة توريد'} #${x['id']}','amount':x['total'],'direction':1});}
-  for(final x in payments){tx.add({'date':x['date'],'label':customer?'دفعة من الزبون':'دفعة للمورد','amount':x['amount'],'direction':-1});}
-  for(final x in returns){tx.add({'date':x['date'],'label':customer?'مرتجع زبون':'مرتجع مورد','amount':x['total'],'direction':-1});}
-  tx.sort((a,b)=>(a['date'] as String).compareTo(b['date'] as String));
-  num balance=(party['opening_balance'] as num?)??0;
-  for(final x in tx){balance+=(x['amount'] as num)*(x['direction'] as int);}
-  return {'party':party,'transactions':tx,'balance':balance};
+  final returns=await db.query('returns',where:'$returnColumn=?',whereArgs:[widget.partyId],orderBy:'date,id');
+  final all=<Map<String,Object?>>[];
+  for(final x in invoices){
+   if(x['status']!='posted')continue;
+   all.add({'date':x['date'],'sort':x['id'],'label':(customer?'فاتورة بيع':'فاتورة توريد')+' #'+x['id'].toString(),'amount':(x['total'] as num).toDouble(),'direction':1});
+  }
+  for(final x in payments){
+   all.add({'date':x['date'],'sort':x['id'],'label':(x['note']??(customer?'دفعة من الزبون':'دفعة للمورد')).toString(),'amount':(x['amount'] as num).toDouble(),'direction':-1});
+  }
+  for(final x in returns){
+   final total=(x['total'] as num).toDouble(),cash=(x['cash_paid'] as num?)?.toDouble()??0;
+   final net=customer?total-cash:total;
+   final label=customer?(cash>0?'مرتجع زبون #'+x['id'].toString()+' (المعاد نقداً '+money(cash)+')':'مرتجع زبون #'+x['id'].toString()):'مرتجع مورد #'+x['id'].toString();
+   all.add({'date':x['date'],'sort':x['id'],'label':label,'amount':net,'direction':-1});
+  }
+  all.sort((a,b){final c=(a['date'] as String).compareTo(b['date'] as String);return c!=0?c:(a['sort'] as int).compareTo(b['sort'] as int);});
+  final start=fromDate==null?null:DateTime(fromDate!.year,fromDate!.month,fromDate!.day);
+  final end=toDate==null?null:DateTime(toDate!.year,toDate!.month,toDate!.day,23,59,59,999);
+  if(start!=null&&end!=null&&start.isAfter(end))throw Exception('تاريخ البداية يجب أن يسبق تاريخ النهاية');
+  num opening=(party['opening_balance'] as num?)??0;
+  final visible=<Map<String,Object?>>[];
+  for(final x in all){
+   final dt=DateTime.tryParse(x['date'].toString())?.toLocal();
+   if(dt!=null&&start!=null&&dt.isBefore(start)){opening+=(x['amount'] as num)*(x['direction'] as int);continue;}
+   if(dt!=null&&end!=null&&dt.isAfter(end))continue;
+   visible.add(x);
+  }
+  num balance=opening;
+  for(final x in visible){balance+=(x['amount'] as num)*(x['direction'] as int);x['balance']=balance;}
+  return {'party':party,'transactions':visible,'opening':opening,'balance':balance};
  }
  Future<void> addPayment() async {
   final amount=TextEditingController(),note=TextEditingController();
@@ -375,11 +402,9 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   try{
    await ShopDb.instance.db.transaction((tx) async {
     final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
-    final customer=widget.type=='customer';
-    final invoiceType=customer?'sale':'purchase';
-    final invoiceTable=customer?'sales':'purchases';
-    final partyColumn=customer?'customer_id':'supplier_id';
-    final invoices=await tx.query(invoiceTable,where:'$partyColumn=?',whereArgs:[widget.partyId],orderBy:'date ASC,id ASC');
+    final customer=widget.type=='customer',invoiceType=customer?'sale':'purchase';
+    final invoiceTable=customer?'sales':'purchases',partyColumn=customer?'customer_id':'supplier_id';
+    final invoices=await tx.query(invoiceTable,where:'$partyColumn=? AND status=?',whereArgs:[widget.partyId,'posted'],orderBy:'date ASC,id ASC');
     var remaining=value;
     for(final invoice in invoices){
      if(remaining<=0)break;
@@ -396,46 +421,61 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   finally{if(mounted)setState(()=>saving=false);}
  }
  Future<void> export(Map<String,Object?> data) async {
-  final party=data['party'] as Map<String,Object?>;
-  final tx=data['transactions'] as List<Map<String,Object?>>;
+  final party=data['party'] as Map<String,Object?>,tx=data['transactions'] as List<Map<String,Object?>>;
   final customer=widget.type=='customer';
-  final b=StringBuffer()
-   ..writeln('# NaeemSoft POS')
-   ..writeln('## كشف حساب ${customer?'زبون':'مورد'}')
-   ..writeln('**الاسم:** ${party['name']}')
-   ..writeln('**التاريخ:** ${DateTime.now().toIso8601String()}')
-   ..writeln('')
-   ..writeln('| التاريخ | البيان | المبلغ |')
-   ..writeln('|---|---|---:|');
-  for(final x in tx){b.writeln('| ${x['date']} | ${x['label']} | ${money((x['amount'] as num)*(x['direction'] as int))} |');}
-  b..writeln('')
-   ..writeln('**الرصيد المستحق:** ${money(data['balance'] as num)}');
-  final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'كشف حساب ${party['name']}',author:'NaeemSoft POS',markdown:b.toString()));
+  final out=StringBuffer()..writeln('# NaeemSoft POS')..writeln('## كشف حساب '+(customer?'زبون':'مورد'))..writeln('**الاسم:** '+party['name'].toString())..writeln('**الفترة:** '+dateText(fromDate)+' إلى '+dateText(toDate))..writeln('**الرصيد المرحل:** '+money(data['opening'] as num))..writeln('')..writeln('| التاريخ | البيان | مدين | دائن | الرصيد |')..writeln('|---|---|---:|---:|---:|');
+  for(final x in tx){
+   final amount=x['amount'] as num,dir=x['direction'] as int;
+   final debit=(customer?dir>0:dir<0)?amount:0,credit=(customer?dir<0:dir>0)?amount:0;
+   out.writeln('| '+x['date'].toString()+' | '+x['label'].toString()+' | '+money(debit)+' | '+money(credit)+' | '+money(x['balance'] as num)+' |');
+  }
+  out..writeln('')..writeln('**الرصيد الافتتاحي للفترة:** '+money(data['opening'] as num))..writeln('**الرصيد الختامي:** '+money(data['balance'] as num));
+  final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'كشف حساب '+party['name'].toString(),author:'NaeemSoft POS',markdown:out.toString()));
   if(mounted)await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
  }
  @override Widget build(BuildContext context)=>Scaffold(
-  appBar:AppBar(title:const Text('كشف الحساب')),
+  appBar:AppBar(title:Text(widget.type=='customer'?'كشف حساب الزبون':'كشف حساب المورد')),
   floatingActionButton:FloatingActionButton.extended(onPressed:saving?null:addPayment,icon:const Icon(Icons.payments),label:const Text('تسجيل دفعة')),
   body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
-   if(s.hasError)return Center(child:Text('تعذر تحميل الكشف: ${s.error}'));
+   if(s.hasError)return Center(child:Padding(padding:const EdgeInsets.all(16),child:Text('تعذر تحميل الكشف: '+s.error.toString())));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    final data=s.data!,party=data['party'] as Map<String,Object?>;
-   final tx=data['transactions'] as List<Map<String,Object?>>;
-   final balance=data['balance'] as num;
+   final tx=data['transactions'] as List<Map<String,Object?>>,balance=data['balance'] as num,opening=data['opening'] as num;
+   final customer=widget.type=='customer';
    return ListView(padding:const EdgeInsets.all(12),children:[
     Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-     Text(party['name'] as String,style:Theme.of(c).textTheme.titleLarge),
-     Text((party['phone']??'').toString()),
-     const SizedBox(height:8),
-     Text('الرصيد المستحق: ${money(balance)}',style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),
+     Text(party['name'] as String,style:Theme.of(c).textTheme.titleLarge),Text((party['phone']??'').toString()),const SizedBox(height:8),
+     Text('الرصيد الافتتاحي للفترة: '+money(opening)),
+     Text('الرصيد '+(balance<0?'الدائن':'المستحق')+': '+money(balance.abs()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),
+    ]))),
+    Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+     const Align(alignment:Alignment.centerRight,child:Text('تصفية الكشف حسب الفترة',style:TextStyle(fontWeight:FontWeight.bold))),
+     Row(children:[
+      Expanded(child:OutlinedButton.icon(onPressed:()=>chooseDate(true),icon:const Icon(Icons.calendar_month),label:Text('من: '+dateText(fromDate)))),
+      const SizedBox(width:8),
+      Expanded(child:OutlinedButton.icon(onPressed:()=>chooseDate(false),icon:const Icon(Icons.calendar_month),label:Text('إلى: '+dateText(toDate)))),
+     ]),
+     TextButton.icon(onPressed:()=>setState((){fromDate=null;toDate=null;}),icon:const Icon(Icons.clear),label:const Text('عرض كل الفترة')),
     ]))),
     SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>export(data),icon:const Icon(Icons.picture_as_pdf),label:const Text('حفظ / مشاركة كشف الحساب PDF'))),
-    if(tx.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('لا توجد حركات مسجلة لهذا الحساب',textAlign:TextAlign.center)),
-    ...tx.reversed.map((x)=>Card(child:ListTile(
-     title:Text(x['label'] as String),
-     subtitle:Text((x['date'] as String).replaceFirst('T',' ').split('.').first),
-     trailing:Text((x['direction'] as int)<0?'-${money(x['amount'] as num)}':money(x['amount'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
-    ))),
+    if(tx.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('لا توجد حركات في الفترة المحددة',textAlign:TextAlign.center)),
+    if(tx.isNotEmpty)SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
+     columns:const [DataColumn(label:Text('التاريخ')),DataColumn(label:Text('البيان')),DataColumn(label:Text('مدين')),DataColumn(label:Text('دائن')),DataColumn(label:Text('الرصيد'))],
+     rows:[
+      DataRow(cells:[const DataCell(Text('—')),const DataCell(Text('رصيد مرحل')),DataCell(Text(customer?'—':money(opening.abs()))),DataCell(Text(customer?money(opening.abs()):'—')),DataCell(Text(money(opening)))]),
+      ...tx.map((x){
+       final amount=x['amount'] as num,dir=x['direction'] as int;
+       final debit=(customer?dir>0:dir<0)?amount:0,credit=(customer?dir<0:dir>0)?amount:0;
+       final dt=DateTime.tryParse(x['date'].toString())?.toLocal();
+       return DataRow(cells:[
+        DataCell(Text(dt==null?x['date'].toString():DateFormat('yyyy-MM-dd').format(dt))),DataCell(Text(x['label'] as String)),
+        DataCell(Text(debit==0?'—':money(debit))),DataCell(Text(credit==0?'—':money(credit))),
+        DataCell(Text(money(x['balance'] as num),style:const TextStyle(fontWeight:FontWeight.bold))),
+       ]);
+      }),
+     ],
+    )),
+    Card(child:ListTile(title:const Text('الرصيد الختامي'),trailing:Text(money(balance),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)))),
    ]);
   }),
  );
