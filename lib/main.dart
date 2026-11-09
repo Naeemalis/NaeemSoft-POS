@@ -148,8 +148,8 @@ class _SalePageState extends State<SalePage>{
     }).toList())),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
-    SizedBox(height: saleMode=='weight'?144:108, child:GridView.count(
-     physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:4,crossAxisSpacing:4,childAspectRatio:2.25,
+    SizedBox(height:160, child:GridView.count(
+     physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:3,crossAxisSpacing:3,childAspectRatio:2.8,
      children:[for(final k in ['7','8','9','⌫','4','5','6','مسح','1','2','3',if(saleMode=='weight')'½' else '.','0','.',if(saleMode=='weight')'¼' else '00',if(saleMode=='weight')'1 كجم' else 'مسح'])
       OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:13,fontWeight:FontWeight.bold)))],
     )),
@@ -221,8 +221,8 @@ class _PurchasePageState extends State<PurchasePage>{
     Wrap(spacing:3,runSpacing:2,children:[ChoiceChip(label:const Text('عدد العبوات'),selected:purchaseField=='packages',onSelected:(_)=>setState(()=>purchaseField='packages')),ChoiceChip(label:const Text('وزن العبوة كجم'),selected:purchaseField=='weight',onSelected:(_)=>setState(()=>purchaseField='weight')),ChoiceChip(label:const Text('التكلفة'),selected:purchaseField=='cost',onSelected:(_)=>setState(()=>purchaseField='cost'))]),
     if(purchaseField=='cost')Row(children:[const Text('التكلفة:'),ChoiceChip(label:const Text('للعبوة'),selected:purchaseCostMode=='package',onSelected:(_)=>setState(()=>purchaseCostMode='package')),ChoiceChip(label:const Text('للكيلو'),selected:purchaseCostMode=='kg',onSelected:(_)=>setState(()=>purchaseCostMode='kg'))]),
     Text('القيمة: ${keypadValue.isEmpty?'0':keypadValue} • العدد: $packageCount • الوزن: ${(packageWeight/1000).toStringAsFixed(2)} كجم • تكلفة العبوة: $packageCost',style:const TextStyle(fontSize:10)),
-    SizedBox(height:124,child:GridView.count(
-     physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:3,crossAxisSpacing:3,childAspectRatio:2.3,
+    SizedBox(height:160,child:GridView.count(
+     physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:3,crossAxisSpacing:3,childAspectRatio:2.8,
      children:[for(final k in ['7','8','9','⌫','4','5','6','مسح','1','2','3','.','0','00','اعتماد'])
       OutlinedButton(onPressed:k=='اعتماد'?applyKeypad:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)))],
     )),
