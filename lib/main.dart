@@ -98,7 +98,7 @@ class _SalePageState extends State<SalePage>{
  }
  Future<void> checkout() async {
   if(posting||cart.isEmpty)return;
-  final customers=await rows('customers');int? customer;
+  final customers=await ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name');int? customer;
   final paid=TextEditingController(text:total.toString()),due=TextEditingController();
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:const Text('بيانات فاتورة البيع'),
@@ -129,7 +129,7 @@ class _SalePageState extends State<SalePage>{
 
  @override Widget build(BuildContext c) {
   return Column(children:[
-   FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
+   FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:'active=1',orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
     final ps=s.data!, n=((s.data!.length+6)~/7).clamp(1,1000);
     return SizedBox(height:n*78.0,child:GridView.builder(physics:const NeverScrollableScrollPhysics(),padding:const EdgeInsets.all(3),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:7,crossAxisSpacing:3,mainAxisSpacing:3,childAspectRatio:.78),itemCount:ps.length,itemBuilder:(c,i){
@@ -204,7 +204,7 @@ class _PurchasePageState extends State<PurchasePage>{
  @override Widget build(BuildContext c){
   final w=MediaQuery.of(c).size.width;
   return Column(children:[
-   Padding(padding:const EdgeInsets.fromLTRB(8,6,8,2),child:FutureBuilder<List<Map<String,Object?>>>(future:rows('suppliers'),builder:(c,s){
+   Padding(padding:const EdgeInsets.fromLTRB(8,6,8,2),child:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('suppliers',where:'active=1',orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const LinearProgressIndicator();
     return DropdownButtonFormField<int>(value:selectedSupplierId,decoration:const InputDecoration(labelText:'اختر المورد أولاً',prefixIcon:Icon(Icons.local_shipping_outlined),border:OutlineInputBorder(),isDense:true),items:s.data!.map((v)=>DropdownMenuItem<int>(value:v['id'] as int,child:Text(v['name'] as String))).toList(),onChanged:posting?null:(v)=>setState(()=>selectedSupplierId=v));
    })),
@@ -243,28 +243,96 @@ class AdminPage extends StatelessWidget {const AdminPage({super.key});@override 
 ]);Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)));}
 class ProductsPage extends StatefulWidget {const ProductsPage({super.key});@override State<ProductsPage> createState()=>_ProductsPageState();}
 class _ProductsPageState extends State<ProductsPage>{
- Future<void> add()async{
-  final n=TextEditingController(),u=TextEditingController(text:'جوان'),w=TextEditingController(text:'30'),price=TextEditingController(text:'0');
-  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('إضافة صنف'),content:Column(mainAxisSize:MainAxisSize.min,children:[
-   field(n,'اسم الصنف'),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),field(price,'سعر بيع الكيلو',number:true)
-  ]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
-  if(ok==true&&n.text.trim().isNotEmpty){final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??0;if(weight>0&&p>=0){try{await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p);if(mounted)setState((){});}catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}}}
+ Future<void> edit(Map<String,Object?>? product) async {
+  final n=TextEditingController(text:(product?['name']??'').toString());
+  final u=TextEditingController(text:(product?['purchase_unit']??'جوان').toString());
+  final w=TextEditingController(text:((product?['default_weight'] as num?)??30).toString());
+  final price=TextEditingController(text:((product?['sale_price'] as num?)??0).round().toString());
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:Text(product==null?'إضافة صنف':'تعديل الصنف والسعر'),
+   content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+    field(n,'اسم الصنف'),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),field(price,'سعر بيع الكيلو',number:true)
+   ])),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
+  if(ok!=true)return;
+  final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??-1;
+  if(n.text.trim().isEmpty||u.text.trim().isEmpty||weight<=0||p<0){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تحقق من الاسم والوزن والسعر')));return;}
+  try{
+   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p);}
+   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p);}
+   if(mounted)setState((){});
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ الصنف: $e')));}
  }
- @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('الأصناف')),body:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
-  if(!s.hasData)return const Center(child:CircularProgressIndicator());
-  return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text((p['purchase_unit'] as String)+' • '+money(p['sale_price'] as num)+' / كجم'),trailing:Text(kg(p['stock_grams'] as num)))).toList());
- }),floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة صنف')));
+ Future<void> archive(Map<String,Object?> product) async {
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:const Text('حذف الصنف من القائمة؟'),
+   content:Text('سيختفي «${product['name']}» من البيع والتوريد، مع الاحتفاظ به في الفواتير السابقة.'),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حذف'))]));
+  if(ok==true){await ShopDb.instance.deactivateProduct(product['id'] as int);if(mounted)setState((){});}
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:const Text('إدارة الأصناف')),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:'active=1',orderBy:'name'),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل الأصناف: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   if(s.data!.isEmpty)return const Center(child:Text('لا توجد أصناف نشطة'));
+   return ListView(children:s.data!.map((p)=>ListTile(
+    leading:const Icon(Icons.category_outlined),
+    title:Text(p['name'] as String),
+    subtitle:Text('${p['purchase_unit']} • ${money(p['sale_price'] as num)} / كجم'),
+    trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(p):archive(p),itemBuilder:(_)=>const[
+     PopupMenuItem(value:'edit',child:Text('تعديل الاسم والوزن والسعر')),
+     PopupMenuItem(value:'delete',child:Text('حذف الصنف')),
+    ]),
+    onTap:()=>edit(p),
+   )).toList());
+  }),
+  floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:const Text('إضافة صنف')));
 }
 class PartiesPage extends StatefulWidget {final String type;const PartiesPage({super.key,required this.type});@override State<PartiesPage> createState()=>_PartiesPageState();}
 class _PartiesPageState extends State<PartiesPage>{
- Future<void> add()async{final n=TextEditingController(),phone=TextEditingController();final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
-  title:Text(widget.type=='supplier'?'إضافة مورد':'إضافة زبون'),content:Column(mainAxisSize:MainAxisSize.min,children:[field(n,'الاسم'),field(phone,'الهاتف')]),
-  actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
-  if(ok==true&&n.text.trim().isNotEmpty){await ShopDb.instance.addParty(widget.type,n.text,phone.text);if(mounted)setState((){});}
+ Future<void> edit(Map<String,Object?>? party)async{
+  final n=TextEditingController(text:(party?['name']??'').toString()),phone=TextEditingController(text:(party?['phone']??'').toString());
+  final customer=widget.type=='customer';
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:Text(party==null?(customer?'إضافة زبون':'إضافة مورد'):(customer?'تعديل بيانات الزبون':'تعديل بيانات المورد')),
+   content:Column(mainAxisSize:MainAxisSize.min,children:[field(n,'الاسم'),field(phone,'الهاتف')]),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
+  if(ok!=true)return;
+  if(n.text.trim().isEmpty){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اكتب الاسم أولاً')));return;}
+  try{
+   if(party==null)await ShopDb.instance.addParty(widget.type,n.text,phone.text);
+   else await ShopDb.instance.updateParty(widget.type,party['id'] as int,n.text,phone.text);
+   if(mounted)setState((){});
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ البيانات: $e')));}
  }
- @override Widget build(BuildContext c){final table=widget.type=='supplier'?'suppliers':'customers';return Scaffold(appBar:AppBar(title:Text(widget.type=='supplier'?'الموردون':'الزبائن')),
-  body:FutureBuilder<List<Map<String,Object?>>>(future:rows(table),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((x)=>ListTile(leading:const Icon(Icons.person_outline),title:Text(x['name'] as String),subtitle:Text((x['phone']??'').toString()),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>PartyStatementPage(type:widget.type,partyId:x['id'] as int))))).toList());}),
-  floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة')));}
+ Future<void> archive(Map<String,Object?> party)async{
+  final customer=widget.type=='customer';
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:Text(customer?'حذف الزبون؟':'حذف المورد؟'),
+   content:Text('سيختفي «${party['name']}» من قوائم الاختيار، مع الاحتفاظ بفواتيره وكشف حسابه.'),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حذف'))]));
+  if(ok==true){await ShopDb.instance.deactivateParty(widget.type,party['id'] as int);if(mounted)setState((){});}
+ }
+ @override Widget build(BuildContext c){
+  final table=widget.type=='supplier'?'suppliers':'customers';
+  final customer=widget.type=='customer';
+  return Scaffold(appBar:AppBar(title:Text(customer?'إدارة الزبائن':'إدارة الموردين')),
+   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query(table,where:'active=1',orderBy:'name'),builder:(c,s){
+    if(s.hasError)return Center(child:Text('تعذر تحميل القائمة: ${s.error}'));
+    if(!s.hasData)return const Center(child:CircularProgressIndicator());
+    if(s.data!.isEmpty)return Center(child:Text(customer?'لا يوجد زبائن مسجلون':'لا يوجد موردون مسجلون'));
+    return ListView(children:s.data!.map((x)=>ListTile(
+     leading:const Icon(Icons.person_outline),title:Text(x['name'] as String),subtitle:Text((x['phone']??'').toString()),
+     trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(x):archive(x),itemBuilder:(_)=>const[
+      PopupMenuItem(value:'edit',child:Text('تعديل الاسم والهاتف')),
+      PopupMenuItem(value:'delete',child:Text('حذف')),
+     ]),
+     onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>PartyStatementPage(type:widget.type,partyId:x['id'] as int))),
+    )).toList());
+   }),
+   floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:Text(customer?'إضافة زبون':'إضافة مورد')));
+ }
 }
 class PartyStatementPage extends StatefulWidget {
  final String type;
