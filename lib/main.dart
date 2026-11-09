@@ -400,6 +400,19 @@ Future<File> _buildInvoicePdf({
  required List<Map<String,Object?>> lines,
  required String party,
 }) async {
+ // Ensure the Arabic font is downloaded and cached before creating a printable invoice.
+ // flutter_pdf_export automatically shapes Arabic text and detects RTL paragraphs.
+ await FontResolver.preload([
+  'فاتورة مبيعات',
+  'فاتورة توريد',
+  'رقم الفاتورة',
+  'تفاصيل الأصناف',
+  'ملخص الحساب',
+  'الإجمالي',
+  'المدفوع',
+  'المتبقي',
+  'NaeemSoft POS',
+ ]);
  final sale=type=='sale';
  final total=header['total'] as num, paid=header['paid'] as num;
  final sections=<PdfSection>[
