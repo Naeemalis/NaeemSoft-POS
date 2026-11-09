@@ -24,7 +24,7 @@ jobs:
           import re
           path = Path("android/gradle/wrapper/gradle-wrapper.properties")
           content = path.read_text()
-          match = re.search(r"gradle-([0-9.]+)-bin\\.zip", content)
+          match = re.search(r"gradle-([0-9.]+)-bin\.zip", content)
           if not match:
               raise SystemExit("Could not detect generated Gradle version")
           version = match.group(1)
