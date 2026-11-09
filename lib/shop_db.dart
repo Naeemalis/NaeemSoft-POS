@@ -91,8 +91,8 @@ class ShopDb {
       default_weight REAL NOT NULL DEFAULT 1, cost REAL NOT NULL DEFAULT 0,
       sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
       stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1)''');
-    await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT)');
-    await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT)');
+    await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
+    await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('''CREATE TABLE purchases(
       id INTEGER PRIMARY KEY AUTOINCREMENT, supplier_id INTEGER, date TEXT NOT NULL,
       total REAL NOT NULL, paid REAL NOT NULL, note TEXT, due_date TEXT,
@@ -495,8 +495,15 @@ class ShopDb {
 
   Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
-    await db.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice}, where:'id=?', whereArgs:[id]);
-    await db.update('product_units', {'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams}, where:'product_id=? AND unit_name=(SELECT purchase_unit FROM products WHERE id=?)', whereArgs:[id,id]);
+    await db.transaction((tx) async {
+      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice}, where:'id=?', whereArgs:[id]);
+      final units=await tx.query('product_units',where:'product_id=?',whereArgs:[id],limit:1);
+      if(units.isEmpty){
+        await tx.insert('product_units',{'product_id':id,'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams});
+      }else{
+        await tx.update('product_units', {'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams}, where:'id=?', whereArgs:[units.first['id']]);
+      }
+    });
   }
 
   Future<void> deactivateProduct(int id) async {
