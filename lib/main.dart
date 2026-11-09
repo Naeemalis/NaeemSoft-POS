@@ -255,9 +255,99 @@ class _PartiesPageState extends State<PartiesPage>{
   if(ok==true&&n.text.trim().isNotEmpty){await ShopDb.instance.addParty(widget.type,n.text,phone.text);if(mounted)setState((){});}
  }
  @override Widget build(BuildContext c){final table=widget.type=='supplier'?'suppliers':'customers';return Scaffold(appBar:AppBar(title:Text(widget.type=='supplier'?'الموردون':'الزبائن')),
-  body:FutureBuilder<List<Map<String,Object?>>>(future:rows(table),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((x)=>ListTile(leading:const Icon(Icons.person_outline),title:Text(x['name'] as String),subtitle:Text((x['phone']??'').toString()))).toList());}),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:rows(table),builder:(c,s){if(!s.hasData)return const Center(child:CircularProgressIndicator());return ListView(children:s.data!.map((x)=>ListTile(leading:const Icon(Icons.person_outline),title:Text(x['name'] as String),subtitle:Text((x['phone']??'').toString()),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>PartyStatementPage(type:widget.type,partyId:x['id'] as int))))).toList());}),
   floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة')));}
 }
+class PartyStatementPage extends StatefulWidget {
+ final String type;
+ final int partyId;
+ const PartyStatementPage({super.key,required this.type,required this.partyId});
+ @override State<PartyStatementPage> createState()=>_PartyStatementPageState();
+}
+class _PartyStatementPageState extends State<PartyStatementPage>{
+ bool saving=false;
+ Future<Map<String,Object?>> load() async {
+  final customer=widget.type=='customer';
+  final db=ShopDb.instance.db;
+  final table=customer?'customers':'suppliers';
+  final party=(await db.query(table,where:'id=?',whereArgs:[widget.partyId],limit:1)).first;
+  final invoiceTable=customer?'sales':'purchases';
+  final partyColumn=customer?'customer_id':'supplier_id';
+  final invoices=await db.query(invoiceTable,where:'$partyColumn=?',whereArgs:[widget.partyId],orderBy:'date');
+  final payments=await db.query('payments',where:'party_type=? AND party_id=?',whereArgs:[widget.type,widget.partyId],orderBy:'date');
+  final returnColumn=customer?'customer_id':'supplier_id';
+  final returns=await db.query('returns',where:'$returnColumn=?',whereArgs:[widget.partyId],orderBy:'date');
+  final tx=<Map<String,Object?>>[];
+  for(final x in invoices){tx.add({'date':x['date'],'label':'${customer?'فاتورة بيع':'فاتورة توريد'} #${x['id']}','amount':x['total'],'direction':1});}
+  for(final x in payments){tx.add({'date':x['date'],'label':customer?'دفعة من الزبون':'دفعة للمورد','amount':x['amount'],'direction':-1});}
+  for(final x in returns){tx.add({'date':x['date'],'label':customer?'مرتجع زبون':'مرتجع مورد','amount':x['total'],'direction':-1});}
+  tx.sort((a,b)=>(a['date'] as String).compareTo(b['date'] as String));
+  num balance=(party['opening_balance'] as num?)??0;
+  for(final x in tx){balance+=(x['amount'] as num)*(x['direction'] as int);}
+  return {'party':party,'transactions':tx,'balance':balance};
+ }
+ Future<void> addPayment() async {
+  final amount=TextEditingController(),note=TextEditingController();
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:Text(widget.type=='customer'?'تسجيل دفعة من الزبون':'تسجيل دفعة للمورد'),
+   content:Column(mainAxisSize:MainAxisSize.min,children:[field(amount,'المبلغ',number:true),field(note,'ملاحظة')]),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('تسجيل'))],
+  ));
+  final value=int.tryParse(amount.text.trim())??0;
+  if(ok!=true||value<=0)return;
+  setState(()=>saving=true);
+  try{
+   await ShopDb.instance.db.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
+   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تسجيل الدفعة وتحديث الرصيد')));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تسجيل الدفعة: $e')));}
+  finally{if(mounted)setState(()=>saving=false);}
+ }
+ Future<void> export(Map<String,Object?> data) async {
+  final party=data['party'] as Map<String,Object?>;
+  final tx=data['transactions'] as List<Map<String,Object?>>;
+  final customer=widget.type=='customer';
+  final b=StringBuffer()
+   ..writeln('# NaeemSoft POS')
+   ..writeln('## كشف حساب ${customer?'زبون':'مورد'}')
+   ..writeln('**الاسم:** ${party['name']}')
+   ..writeln('**التاريخ:** ${DateTime.now().toIso8601String()}')
+   ..writeln('')
+   ..writeln('| التاريخ | البيان | المبلغ |')
+   ..writeln('|---|---|---:|');
+  for(final x in tx){b.writeln('| ${x['date']} | ${x['label']} | ${money((x['amount'] as num)*(x['direction'] as int))} |');}
+  b..writeln('')
+   ..writeln('**الرصيد المستحق:** ${money(data['balance'] as num)}');
+  final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'كشف حساب ${party['name']}',author:'NaeemSoft POS',markdown:b.toString()));
+  if(mounted)await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
+ }
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('كشف الحساب')),
+  floatingActionButton:FloatingActionButton.extended(onPressed:saving?null:addPayment,icon:const Icon(Icons.payments),label:const Text('تسجيل دفعة')),
+  body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل الكشف: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   final data=s.data!,party=data['party'] as Map<String,Object?>;
+   final tx=data['transactions'] as List<Map<String,Object?>>;
+   final balance=data['balance'] as num;
+   return ListView(padding:const EdgeInsets.all(12),children:[
+    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     Text(party['name'] as String,style:Theme.of(c).textTheme.titleLarge),
+     Text((party['phone']??'').toString()),
+     const SizedBox(height:8),
+     Text('الرصيد المستحق: ${money(balance)}',style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),
+    ]))),
+    SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>export(data),icon:const Icon(Icons.picture_as_pdf),label:const Text('حفظ / مشاركة كشف الحساب PDF'))),
+    if(tx.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('لا توجد حركات مسجلة لهذا الحساب',textAlign:TextAlign.center)),
+    ...tx.reversed.map((x)=>Card(child:ListTile(
+     title:Text(x['label'] as String),
+     subtitle:Text((x['date'] as String).replaceFirst('T',' ').split('.').first),
+     trailing:Text((x['direction'] as int)<0?'-${money(x['amount'] as num)}':money(x['amount'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
+    ))),
+   ]);
+  }),
+ );
+}
+
 class InvoicesPage extends StatelessWidget {
  const InvoicesPage({super.key});
  @override Widget build(BuildContext c)=>Scaffold(
