@@ -297,8 +297,25 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   if(ok!=true||value<=0)return;
   setState(()=>saving=true);
   try{
-   await ShopDb.instance.db.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
-   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تسجيل الدفعة وتحديث الرصيد')));}
+   await ShopDb.instance.db.transaction((tx) async {
+    final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
+    final customer=widget.type=='customer';
+    final invoiceType=customer?'sale':'purchase';
+    final invoiceTable=customer?'sales':'purchases';
+    final partyColumn=customer?'customer_id':'supplier_id';
+    final invoices=await tx.query(invoiceTable,where:'$partyColumn=?',whereArgs:[widget.partyId],orderBy:'date ASC,id ASC');
+    var remaining=value;
+    for(final invoice in invoices){
+     if(remaining<=0)break;
+     final due=((invoice['total'] as num)-(invoice['paid'] as num)).toInt();
+     if(due<=0)continue;
+     final allocated=remaining<due?remaining:due;
+     await tx.update(invoiceTable,{'paid':(invoice['paid'] as num).toInt()+allocated},where:'id=?',whereArgs:[invoice['id']]);
+     await tx.insert('payment_allocations',{'payment_id':paymentId,'invoice_type':invoiceType,'invoice_id':invoice['id'],'amount':allocated});
+     remaining-=allocated;
+    }
+   });
+   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تسجيل الدفعة وتوزيعها على أقدم الفواتير المستحقة')));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تسجيل الدفعة: $e')));}
   finally{if(mounted)setState(()=>saving=false);}
  }
