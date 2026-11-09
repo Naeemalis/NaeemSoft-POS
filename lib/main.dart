@@ -400,23 +400,26 @@ Future<File> _buildInvoicePdf({
  required List<Map<String,Object?>> lines,
  required String party,
 }) async {
- // Ensure the Arabic font is downloaded and cached before creating a printable invoice.
- // flutter_pdf_export automatically shapes Arabic text and detects RTL paragraphs.
+ // Download and cache the Arabic font before generating the receipt.
  await FontResolver.preload([
   'فاتورة مبيعات',
   'فاتورة توريد',
   'رقم الفاتورة',
+  'التاريخ',
+  'الزبون',
+  'المورد',
   'تفاصيل الأصناف',
-  'ملخص الحساب',
   'الإجمالي',
   'المدفوع',
   'المتبقي',
-  'NaeemSoft POS',
+  'شكراً لتعاملكم معنا',
  ]);
  final sale=type=='sale';
  final total=header['total'] as num, paid=header['paid'] as num;
+ final receiptHeight=(112 + lines.length*24).clamp(150, 500).toDouble();
  final sections=<PdfSection>[
-  PdfSection.h1(sale?'فاتورة مبيعات':'فاتورة توريد'),
+  PdfSection.h1('NaeemSoft POS'),
+  PdfSection.h2(sale?'فاتورة بيع':'فاتورة توريد'),
   PdfSection.paragraph('رقم الفاتورة: $invoiceId'),
   PdfSection.paragraph('التاريخ: ${header['date']}'),
   PdfSection.paragraph('${sale?'الزبون':'المورد'}: $party'),
@@ -442,15 +445,23 @@ Future<File> _buildInvoicePdf({
   PdfSection.paragraph('الإجمالي: ${money(total)}'),
   PdfSection.paragraph('المدفوع: ${money(paid)}'),
   PdfSection.paragraph('المتبقي: ${money(total-paid)}'),
-  PdfSection.paragraph('تم إنشاء هذه الفاتورة بواسطة NaeemSoft POS.'),
+  PdfSection.paragraph('شكراً لتعاملكم معنا'),
  ]);
  return PdfBuilder.generate(PdfDocumentData(
   title:'${sale?'فاتورة بيع':'فاتورة توريد'} $invoiceId',
   author:'NaeemSoft POS',
-  style:PdfStyle.light.copyWith(
-   showPageNumbers:true,
-   footerLeftText:'NaeemSoft POS',
-   bodyFontSize:12,
+  style:PdfStyle.minimal.copyWith(
+   pageFormat:PdfPageFormat(80 * PdfPageFormat.mm, receiptHeight * PdfPageFormat.mm),
+   horizontalMargin:12,
+   verticalMargin:12,
+   h1FontSize:16,
+   h2FontSize:12,
+   bodyFontSize:9,
+   bodyLineHeight:1.35,
+   showHeaderBar:false,
+   showHeaderTitle:false,
+   showPageNumbers:false,
+   footerLeftText:null,
   ),
   sections:sections,
  ));
