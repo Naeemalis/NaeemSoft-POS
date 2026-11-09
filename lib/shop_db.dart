@@ -319,7 +319,6 @@ class ShopDb {
         final originalGrams=type=='customer'?(source.first['quantity_grams'] as num).toInt():((source.first['quantity'] as num)*1000).round();
         final remaining=originalGrams-(already.first['q'] as num).toInt();
         if(grams>remaining) throw Exception('الكمية أكبر من المتبقي القابل للإرجاع');
-        final productId=(source.first['product_id'] as num).toInt();
         final price=type=='customer'?(source.first['price_per_kg'] as num).toInt():((source.first['quantity'] as num)>0?((source.first['line_total'] as num)/(source.first['quantity'] as num)).round():0);
         total += ((grams*price)/1000).round();
       }
