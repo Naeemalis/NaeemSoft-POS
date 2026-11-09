@@ -24,7 +24,14 @@ jobs:
       - run: flutter pub get
       - run: flutter test
       - run: flutter analyze --no-fatal-infos
-      - run: flutter build apk --release
+      - name: Build APK with network retry
+        run: |
+          for attempt in 1 2 3; do
+            flutter build apk --release && exit 0
+            echo "Gradle download failed on attempt $attempt; retrying..."
+            sleep 15
+          done
+          exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: NaeemSoft-POS-APK
