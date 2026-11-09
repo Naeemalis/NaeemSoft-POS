@@ -6,6 +6,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_pdf_export/flutter_pdf_export.dart';
 import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:screenshot/screenshot.dart';
 import 'shop_db.dart';
 
 Future<void> main() async {
@@ -149,7 +151,11 @@ class _SalePageState extends State<SalePage>{
     }).toList())),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
-    Wrap(spacing:3,runSpacing:3,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح',if(saleMode=='weight')'½',if(saleMode=='weight')'¼',if(saleMode=='weight')'1 كجم'])SizedBox(width:(w-42)/7,height:30,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:12))))]),
+    SizedBox(height: saleMode=='weight'?144:108, child:GridView.count(
+     physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:4,crossAxisSpacing:4,childAspectRatio:2.25,
+     children:[for(final k in ['7','8','9','⌫','4','5','6','مسح','1','2','3',if(saleMode=='weight')'½' else '.','0','.',if(saleMode=='weight')'¼' else '00',if(saleMode=='weight')'1 كجم' else 'مسح'])
+      OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:13,fontWeight:FontWeight.bold)))],
+    )),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:const Text('مسودة'))),const SizedBox(width:5),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:const Text('المسودات')))]),
     SizedBox(width:double.infinity,height:42,child:FilledButton(onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع')))
    ]))
@@ -168,7 +174,7 @@ class _PurchasePageState extends State<PurchasePage>{
   final count=packageCount, weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
   final price=purchaseCostMode=='package'?packageCost:((packageCost*weight)/1000).round();
   if(count<=0||weight<=0||price<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('حدد العدد والوزن والتكلفة أولاً')));return;}
-  setState(()=>cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price}));
+  setState(()=>cart.add({'product_id':p['id'],'name':p['name'],'unit':'حبة','packages':count,'weight_grams':weight,'package_cost':price}));
  }
  int get total=>cart.fold(0,(v,x)=>v+(x['packages'] as int)*(x['package_cost'] as int));
  Future<void> saveDraft() async {
@@ -213,12 +219,16 @@ class _PurchasePageState extends State<PurchasePage>{
     });
    })),
    Padding(padding:const EdgeInsets.symmetric(horizontal:8,vertical:2),child:Row(children:[const Text('سلة التوريد',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('${cart.length} أصناف • '+money(total),style:const TextStyle(fontWeight:FontWeight.bold))])),
-   Expanded(child:cart.isEmpty?const Center(child:Text('اختر المورد ثم أدخل بيانات العبوة وأضف الأصناف')):ListView(padding:const EdgeInsets.symmetric(horizontal:6),children:cart.asMap().entries.map((e){final x=e.value;return Card(margin:const EdgeInsets.symmetric(vertical:2),child:ListTile(dense:true,title:Text(x['name'] as String,style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),subtitle:Text('${x['packages']} × ${x['unit']} • '+kg((x['packages'] as int)*(x['weight_grams'] as int)),style:const TextStyle(fontSize:10)),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(money((x['packages'] as int)*(x['package_cost'] as int)),style:const TextStyle(fontSize:10)),IconButton(onPressed:posting?null:()=>setState(()=>cart.removeAt(e.key)),icon:const Icon(Icons.close,size:17),visualDensity:VisualDensity.compact)])));}).toList())),
+   Expanded(child:cart.isEmpty?const Center(child:Text('اختر المورد ثم أدخل بيانات العبوة وأضف الأصناف')):ListView(padding:const EdgeInsets.symmetric(horizontal:6),children:cart.asMap().entries.map((e){final x=e.value;return Card(margin:const EdgeInsets.symmetric(vertical:2),child:ListTile(dense:true,title:Text(x['name'] as String,style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),subtitle:Text('${x['packages']} × حبة • وزن إجمالي '+kg((x['packages'] as int)*(x['weight_grams'] as int)),style:const TextStyle(fontSize:10)),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(money((x['packages'] as int)*(x['package_cost'] as int)),style:const TextStyle(fontSize:10)),IconButton(onPressed:posting?null:()=>setState(()=>cart.removeAt(e.key)),icon:const Icon(Icons.close,size:17),visualDensity:VisualDensity.compact)])));}).toList())),
    Container(padding:const EdgeInsets.fromLTRB(7,3,7,4),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Wrap(spacing:3,runSpacing:2,children:[ChoiceChip(label:const Text('عدد العبوات'),selected:purchaseField=='packages',onSelected:(_)=>setState(()=>purchaseField='packages')),ChoiceChip(label:const Text('وزن العبوة كجم'),selected:purchaseField=='weight',onSelected:(_)=>setState(()=>purchaseField='weight')),ChoiceChip(label:const Text('التكلفة'),selected:purchaseField=='cost',onSelected:(_)=>setState(()=>purchaseField='cost'))]),
     if(purchaseField=='cost')Row(children:[const Text('التكلفة:'),ChoiceChip(label:const Text('للعبوة'),selected:purchaseCostMode=='package',onSelected:(_)=>setState(()=>purchaseCostMode='package')),ChoiceChip(label:const Text('للكيلو'),selected:purchaseCostMode=='kg',onSelected:(_)=>setState(()=>purchaseCostMode='kg'))]),
     Text('القيمة: ${keypadValue.isEmpty?'0':keypadValue} • العدد: $packageCount • الوزن: ${(packageWeight/1000).toStringAsFixed(2)} كجم • تكلفة العبوة: $packageCost',style:const TextStyle(fontSize:10)),
-    Wrap(spacing:3,runSpacing:2,children:[for(final k in ['7','8','9','4','5','6','1','2','3','0','.','⌫','مسح'])SizedBox(width:(w-42)/7,height:28,child:OutlinedButton(onPressed:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:11)))),FilledButton(onPressed:applyKeypad,style:FilledButton.styleFrom(visualDensity:VisualDensity.compact),child:const Text('اعتماد'))]),
+    SizedBox(height:124,child:GridView.count(
+     physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:3,crossAxisSpacing:3,childAspectRatio:2.3,
+     children:[for(final k in ['7','8','9','⌫','4','5','6','مسح','1','2','3','.','0','00','اعتماد'])
+      OutlinedButton(onPressed:k=='اعتماد'?applyKeypad:()=>key(k),style:OutlinedButton.styleFrom(padding:EdgeInsets.zero),child:Text(k,style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)))],
+    )),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:const Text('حفظ مسودة'))),const SizedBox(width:4),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:const Text('المسودات')))]),
     SizedBox(width:double.infinity,height:40,child:FilledButton(onPressed:posting?null:save,child:Text(posting?'جارٍ الحفظ...':'ترحيل فاتورة التوريد')))
    ]))
