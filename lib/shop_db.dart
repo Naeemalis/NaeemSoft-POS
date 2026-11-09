@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 6,
+      version: 7,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -68,6 +68,10 @@ class ShopDb {
             await d.execute('ALTER TABLE sales ADD COLUMN source_draft_id INTEGER');
           }
           await _createIdempotency(d);
+        }
+        if (oldVersion < 7) {
+          if (!await _hasColumn(d, 'customers', 'active')) await d.execute('ALTER TABLE customers ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
+          if (!await _hasColumn(d, 'suppliers', 'active')) await d.execute('ALTER TABLE suppliers ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
         }
       },
     );
@@ -487,6 +491,27 @@ class ShopDb {
       if (draftId != null) await tx.delete('invoice_drafts', where: 'id = ?', whereArgs: [draftId]);
       return saleId;
     });
+  }
+
+  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice}) async {
+    if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
+    await db.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice}, where:'id=?', whereArgs:[id]);
+    await db.update('product_units', {'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams}, where:'product_id=? AND unit_name=(SELECT purchase_unit FROM products WHERE id=?)', whereArgs:[id,id]);
+  }
+
+  Future<void> deactivateProduct(int id) async {
+    await db.update('products', {'active':0}, where:'id=?', whereArgs:[id]);
+  }
+
+  Future<void> updateParty(String type, int id, String name, String phone) async {
+    if (name.trim().isEmpty) throw Exception('اسم الحساب مطلوب');
+    final table=type=='supplier'?'suppliers':'customers';
+    await db.update(table, {'name':name.trim(),'phone':phone.trim()}, where:'id=?', whereArgs:[id]);
+  }
+
+  Future<void> deactivateParty(String type, int id) async {
+    final table=type=='supplier'?'suppliers':'customers';
+    await db.update(table, {'active':0}, where:'id=?', whereArgs:[id]);
   }
 
   Future<void> addParty(String type, String name, String phone) async {
