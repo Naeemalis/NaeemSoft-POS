@@ -100,35 +100,33 @@ class _SalePageState extends State<SalePage>{
   if(posting||cart.isEmpty)return;
   final customers=await rows('customers');int? customer;
   final paid=TextEditingController(text:total.toString()),due=TextEditingController();
-  final ok=await showDialog<bool>(context:context,builder:(c)=>StatefulBuilder(builder:(c,setD)=>AlertDialog(
-   title:const Text('إتمام البيع'),
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:const Text('بيانات فاتورة البيع'),
    content:Column(mainAxisSize:MainAxisSize.min,children:[
     Text('الإجمالي: '+money(total)),
     DropdownButtonFormField<int?>(value:null,decoration:const InputDecoration(labelText:'الزبون (اختياري)'),
-     items:[const DropdownMenuItem<int?>(value:null,child:Text('نقدي / غير مسجل')),...customers.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],
-     onChanged:(v)=>customer=v),
+     items:[const DropdownMenuItem<int?>(value:null,child:Text('نقدي / غير مسجل')),...customers.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:(v)=>customer=v),
     field(paid,'المبلغ المدفوع',number:true),field(due,'موعد السداد YYYY-MM-DD')
    ]),
-   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('ترحيل الفاتورة'))])));
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('معاينة الفاتورة'))]));
   if(ok!=true)return;
-  setState(()=>posting=true);
-  int? draftId=activeDraftId;
-  final paidAmount=int.tryParse(paid.text)??0;
-  final dueDate=due.text.trim().isEmpty?null:due.text.trim();
+  final paidAmount=int.tryParse(paid.text)??0,dueDate=due.text.trim().isEmpty?null:due.text.trim();
+  final snapshot=cart.values.map((x)=>Map<String,dynamic>.from(x)).toList(),invoiceTotal=total;
+  final party=customer==null?'نقدي / غير مسجل':(customers.firstWhere((x)=>x['id']==customer)['name'] as String);
+  final approved=await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>SaleInvoiceReviewPage(items:snapshot,total:invoiceTotal,paid:paidAmount,party:party)));
+  if(approved!=true||!mounted)return;
+  setState(()=>posting=true);int? draftId=activeDraftId;
   try{
-   if(draftId==null){
-    draftId=await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),partyId:customer,total:total,paid:paidAmount,dueDate:dueDate);
-   }else{
-    await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),partyId:customer,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);
-   }
+   if(draftId==null){draftId=await ShopDb.instance.saveDraft(type:'sale',items:snapshot,partyId:customer,total:invoiceTotal,paid:paidAmount,dueDate:dueDate);}
+   else{await ShopDb.instance.saveDraft(type:'sale',items:snapshot,partyId:customer,total:invoiceTotal,paid:paidAmount,dueDate:dueDate,draftId:draftId);}
    activeDraftId=draftId;
-   final invoiceTotal=total;
-   final invoiceId=await ShopDb.instance.saveSale(customerId:customer,items:cart.values.toList(),paid:paidAmount,dueDate:dueDate,draftId:draftId);
+   final invoiceId=await ShopDb.instance.saveSale(customerId:customer,items:snapshot,paid:paidAmount,dueDate:dueDate,draftId:draftId);
    activeDraftId=null;cart.clear();
-   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text('فاتورة بيع رقم $invoiceId'),content:Text('الإجمالي: '+money(invoiceTotal)+'\\nالمدفوع: '+money(paidAmount)+'\\nالمتبقي: '+money(invoiceTotal-paidAmount)+'\\nفاتورة بيع مستقلة؛ لم يتم فحص المخزون أو تغييره.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:const Text('حسناً'))]));}
+   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم ترحيل فاتورة البيع رقم $invoiceId')));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
+
  @override Widget build(BuildContext c) {
   final w=MediaQuery.of(c).size.width;
   return Column(children:[
@@ -404,6 +402,39 @@ class InvoicesPage extends StatelessWidget {
    }));
 }
 
+
+class SaleInvoiceReviewPage extends StatelessWidget {
+ final List<Map<String,dynamic>> items; final int total,paid; final String party;
+ SaleInvoiceReviewPage({super.key,required this.items,required this.total,required this.paid,required this.party});
+ final ScreenshotController shot=ScreenshotController();
+ String get receiptText {
+  final b=StringBuffer('NaeemSoft POS\\nمعاينة فاتورة بيع\\nالزبون: $party\\n--------------------\\n');
+  for(var i=0;i<items.length;i++){final x=items[i],g=x['grams'] as int,p=x['price_per_kg'] as int;b.writeln('${i+1}. ${x['name']}');b.writeln('${(g/1000).toStringAsFixed(3)} كجم × ${money(p)} / كجم');b.writeln('الإجمالي: ${money((g*p/1000).round())}');}
+  b.writeln('--------------------');b.writeln('الإجمالي: ${money(total)}');b.writeln('المدفوع: ${money(paid)}');b.writeln('المتبقي: ${money(total-paid)}');b.writeln('شكراً لتعاملكم معنا');return b.toString();
+ }
+ Future<void> shareImage(BuildContext c) async {
+  try{final bytes=await shot.captureFromWidget(Directionality(textDirection:ui.TextDirection.rtl,child:Material(color:Colors.white,child:Padding(padding:const EdgeInsets.all(20),child:ReceiptShareCard(items:items,total:total,paid:paid,party:party)))),context:c,pixelRatio:3);
+   await Share.shareXFiles([XFile.fromData(bytes,mimeType:'image/png',name:'NaeemSoft-invoice.png')],text:'فاتورة بيع - NaeemSoft POS');
+  }catch(e){if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text('تعذر تجهيز صورة الفاتورة: $e')));}
+ }
+ @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:const Text('مراجعة فاتورة البيع قبل الترحيل')),body:ListView(padding:const EdgeInsets.all(12),children:[
+  ReceiptShareCard(items:items,total:total,paid:paid,party:party),const SizedBox(height:12),
+  Row(children:[Expanded(child:OutlinedButton.icon(onPressed:()=>Share.share(receiptText,subject:'فاتورة بيع'),icon:const Icon(Icons.share),label:const Text('مشاركة التفاصيل'))),const SizedBox(width:8),Expanded(child:OutlinedButton.icon(onPressed:()=>shareImage(c),icon:const Icon(Icons.image),label:const Text('مشاركة صورة')))]),
+  const SizedBox(height:8),FilledButton.icon(onPressed:()=>Navigator.pop(c,true),icon:const Icon(Icons.check_circle),label:const Text('تأكيد وترحيل الفاتورة')),
+  TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع للتعديل'))
+ ]));
+}
+class ReceiptShareCard extends StatelessWidget {
+ final List<Map<String,dynamic>> items;final int total,paid;final String party;
+ const ReceiptShareCard({super.key,required this.items,required this.total,required this.paid,required this.party});
+ @override Widget build(BuildContext c)=>Container(width:360,padding:const EdgeInsets.all(18),color:Colors.white,child:DefaultTextStyle(style:const TextStyle(color:Colors.black,fontSize:13),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,mainAxisSize:MainAxisSize.min,children:[
+  const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),const Text('فاتورة بيع',textAlign:TextAlign.center,style:TextStyle(fontSize:16,fontWeight:FontWeight.bold)),const Divider(thickness:2),
+  Text('الزبون: $party'),Text('التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),const Divider(),const Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold)),
+  ...items.asMap().entries.map((e){final x=e.value,g=x['grams'] as int,p=x['price_per_kg'] as int;return Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('${e.key+1}. ${x['name']}',style:const TextStyle(fontWeight:FontWeight.bold)),Text('${(g/1000).toStringAsFixed(3)} كجم × ${money(p)} / كجم'),Text(money((g*p/1000).round()),textAlign:TextAlign.left,style:const TextStyle(fontWeight:FontWeight.bold)),const Divider()]));}),
+  _receiptRow('الإجمالي',money(total),strong:true),_receiptRow('المدفوع',money(paid)),_receiptRow('المتبقي',money(total-paid),strong:true),const SizedBox(height:8),const Text('شكراً لتعاملكم معنا',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold))
+ ])));
+}
+Widget _receiptRow(String label,String value,{bool strong=false})=>Padding(padding:const EdgeInsets.symmetric(vertical:3),child:Row(children:[Expanded(child:Text(label,style:TextStyle(fontWeight:strong?FontWeight.bold:FontWeight.normal))),Text(value,style:TextStyle(fontWeight:strong?FontWeight.bold:FontWeight.normal))]));
 Future<File> _buildInvoicePdf({
  required String type,
  required int invoiceId,
