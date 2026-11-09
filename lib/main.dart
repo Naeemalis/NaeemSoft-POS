@@ -286,6 +286,58 @@ class InvoicesPage extends StatelessWidget {
    }));
 }
 
+Future<File> _buildInvoicePdf({
+ required String type,
+ required int invoiceId,
+ required Map<String,Object?> header,
+ required List<Map<String,Object?>> lines,
+ required String party,
+}) async {
+ final sale=type=='sale';
+ final b=StringBuffer()
+  ..writeln('# NaeemSoft POS')
+  ..writeln('## ${sale?'فاتورة مبيعات':'فاتورة توريد'}')
+  ..writeln('**رقم الفاتورة:** $invoiceId')
+  ..writeln('**التاريخ:** ${header['date']}')
+  ..writeln('**${sale?'الزبون':'المورد'}:** $party')
+  ..writeln('')
+  ..writeln('| الصنف | ${sale?'الكمية (كجم)':'العبوات'} | ${sale?'سعر الكيلو':'سعر العبوة'} | الإجمالي |')
+  ..writeln('|---|---:|---:|---:|');
+ for(final x in lines){
+  final name=(x['product_name']??'صنف محذوف').toString().replaceAll('|','/');
+  final qty=sale?(((x['quantity_grams'] as num)/1000).toStringAsFixed(3)):((x['packages']??0).toString());
+  final unit=sale?money(x['price_per_kg'] as num):money(x['package_cost'] as num);
+  b.writeln('| $name | $qty | $unit | ${money(x['line_total'] as num)} |');
+ }
+ final total=header['total'] as num, paid=header['paid'] as num;
+ b..writeln('')
+  ..writeln('**الإجمالي:** ${money(total)}')
+  ..writeln('**المدفوع:** ${money(paid)}')
+  ..writeln('**المتبقي:** ${money(total-paid)}')
+  ..writeln('')
+  ..writeln('تم إنشاء هذه الفاتورة بواسطة NaeemSoft POS.');
+ return PdfBuilder.generate(PdfDocumentData.fromMarkdown(
+  title:'${sale?'فاتورة بيع':'فاتورة توريد'} $invoiceId',
+  author:'NaeemSoft POS',
+  markdown:b.toString(),
+ ));
+}
+
+class InvoicePdfPreviewPage extends StatelessWidget {
+ final File file;
+ const InvoicePdfPreviewPage({super.key,required this.file});
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('معاينة الفاتورة PDF')),
+  body:PdfPreview(
+   build:(format)=>file.readAsBytes(),
+   pdfFileName:file.uri.pathSegments.isEmpty?'NaeemSoft-Invoice.pdf':file.uri.pathSegments.last,
+   canChangePageFormat:false,
+   canChangeOrientation:false,
+   canDebug:false,
+  ),
+ );
+}
+
 class InvoiceDetailPage extends StatelessWidget {
  final String type;
  final int invoiceId;
@@ -317,6 +369,18 @@ class InvoiceDetailPage extends StatelessWidget {
    final lines=s.data!['lines'] as List<Map<String,Object?>>;
    final sale=type=='sale',total=h['total'] as num,paid=h['paid'] as num;
    return ListView(padding:const EdgeInsets.all(12),children:[
+     SizedBox(width:double.infinity,child:FilledButton.icon(
+      icon:const Icon(Icons.picture_as_pdf),
+      label:const Text('طباعة / مشاركة / حفظ PDF'),
+      onPressed:() async {
+       try{
+        final file=await _buildInvoicePdf(type:type,invoiceId:invoiceId,header:h,lines:lines,party:s.data!['party'].toString());
+        if(c.mounted)await Navigator.push(c,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
+       }catch(e){
+        if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text('تعذر إنشاء PDF: $e')));
+       }
+      },
+     )),
     Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Text(sale?'فاتورة مبيعات':'فاتورة توريد',style:Theme.of(c).textTheme.titleLarge),
      Text('رقم الفاتورة: $invoiceId'),
