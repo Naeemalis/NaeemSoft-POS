@@ -401,32 +401,45 @@ Future<File> _buildInvoicePdf({
  required String party,
 }) async {
  final sale=type=='sale';
- final b=StringBuffer()
-  ..writeln('# NaeemSoft POS')
-  ..writeln('## ${sale?'فاتورة مبيعات':'فاتورة توريد'}')
-  ..writeln('**رقم الفاتورة:** $invoiceId')
-  ..writeln('**التاريخ:** ${header['date']}')
-  ..writeln('**${sale?'الزبون':'المورد'}:** $party')
-  ..writeln('')
-  ..writeln('| الصنف | ${sale?'الكمية (كجم)':'العبوات'} | ${sale?'سعر الكيلو':'سعر العبوة'} | الإجمالي |')
-  ..writeln('|---|---:|---:|---:|');
- for(final x in lines){
-  final name=(x['product_name']??'صنف محذوف').toString().replaceAll('|','/');
-  final qty=sale?(((x['quantity_grams'] as num)/1000).toStringAsFixed(3)):((x['packages']??0).toString());
-  final unit=sale?money(x['price_per_kg'] as num):money(x['package_cost'] as num);
-  b.writeln('| $name | $qty | $unit | ${money(x['line_total'] as num)} |');
- }
  final total=header['total'] as num, paid=header['paid'] as num;
- b..writeln('')
-  ..writeln('**الإجمالي:** ${money(total)}')
-  ..writeln('**المدفوع:** ${money(paid)}')
-  ..writeln('**المتبقي:** ${money(total-paid)}')
-  ..writeln('')
-  ..writeln('تم إنشاء هذه الفاتورة بواسطة NaeemSoft POS.');
- return PdfBuilder.generate(PdfDocumentData.fromMarkdown(
+ final sections=<PdfSection>[
+  PdfSection.h1(sale?'فاتورة مبيعات':'فاتورة توريد'),
+  PdfSection.paragraph('رقم الفاتورة: $invoiceId'),
+  PdfSection.paragraph('التاريخ: ${header['date']}'),
+  PdfSection.paragraph('${sale?'الزبون':'المورد'}: $party'),
+  PdfSection.divider(),
+  PdfSection.h2('تفاصيل الأصناف'),
+ ];
+ for(var i=0;i<lines.length;i++){
+  final x=lines[i];
+  final name=(x['product_name']??'صنف محذوف').toString();
+  final quantity=sale
+    ? '${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كجم'
+    : '${x['packages']} عبوة × ${x['weight_each']} كجم';
+  final unit=sale
+    ? 'سعر الكيلو: ${money(x['price_per_kg'] as num)}'
+    : 'سعر العبوة: ${money(x['package_cost'] as num)}';
+  sections.add(PdfSection.paragraph(
+    '**${i+1}. $name**\n$quantity • $unit\nالإجمالي: ${money(x['line_total'] as num)}'
+  ));
+  sections.add(PdfSection.divider());
+ }
+ sections.addAll([
+  PdfSection.h2('ملخص الحساب'),
+  PdfSection.paragraph('الإجمالي: ${money(total)}'),
+  PdfSection.paragraph('المدفوع: ${money(paid)}'),
+  PdfSection.paragraph('المتبقي: ${money(total-paid)}'),
+  PdfSection.paragraph('تم إنشاء هذه الفاتورة بواسطة NaeemSoft POS.'),
+ ]);
+ return PdfBuilder.generate(PdfDocumentData(
   title:'${sale?'فاتورة بيع':'فاتورة توريد'} $invoiceId',
   author:'NaeemSoft POS',
-  markdown:b.toString(),
+  style:PdfStyle.light.copyWith(
+   showPageNumbers:true,
+   footerLeftText:'NaeemSoft POS',
+   bodyFontSize:12,
+  ),
+  sections:sections,
  ));
 }
 
