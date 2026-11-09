@@ -17,8 +17,10 @@ jobs:
       # Generate the standard Android Gradle project files missing from this repository.
       - run: flutter create --platforms=android --project-name naeemsoft_pos .
       # Use the official direct download host to avoid GitHub release redirect timeouts.
-      - name: Configure Gradle distribution download
-        run: sed -i -E 's#services.gradle.org/distributions/gradle-([0-9.]+)-all.zip#downloads.gradle.org/distributions/gradle-\1-bin.zip#' android/gradle/wrapper/gradle-wrapper.properties
+      - name: Configure Gradle and Maven mirrors
+        run: |
+          sed -i -E 's#services.gradle.org/distributions/gradle-([0-9.]+)-all.zip#downloads.gradle.org/distributions/gradle-\1-bin.zip#' android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's#mavenCentral()#maven { url = uri("https://maven-central.storage-download.googleapis.com/maven2") }; mavenCentral()#g' android/settings.gradle.kts android/build.gradle.kts
       # Flutter's generated counter test targets MyApp; this project uses NaeemSoftApp.
       - run: rm -f test/widget_test.dart
       - run: flutter pub get
