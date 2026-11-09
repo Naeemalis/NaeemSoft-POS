@@ -674,6 +674,35 @@ class _ReturnsPageState extends State<ReturnsPage>{
  );
 }
 
+class AccountsPage extends StatelessWidget {
+ const AccountsPage({super.key});
+ Future<List<num>> load() async {
+  final db=ShopDb.instance.db;
+  final r=await db.rawQuery("SELECT COALESCE(SUM(total-paid),0) v FROM sales WHERE status='posted'");
+  final p=await db.rawQuery("SELECT COALESCE(SUM(total-paid),0) v FROM purchases WHERE status='posted'");
+  final cr=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM returns WHERE return_type='customer'");
+  final sr=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM returns WHERE return_type='supplier'");
+  final s=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM sales WHERE status='posted'");
+  final b=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM purchases WHERE status='posted'");
+  return [(r.first['v'] as num)-(cr.first['v'] as num),(p.first['v'] as num)-(sr.first['v'] as num),s.first['v'] as num,b.first['v'] as num];
+ }
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('ملخص الحسابات')),
+  body:FutureBuilder<List<num>>(future:load(),builder:(context,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل الحسابات: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   final v=s.data!;
+   Widget item(String title,num amount,IconData icon)=>Card(child:ListTile(leading:Icon(icon),title:Text(title),trailing:Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))));
+   return ListView(padding:const EdgeInsets.all(12),children:[
+    item('مستحقات الزبائن بعد المرتجعات',v[0],Icons.account_balance_wallet_outlined),
+    item('مستحقات الموردين بعد المرتجعات',v[1],Icons.local_shipping_outlined),
+    item('إجمالي فواتير البيع',v[2],Icons.point_of_sale),
+    item('إجمالي فواتير التوريد',v[3],Icons.shopping_basket_outlined),
+    const Text('هذا ملخص للأرصدة والفواتير، وليس تقرير صافي ربح. حساب الربح يتطلب تكلفة فعلية ومصروفات مسجلة.',style:TextStyle(height:1.5)),
+   ]);
+  }),
+);
+
 class DraftsPage extends StatefulWidget {
  final String? type;
  const DraftsPage({super.key,this.type});
@@ -684,16 +713,26 @@ class _DraftsPageState extends State<DraftsPage>{
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(widget.type=='sale'?'مسودات البيع':widget.type=='purchase'?'مسودات التوريد':'مسودات الفواتير')),
   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.getDrafts(type:widget.type),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل المسودات: ${s.error}'));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    if(s.data!.isEmpty)return const Center(child:Text('لا توجد مسودات محفوظة'));
-   return ListView(children:s.data!.map((d){
+   return ListView(children:s.data!.map<Widget>((d){
     final isSale=d['invoice_type']=='sale';
     final dt=DateTime.tryParse(d['updated_at'] as String);
     return Card(child:ListTile(
      leading:Icon(isSale?Icons.point_of_sale:Icons.local_shipping),
      title:Text((isSale?'مسودة بيع #':'مسودة توريد #')+d['id'].toString()),
      subtitle:Text((dt?.toLocal().toString().substring(0,16)??'')+' • '+money(d['total'] as num)),
-     trailing:PopupMenuButton<String>(onSelected:(v)async{if(v=='delete'){await remove(d['id'] as int);}else{final full=await ShopDb.instance.getDraft(d['id'] as int);if(context.mounted)Navigator.pop(context,full);}},itemBuilder:(_)=>const[
-      PopupMenuItem(value:'open',child:Text('استعادة المسودة')),PopupMenuItem(value:'delete',child:Text('حذف المسودة'))]),
+     trailing:PopupMenuButton<String>(onSelected:(v)async{
+      if(v=='delete'){await remove(d['id'] as int);}
+      else{final full=await ShopDb.instance.getDraft(d['id'] as int);if(context.mounted)Navigator.pop(context,full);}
+     },itemBuilder:(_)=>const[
+      PopupMenuItem(value:'open',child:Text('استعادة المسودة')),
+      PopupMenuItem(value:'delete',child:Text('حذف المسودة')),
+     ]),
      onTap:()async{final full=await ShopDb.instance.getDraft(d['id'] as int);if(context.mounted)Navigator.pop(context,full);},
     ));
+   }).toList());
+  }),
+ );
+}
