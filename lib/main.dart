@@ -75,7 +75,7 @@ class _SalePageState extends State<SalePage>{
  int? activeDraftId;
  bool posting=false;
  String keypadValue=''; String saleMode='weight';
- void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(k=='½')keypadValue='0.5';else if(k=='¼')keypadValue='0.25';else if(k=='1 كجم')keypadValue='1';else keypadValue+=k;});}
+ void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(k=='½')keypadValue='0.5';else if(k=='¼')keypadValue='0.25';else if(k=='1 كجم')keypadValue='1';else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
  Future<void> add(Map<String,Object?> p) async {
   final price=(p['sale_price'] as num).round();
   final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
@@ -164,7 +164,7 @@ class _SalePageState extends State<SalePage>{
     ])
    )),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
-    Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
+    Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'أدخل الرقم':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
     SizedBox(height:120, child:GridView.count(
      physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:2,crossAxisSpacing:2,childAspectRatio:3.2,
      children:[for(final k in ['7','8','9','⌫','4','5','6','مسح','1','2','3',if(saleMode=='weight')'½' else '.','0','.',if(saleMode=='weight')'¼' else '00',if(saleMode=='weight')'1 كجم' else 'مسح'])
@@ -181,8 +181,8 @@ class _PurchasePageState extends State<PurchasePage>{
  final List<Map<String,dynamic>> cart=[];
  int? activeDraftId;
  bool posting=false;
- String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=1,packageWeight=0,packageCost=0; int? selectedSupplierId;
- void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else keypadValue+=k;});}
+ String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=0,packageWeight=0,packageCost=0; int? selectedSupplierId;
+ void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
  void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else packageCost=v.toInt();keypadValue='';});}
  Future<void> add(Map<String,Object?> p) async {
   final count=packageCount;
@@ -194,7 +194,7 @@ class _PurchasePageState extends State<PurchasePage>{
   }
   setState((){
    cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':purchaseCostMode,'entered_cost':packageCost});
-   packageCount=1;packageWeight=0;packageCost=0;keypadValue='';
+   packageCount=0;packageWeight=0;packageCost=0;keypadValue='';
   });
  }
  Future<void> editLineWeight(int index) async {
@@ -276,7 +276,7 @@ class _PurchasePageState extends State<PurchasePage>{
    Container(padding:const EdgeInsets.fromLTRB(7,3,7,4),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Wrap(spacing:3,runSpacing:2,children:[ChoiceChip(label:const Text('عدد الوحدات'),selected:purchaseField=='packages',onSelected:(_)=>setState(()=>purchaseField='packages')),ChoiceChip(label:const Text('تكلفة الشراء'),selected:purchaseField=='cost',onSelected:(_)=>setState(()=>purchaseField='cost'))]),
     if(purchaseField=='cost')Row(children:[const Text('إدخال التكلفة:'),ChoiceChip(label:const Text('للوحدة'),selected:purchaseCostMode=='package',onSelected:(_)=>setState(()=>purchaseCostMode='package')),ChoiceChip(label:const Text('للكيلو'),selected:purchaseCostMode=='kg',onSelected:(_)=>setState(()=>purchaseCostMode='kg'))]),
-    Text('القيمة: ${keypadValue.isEmpty?'0':keypadValue} • العدد: $packageCount • تكلفة الشراء: $packageCost • الوزن يُقرأ تلقائياً من معرض الأصناف',style:const TextStyle(fontSize:10)),
+    Text('القيمة: ${keypadValue.isEmpty?'أدخل الرقم':keypadValue} • العدد: ${packageCount==0?'—':packageCount} • تكلفة الشراء: ${packageCost==0?'—':packageCost} • الوزن يُقرأ تلقائياً من معرض الأصناف',style:const TextStyle(fontSize:10)),
     SizedBox(height:120,child:GridView.count(
      physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:2,crossAxisSpacing:2,childAspectRatio:3.2,
      children:[for(final k in ['7','8','9','⌫','4','5','6','مسح','1','2','3','.','0','00','اعتماد'])
