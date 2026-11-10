@@ -189,13 +189,15 @@ class _PurchasePageState extends State<PurchasePage>{
  Future<void> add(Map<String,Object?> p) async {
   final count=packageCount;
   final weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
-  final price=purchaseCostMode=='package'?packageCost:((packageCost*weight)/1000).round();
+  final enteredCost=packageCost>0?packageCost:(p['cost'] as num).round();
+  final effectiveMode=packageCost>0?purchaseCostMode:'package';
+  final price=effectiveMode=='package'?enteredCost:((enteredCost*weight)/1000).round();
   if(count<=0||weight<=0||price<=0){
    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل العدد وتكلفة الشراء، وسيُؤخذ الوزن تلقائياً من معرض الأصناف')));
    return;
   }
   setState((){
-   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':purchaseCostMode,'entered_cost':packageCost});
+   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':effectiveMode,'entered_cost':enteredCost});
    packageCount=0;packageWeight=0;packageCost=0;keypadValue='';
   });
  }
@@ -302,19 +304,20 @@ class _ProductsPageState extends State<ProductsPage>{
   final u=TextEditingController(text:(product?['purchase_unit']??'جوان').toString());
   final w=TextEditingController(text:((product?['default_weight'] as num?)??30).toString());
   final price=TextEditingController(text:((product?['sale_price'] as num?)??0).round().toString());
+  final cost=TextEditingController(text:((product?['cost'] as num?)??0).round().toString());
   String productType=(product?['product_type']??'sale').toString();
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(product==null?'إضافة صنف':'تعديل الصنف والسعر'),
    content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)productType=v;}),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true)
+    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)productType=v;}),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),if(productType=='purchase')field(cost,'سعر التكلفة الافتراضي للوحدة',number:true)
    ])),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
   if(ok!=true)return;
-  final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??-1;
-  if(n.text.trim().isEmpty||u.text.trim().isEmpty||weight<=0||p<0){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تحقق من الاسم والوزن والسعر')));return;}
+  final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??-1, purchaseCost=int.tryParse(cost.text)??-1;
+  if(n.text.trim().isEmpty||u.text.trim().isEmpty||weight<=0||p<0||(productType=='purchase'&&purchaseCost<0)){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تحقق من الاسم والوزن والسعر')));return;}
   try{
-   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType);}
-   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType);}
+   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0);}
+   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0);}
    if(mounted)setState((){});
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ الصنف: $e')));}
  }
@@ -334,7 +337,7 @@ class _ProductsPageState extends State<ProductsPage>{
    return ListView(children:s.data!.map((p)=>ListTile(
     leading:const Icon(Icons.category_outlined),
     title:Text(p['name'] as String),
-    subtitle:Text('${p['purchase_unit']} • ${money(p['sale_price'] as num)} / كجم'),
+    subtitle:Text(p['product_type']=='purchase'?'${p['purchase_unit']} • تكلفة الوحدة الافتراضية: ${money(p['cost'] as num)}':'${p['purchase_unit']} • ${money(p['sale_price'] as num)} / كجم'),
     trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(p):archive(p),itemBuilder:(_)=>const[
      PopupMenuItem(value:'edit',child:Text('تعديل الاسم والوزن والسعر')),
      PopupMenuItem(value:'delete',child:Text('حذف الصنف')),
