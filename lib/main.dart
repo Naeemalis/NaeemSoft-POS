@@ -646,6 +646,12 @@ class InvoiceDetailPage extends StatelessWidget {
     ? 'SELECT si.*,p.name product_name FROM sale_items si LEFT JOIN products p ON p.id=si.product_id WHERE si.sale_id=? ORDER BY si.id'
     : 'SELECT pi.*,p.name product_name FROM purchase_items pi LEFT JOIN products p ON p.id=pi.product_id WHERE pi.purchase_id=? ORDER BY pi.id',
    [invoiceId]);
+  final returnRows=await ShopDb.instance.db.rawQuery(
+   sale
+    ? 'SELECT COALESCE(SUM(total-cash_paid),0) amount FROM returns WHERE sale_id=? AND return_type=?'
+    : 'SELECT COALESCE(SUM(total),0) amount FROM returns WHERE purchase_id=? AND return_type=?',
+   [invoiceId,sale?'customer':'supplier']);
+  final returnCredit=(returnRows.first['amount'] as num?)??0;
   String? party;
   final partyId=header[sale?'customer_id':'supplier_id'];
   if(partyId!=null){
@@ -653,7 +659,7 @@ class InvoiceDetailPage extends StatelessWidget {
    final found=list.where((x)=>x['id']==partyId);
    if(found.isNotEmpty)party=found.first['name'] as String?;
   }
-  return {'header':header,'lines':lines,'party':party??(sale?'نقدي / غير مسجل':'غير محدد')};
+  return {'header':header,'lines':lines,'return_credit':returnCredit,'party':party??(sale?'نقدي / غير مسجل':'غير محدد')};
  }
  @override Widget build(BuildContext c)=>Scaffold(
   appBar:AppBar(title:Text((type=='sale'?'فاتورة بيع #':'فاتورة مورد #')+invoiceId.toString())),
@@ -662,7 +668,7 @@ class InvoiceDetailPage extends StatelessWidget {
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    final h=s.data!['header'] as Map<String,Object?>;
    final lines=s.data!['lines'] as List<Map<String,Object?>>;
-   final sale=type=='sale',total=h['total'] as num,paid=h['paid'] as num;
+   final sale=type=='sale',total=h['total'] as num,paid=h['paid'] as num,returnCredit=s.data!['return_credit'] as num,remaining=total-paid-returnCredit;
    return ListView(padding:const EdgeInsets.all(12),children:[
      SizedBox(width:double.infinity,child:FilledButton.icon(
       icon:const Icon(Icons.picture_as_pdf),
@@ -694,9 +700,10 @@ class InvoiceDetailPage extends StatelessWidget {
     }),
     Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[
      _invoiceAmount('الإجمالي',total),
-     _invoiceAmount('المدفوع',paid),
+     _invoiceAmount('المدفوع نقداً',paid),
+     _invoiceAmount('خصم المرتجعات',returnCredit),
      const Divider(),
-     _invoiceAmount('المتبقي',total-paid),
+     _invoiceAmount('المتبقي بعد المرتجعات',remaining),
     ]))),
     const Text('هذه الفاتورة مستقلة؛ لا يتم ترحيلها إلى مخزون المبيعات.'),
    ]);
@@ -777,8 +784,8 @@ class _ReturnsPageState extends State<ReturnsPage>{
    }),
    if(type=='customer')field(cash,'المبلغ الذي أُعيد نقداً للزبون',number:true),
    const SizedBox(height:8),
-   FilledButton.icon(onPressed:saving?null:submit,icon:const Icon(Icons.save),label:Text(saving?'جارٍ الحفظ...':'حفظ المرتجع وتحديث المخزون')),
-   const Padding(padding:EdgeInsets.only(top:12),child:Text('يجب اختيار الفاتورة الأصلية. لا يسمح النظام بإرجاع كمية أكبر من المتبقي من الصنف في الفاتورة. مرتجع المورد لا يتجاوز رصيد المخزون المتاح.',style:TextStyle(height:1.5))),
+   FilledButton.icon(onPressed:saving?null:submit,icon:const Icon(Icons.save),label:Text(saving?'جارٍ الحفظ...':'حفظ المرتجع وتحديث الحساب')),
+   const Padding(padding:EdgeInsets.only(top:12),child:Text('يجب اختيار الفاتورة الأصلية. لا يسمح النظام بإرجاع كمية أكبر من المتبقي من الصنف. يُخصم صافي المرتجع من حساب الزبون أو المورد المرتبط بالفاتورة.',style:TextStyle(height:1.5))),
   ]),
  );
 }
