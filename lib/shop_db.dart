@@ -362,11 +362,11 @@ class ShopDb {
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
       db.query(table, orderBy: orderBy ?? 'id DESC');
 
-  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price) async {
+  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale'}) async {
     return db.transaction((tx) async {
       final id = await tx.insert('products', {
         'name': name.trim(), 'purchase_unit': unit, 'default_weight': defaultWeightGrams / 1000,
-        'sale_price': price, 'stock': 0, 'stock_grams': 0,
+        'sale_price': price, 'stock': 0, 'stock_grams': 0, 'product_type': productType,
       });
       await tx.insert('product_units', {
         'product_id': id, 'unit_name': unit, 'default_weight_grams': defaultWeightGrams,
@@ -498,10 +498,10 @@ class ShopDb {
     });
   }
 
-  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice}) async {
+  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
-      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice}, where:'id=?', whereArgs:[id]);
+      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (productType != null) 'product_type':productType}, where:'id=?', whereArgs:[id]);
       final units=await tx.query('product_units',where:'product_id=?',whereArgs:[id],limit:1);
       if(units.isEmpty){
         await tx.insert('product_units',{'product_id':id,'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams});
