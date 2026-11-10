@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 8,
+      version: 9,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -78,6 +78,11 @@ class ShopDb {
             await d.execute("ALTER TABLE products ADD COLUMN product_type TEXT NOT NULL DEFAULT 'sale'");
           }
         }
+        if (oldVersion < 9) {
+          if (!await _hasColumn(d, 'products', 'paired_sale_product_id')) {
+            await d.execute('ALTER TABLE products ADD COLUMN paired_sale_product_id INTEGER');
+          }
+        }
       },
     );
   }
@@ -95,7 +100,7 @@ class ShopDb {
       purchase_unit TEXT NOT NULL DEFAULT 'جوان', base_unit TEXT NOT NULL DEFAULT 'كجم',
       default_weight REAL NOT NULL DEFAULT 1, cost REAL NOT NULL DEFAULT 0,
       sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
-      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale')''');
+      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER)''');
     await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('''CREATE TABLE purchases(
@@ -362,11 +367,11 @@ class ShopDb {
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
       db.query(table, orderBy: orderBy ?? 'id DESC');
 
-  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0}) async {
+  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId}) async {
     return db.transaction((tx) async {
       final id = await tx.insert('products', {
         'name': name.trim(), 'purchase_unit': unit, 'default_weight': defaultWeightGrams / 1000,
-        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType,
+        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId,
       });
       await tx.insert('product_units', {
         'product_id': id, 'unit_name': unit, 'default_weight_grams': defaultWeightGrams,
@@ -411,7 +416,7 @@ class ShopDb {
         final weight = (x['weight_grams'] as num).toInt();
         final packageCost = (x['package_cost'] as num).toInt();
         final grams = packs * weight;
-        final kgCost = grams == 0 ? 0 : (total == 0 ? 0 : ((packageCost * 1000) / weight).round());
+        final kgCost = grams == 0 ? 0 : ((packageCost * 1000) / weight).round();
         final lineTotal = packs * packageCost;
         await tx.insert('purchase_items', {
           'purchase_id': purchaseId, 'product_id': x['product_id'], 'unit': x['unit'],
@@ -419,9 +424,30 @@ class ShopDb {
           'unit_cost': grams == 0 ? 0 : lineTotal / (grams / 1000),
           'line_total': lineTotal, 'package_cost': packageCost, 'kg_cost': kgCost,
         });
-        final productExists = await tx.query('products', columns: ['id'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
-        if (productExists.isEmpty) throw Exception('الصنف غير موجود');
-        // Supplier invoices are independent documents: they never create or change sale stock.
+        final purchaseProductRows = await tx.query('products', columns: ['id','product_type','paired_sale_product_id'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
+        if (purchaseProductRows.isEmpty || purchaseProductRows.first['product_type'] != 'purchase') throw Exception('صنف التوريد غير موجود أو نوعه غير صحيح');
+        final saleProductId = purchaseProductRows.first['paired_sale_product_id'] as int?;
+        if (saleProductId == null) throw Exception('اربط صنف التوريد بصنف المبيعات من إدارة الأصناف أولاً');
+        final saleProductRows = await tx.query('products', where: 'id = ? AND product_type = ?', whereArgs: [saleProductId, 'sale'], limit: 1);
+        if (saleProductRows.isEmpty) throw Exception('صنف المبيعات المرتبط غير موجود');
+        final saleProduct = saleProductRows.first;
+        final oldGrams = (saleProduct['stock_grams'] as num).toInt();
+        final oldValue = (saleProduct['inventory_value_djf'] as num).toInt();
+        final addedValue = packs * packageCost;
+        final newGrams = oldGrams + grams;
+        final newValue = oldValue + addedValue;
+        final averageCost = newGrams == 0 ? 0 : (newValue * 1000 / newGrams).round();
+        await tx.update('products', {
+          'stock_grams': newGrams, 'stock': newGrams / 1000,
+          'inventory_value_djf': newValue, 'cost': averageCost,
+        }, where: 'id = ?', whereArgs: [saleProductId]);
+        await tx.insert('stock_movements', {
+          'product_id': saleProductId, 'movement_type': 'purchase',
+          'source_type': 'purchase', 'source_id': purchaseId,
+          'quantity_grams': grams, 'unit_cost_per_kg': kgCost,
+          'value_delta_djf': addedValue, 'created_at': txDate,
+          'note': 'توريد مرتبط بصنف المبيعات',
+        });
 
       }
       if (paid > 0) {
@@ -474,14 +500,34 @@ class ShopDb {
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
         final line = ((grams * price) / 1000).round();
+        final productRows = await tx.query('products', where: 'id = ? AND product_type = ?', whereArgs: [x['product_id'], 'sale'], limit: 1);
+        if (productRows.isEmpty) throw Exception('صنف المبيعات غير موجود');
+        final product = productRows.first;
+        final availableGrams = (product['stock_grams'] as num).toInt();
+        if (grams > availableGrams) throw Exception('المخزون غير كافٍ للصنف ' + product['name'].toString() + '؛ المتاح ' + (availableGrams / 1000).toString() + ' كجم');
+        final inventoryValue = (product['inventory_value_djf'] as num).toInt();
+        final averageCost = availableGrams == 0 ? 0 : (inventoryValue * 1000 / availableGrams).round();
+        final costTotal = ((grams * averageCost) / 1000).round();
+        final remainingGrams = availableGrams - grams;
+        final remainingValue = (inventoryValue - costTotal).clamp(0, inventoryValue);
+        await tx.update('products', {
+          'stock_grams': remainingGrams, 'stock': remainingGrams / 1000,
+          'inventory_value_djf': remainingValue,
+        }, where: 'id = ?', whereArgs: [x['product_id']]);
+        await tx.insert('stock_movements', {
+          'product_id': x['product_id'], 'movement_type': 'sale',
+          'source_type': 'sale', 'source_id': saleId,
+          'quantity_grams': -grams, 'unit_cost_per_kg': averageCost,
+          'value_delta_djf': -costTotal, 'created_at': txDate,
+          'note': 'بيع من مخزون المحل',
+        });
         await tx.insert('sale_items', {
           'sale_id': saleId, 'product_id': x['product_id'],
           'quantity': grams / 1000, 'unit_price': price,
           'line_total': line, 'quantity_grams': grams, 'price_per_kg': price,
-          'cost_total_djf': 0,
-          'cost_per_kg_snapshot': 0,
+          'cost_total_djf': costTotal,
+          'cost_per_kg_snapshot': averageCost,
         });
-        // The sales cashier is standalone and never reads, validates, or decrements stock.
 
       }
       if (customerId != null && paid > 0) {
@@ -498,10 +544,10 @@ class ShopDb {
     });
   }
 
-  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost}) async {
+  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
-      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType}, where:'id=?', whereArgs:[id]);
+      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId}, where:'id=?', whereArgs:[id]);
       final units=await tx.query('product_units',where:'product_id=?',whereArgs:[id],limit:1);
       if(units.isEmpty){
         await tx.insert('product_units',{'product_id':id,'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams});
