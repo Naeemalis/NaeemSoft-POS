@@ -141,11 +141,27 @@ class _SalePageState extends State<SalePage>{
     }));
    }),
    const Divider(height:5),
-   Padding(padding:const EdgeInsets.symmetric(horizontal:8,vertical:2),child:Row(children:[const Text('السلة',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(cart.length.toString()+' أصناف • '+money(total),style:const TextStyle(fontWeight:FontWeight.bold))])),
-    Expanded(child:cart.isEmpty?const Center(child:Text('اختر الصنف ثم أدخل الكمية من لوحة الأرقام')):ListView(padding:const EdgeInsets.symmetric(horizontal:8),children:cart.values.map((x){
-     final grams=x['grams'] as int,price=x['price_per_kg'] as int;
-     return Card(margin:const EdgeInsets.symmetric(vertical:2),child:ListTile(dense:true,title:Text(x['name'] as String,style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),subtitle:Text(kg(grams)+' × '+money(price)+'/كجم',style:const TextStyle(fontSize:10)),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(money((grams*price/1000).round()),style:const TextStyle(fontSize:11,fontWeight:FontWeight.bold)),IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:30,height:30),iconSize:16,onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id'])),icon:const Icon(Icons.close))])));
-    }).toList())),
+   Expanded(child:Container(
+    margin:const EdgeInsets.symmetric(horizontal:7,vertical:3),padding:const EdgeInsets.all(8),
+    decoration:BoxDecoration(border:Border.all(color:Theme.of(c).colorScheme.outlineVariant),borderRadius:BorderRadius.circular(10),color:Theme.of(c).colorScheme.surfaceContainerLowest),
+    child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('شاشة الكاشير',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد الأصناف: ${cart.length}',style:const TextStyle(fontSize:11))]),
+     const Divider(height:8),
+     Expanded(child:cart.isEmpty?const Center(child:Text('العمليات المختارة ستظهر هنا',style:TextStyle(color:Colors.grey))):ListView(children:cart.values.map((x){
+      final grams=x['grams'] as int,price=x['price_per_kg'] as int;
+      return Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[
+       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
+        Text('الكمية ${kg(grams)} كيلو، سعر الكيلو ${money(price)}',style:const TextStyle(fontSize:10,color:Colors.grey))
+       ])),
+       Text(money((grams*price/1000).round()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
+       IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:28,height:28),iconSize:15,onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id'])),icon:const Icon(Icons.close))
+      ]));
+     }).toList())),
+     const Divider(height:8),
+     Row(children:[const Text('الإجمالي',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(money(total),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17))])
+    ])
+   )),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'0':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
     SizedBox(height:120, child:GridView.count(
@@ -215,8 +231,28 @@ class _PurchasePageState extends State<PurchasePage>{
      final p=s.data![i];return SizedBox(width:w/7.2,child:Card(margin:const EdgeInsets.all(2),child:InkWell(onTap:posting||selectedSupplierId==null?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),Text(p['purchase_unit'] as String,style:const TextStyle(fontSize:9)),const Text('إضافة',style:TextStyle(fontSize:9))])))));
     });
    })),
-   Padding(padding:const EdgeInsets.symmetric(horizontal:8,vertical:2),child:Row(children:[const Text('سلة التوريد',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('${cart.length} أصناف • '+money(total),style:const TextStyle(fontWeight:FontWeight.bold))])),
-   Expanded(child:cart.isEmpty?const Center(child:Text('اختر المورد ثم أدخل بيانات العبوة وأضف الأصناف')):ListView(padding:const EdgeInsets.symmetric(horizontal:6),children:cart.asMap().entries.map((e){final x=e.value;return Card(margin:const EdgeInsets.symmetric(vertical:2),child:ListTile(dense:true,title:Text(x['name'] as String,style:const TextStyle(fontSize:12,fontWeight:FontWeight.bold)),subtitle:Text('${x['packages']} × حبة',style:const TextStyle(fontSize:10)),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(money((x['packages'] as int)*(x['package_cost'] as int)),style:const TextStyle(fontSize:10)),IconButton(onPressed:posting?null:()=>setState(()=>cart.removeAt(e.key)),icon:const Icon(Icons.close,size:17),visualDensity:VisualDensity.compact)])));}).toList())),
+   Expanded(child:Container(
+    margin:const EdgeInsets.symmetric(horizontal:7,vertical:3),padding:const EdgeInsets.all(8),
+    decoration:BoxDecoration(border:Border.all(color:Theme.of(c).colorScheme.outlineVariant),borderRadius:BorderRadius.circular(10),color:Theme.of(c).colorScheme.surfaceContainerLowest),
+    child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
+     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('شاشة كاشير التوريد',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد الأصناف: ${cart.length}',style:const TextStyle(fontSize:11))]),
+     const Divider(height:8),
+     Expanded(child:cart.isEmpty?const Center(child:Text('الأصناف والعمليات التي تختارها ستظهر هنا',style:TextStyle(color:Colors.grey))):ListView(children:cart.asMap().entries.map((e){
+      final x=e.value,line=(x['packages'] as int)*(x['package_cost'] as int);
+      return Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[
+       Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
+        Text('الكمية ${x['packages']} عبوة، وزن العبوة ${((x['weight_grams'] as int)/1000).toStringAsFixed(2)} كيلو',style:const TextStyle(fontSize:10,color:Colors.grey)),
+        Text('تكلفة العبوة ${money(x['package_cost'] as num)}',style:const TextStyle(fontSize:10,color:Colors.grey))
+       ])),
+       Text(money(line),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
+       IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:28,height:28),iconSize:15,onPressed:posting?null:()=>setState(()=>cart.removeAt(e.key)),icon:const Icon(Icons.close))
+      ]));
+     }).toList())),
+     const Divider(height:8),
+     Row(children:[const Text('إجمالي التوريد',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(money(total),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17))])
+    ])
+   )),
    Container(padding:const EdgeInsets.fromLTRB(7,3,7,4),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Wrap(spacing:3,runSpacing:2,children:[ChoiceChip(label:const Text('عدد العبوات'),selected:purchaseField=='packages',onSelected:(_)=>setState(()=>purchaseField='packages')),ChoiceChip(label:const Text('وزن العبوة كجم'),selected:purchaseField=='weight',onSelected:(_)=>setState(()=>purchaseField='weight')),ChoiceChip(label:const Text('التكلفة'),selected:purchaseField=='cost',onSelected:(_)=>setState(()=>purchaseField='cost'))]),
     if(purchaseField=='cost')Row(children:[const Text('التكلفة:'),ChoiceChip(label:const Text('للعبوة'),selected:purchaseCostMode=='package',onSelected:(_)=>setState(()=>purchaseCostMode='package')),ChoiceChip(label:const Text('للكيلو'),selected:purchaseCostMode=='kg',onSelected:(_)=>setState(()=>purchaseCostMode='kg'))]),
