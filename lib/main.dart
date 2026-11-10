@@ -418,7 +418,13 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   final all=<Map<String,Object?>>[];
   for(final x in invoices){
    if(x['status']!='posted')continue;
-   all.add({'date':x['date'],'sort':x['id'],'label':(customer?'فاتورة بيع':'فاتورة توريد')+' #'+x['id'].toString(),'amount':(x['total'] as num).toDouble(),'direction':1});
+   final invoiceId=(x['id'] as num).toInt();
+   all.add({'date':x['date'],'sort':invoiceId*2,'label':(customer?'فاتورة بيع':'فاتورة توريد')+' #'+invoiceId.toString(),'amount':(x['total'] as num).toDouble(),'direction':1});
+   // The amount paid at the time of the invoice must reduce the party balance.
+   final paid=(x['paid'] as num?)?.toDouble()??0;
+   if(paid>0){
+    all.add({'date':x['date'],'sort':invoiceId*2+1,'label':customer?'دفعة عند البيع':'دفعة عند التوريد','amount':paid,'direction':-1});
+   }
   }
   for(final x in payments){
    all.add({'date':x['date'],'sort':x['id'],'label':(x['note']??(customer?'دفعة من الزبون':'دفعة للمورد')).toString(),'amount':(x['amount'] as num).toDouble(),'direction':-1});
