@@ -418,18 +418,22 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   final returnColumn=customer?'customer_id':'supplier_id';
   final returns=await db.query('returns',where:'$returnColumn=?',whereArgs:[widget.partyId],orderBy:'date,id');
   final all=<Map<String,Object?>>[];
+  final invoiceType=customer?'sale':'purchase';
+  final allocationRows=await db.rawQuery('SELECT invoice_id, SUM(amount) AS allocated FROM payment_allocations WHERE invoice_type=? GROUP BY invoice_id',[invoiceType]);
+  final allocatedByInvoice=<int,num>{for(final a in allocationRows)(a['invoice_id'] as num).toInt():(a['allocated'] as num)};
   for(final x in invoices){
    if(x['status']!='posted')continue;
    final invoiceId=(x['id'] as num).toInt();
-   all.add({'date':x['date'],'sort':invoiceId*2,'label':(customer?'فاتورة بيع':'فاتورة توريد')+' #'+invoiceId.toString(),'amount':(x['total'] as num).toDouble(),'direction':1});
-   // The amount paid at the time of the invoice must reduce the party balance.
+   all.add({'date':x['date'],'sort':invoiceId*100000,'label':(customer?'فاتورة بيع':'فاتورة توريد')+' #'+invoiceId.toString(),'amount':(x['total'] as num).toDouble(),'direction':1});
+   // paid includes later allocated payments; remove those here because they are listed separately below.
    final paid=(x['paid'] as num?)?.toDouble()??0;
-   if(paid>0){
-    all.add({'date':x['date'],'sort':invoiceId*2+1,'label':customer?'دفعة عند البيع':'دفعة عند التوريد','amount':paid,'direction':-1});
+   final initialPaid=(paid-(allocatedByInvoice[invoiceId]??0)).clamp(0,paid).toDouble();
+   if(initialPaid>0){
+    all.add({'date':x['date'],'sort':invoiceId*100000+1,'label':customer?'دفعة عند البيع':'دفعة عند التوريد','amount':initialPaid,'direction':-1});
    }
   }
   for(final x in payments){
-   all.add({'date':x['date'],'sort':x['id'],'label':(x['note']??(customer?'دفعة من الزبون':'دفعة للمورد')).toString(),'amount':(x['amount'] as num).toDouble(),'direction':-1});
+   all.add({'date':x['date'],'sort':(x['id'] as num).toInt()*100000+50000,'label':(x['note']??(customer?'دفعة من الزبون':'دفعة للمورد')).toString(),'amount':(x['amount'] as num).toDouble(),'direction':-1});
   }
   for(final x in returns){
    final total=(x['total'] as num).toDouble(),cash=(x['cash_paid'] as num?)?.toDouble()??0;
@@ -539,7 +543,11 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
       }),
      ],
     )),
-    Card(child:ListTile(title:const Text('الرصيد الختامي'),trailing:Text(money(balance),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)))),
+    Card(child:ListTile(
+     title:Text(customer?'حالة حساب الزبون':'حالة حساب المورد'),
+     subtitle:Text(balance>0?'مدين • عليه للمحل':balance<0?'دائن • للمحل عليه':'صفر • الحساب مسدد'),
+     trailing:Text(money(balance.abs()),style:TextStyle(fontWeight:FontWeight.bold,fontSize:18,color:balance>0?Colors.red:balance<0?Colors.green:null)),
+    )),
    ]);
   }),
  );
