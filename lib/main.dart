@@ -308,9 +308,9 @@ class _ProductsPageState extends State<ProductsPage>{
   String productType=(product?['product_type']??'sale').toString();
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(product==null?'إضافة صنف':'تعديل الصنف والسعر'),
-   content:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)productType=v;}),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),if(productType=='purchase')field(cost,'سعر التكلفة الافتراضي للوحدة',number:true)
-   ])),
+   content:StatefulBuilder(builder:(c,setDialogState)=>SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
+    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),if(productType=='purchase')field(cost,'سعر التكلفة الافتراضي للوحدة',number:true)
+   ]))),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
   if(ok!=true)return;
   final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??-1, purchaseCost=int.tryParse(cost.text)??-1;
