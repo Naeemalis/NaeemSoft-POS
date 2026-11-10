@@ -593,7 +593,7 @@ class SaleInvoiceReviewPage extends StatelessWidget {
  final ScreenshotController shot=ScreenshotController();
  String get receiptText {
   final b=StringBuffer('NaeemSoft POS\\nمعاينة فاتورة بيع\\nالزبون: $party\\n--------------------\\n');
-  for(var i=0;i<items.length;i++){final x=items[i],g=x['grams'] as int,p=x['price_per_kg'] as int;b.writeln('${i+1}. ${x['name']}');b.writeln('الكمية: ${(g/1000).toStringAsFixed(3)} كيلو');b.writeln('سعر الكيلو: ${money(p)}');b.writeln('الإجمالي: ${money((g*p/1000).round())}');}
+  for(final x in items){final g=x['grams'] as int,p=x['price_per_kg'] as int;b.writeln(x['name']);b.writeln('الكمية: ${(g/1000).toStringAsFixed(3)} كيلو');b.writeln('إجمالي الصنف: ${money((g*p/1000).round())}');}
   b.writeln('--------------------');b.writeln('الإجمالي: ${money(total)}');b.writeln('المدفوع: ${money(paid)}');b.writeln('المتبقي: ${money(total-paid)}');b.writeln('شكراً لتعاملكم معنا');return b.toString();
  }
  Future<void> shareImage(BuildContext c) async {
@@ -614,7 +614,9 @@ class ReceiptShareCard extends StatelessWidget {
  @override Widget build(BuildContext c)=>Container(width:360,padding:const EdgeInsets.all(18),color:Colors.white,child:DefaultTextStyle(style:const TextStyle(color:Colors.black,fontSize:13),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,mainAxisSize:MainAxisSize.min,children:[
   const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),const Text('فاتورة بيع',textAlign:TextAlign.center,style:TextStyle(fontSize:16,fontWeight:FontWeight.bold)),const Divider(thickness:2),
   Text('الزبون: $party'),Text('التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),const Divider(),const Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold)),
-  ...items.asMap().entries.map((e){final x=e.value,g=x['grams'] as int,p=x['price_per_kg'] as int;return Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('${e.key+1}. ${x['name']}',style:const TextStyle(fontWeight:FontWeight.bold)),Text('الكمية: ${(g/1000).toStringAsFixed(3)} كيلو'),Text('سعر الكيلو: ${money(p)}'),Text(money((g*p/1000).round()),textAlign:TextAlign.left,style:const TextStyle(fontWeight:FontWeight.bold)),const Divider()]));}),
+  const Row(children:[Expanded(child:Text('اسم الصنف',style:TextStyle(fontWeight:FontWeight.bold))),Text('الكمية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:12),Text('إجمالي الصنف',style:TextStyle(fontWeight:FontWeight.bold))]),
+  const Divider(),
+  ...items.map((x){final g=x['grams'] as int,p=x['price_per_kg'] as int;return Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Row(children:[Expanded(child:Text(x['name'].toString(),style:const TextStyle(fontWeight:FontWeight.bold))),Text('${(g/1000).toStringAsFixed(3)} كجم'),const SizedBox(width:12),Text(money((g*p/1000).round()),style:const TextStyle(fontWeight:FontWeight.bold))]));}),
   _receiptRow('الإجمالي',money(total),strong:true),_receiptRow('المدفوع',money(paid)),_receiptRow('المتبقي',money(total-paid),strong:true),const SizedBox(height:8),const Text('شكراً لتعاملكم معنا',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold))
  ])));
 }
@@ -660,11 +662,8 @@ Future<File> _buildInvoicePdf({
   final quantity=sale
     ? 'الكمية: ${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كيلو'
     : 'الكمية: ${x['packages']} عبوة، وزن العبوة ${x['weight_each']} كيلو';
-  final unit=sale
-    ? 'سعر الكيلو ${money(x['price_per_kg'] as num)}'
-    : 'سعر العبوة ${money(x['package_cost'] as num)}';
   sections.add(PdfSection.paragraph(
-    '**${i+1}. $name**\n$quantity\n$unit\nإجمالي الصنف: ${money(x['line_total'] as num)}'
+    '$name\n$quantity\nإجمالي الصنف: ${money(x['line_total'] as num)}'
   ));
   sections.add(PdfSection.divider());
  }
@@ -771,7 +770,7 @@ class InvoiceDetailPage extends StatelessWidget {
      final unitPrice=sale?x['price_per_kg']:x['package_cost'];
      return Card(child:ListTile(
       title:Text((x['product_name']??'صنف محذوف').toString()),
-      subtitle:Text(sale?'الكمية: ${quantity.toStringAsFixed(3)} كيلو، سعر الكيلو: ${money(unitPrice as num)}':'الكمية: ${x['packages']} عبوة، سعر العبوة: ${money(unitPrice as num)}'),
+      subtitle:Text(sale?'الكمية: ${quantity.toStringAsFixed(3)} كيلو':'الكمية: ${x['packages']} ${x['unit']}، وزن الوحدة ${x['weight_each']} كيلو'),
       trailing:Text(money(x['line_total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
      ));
     }),
@@ -782,7 +781,7 @@ class InvoiceDetailPage extends StatelessWidget {
      const Divider(),
      _invoiceAmount('المتبقي بعد المرتجعات',remaining),
     ]))),
-    const Text('هذه الفاتورة مستقلة؛ لا يتم ترحيلها إلى مخزون المبيعات.'),
+    Text(sale?'تم خصم الكمية من مخزون الصنف.':'تمت إضافة الكمية إلى مخزون صنف المبيعات المرتبط.'),
    ]);
   }));
 }
