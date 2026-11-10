@@ -182,12 +182,31 @@ class _PurchasePageState extends State<PurchasePage>{
  bool posting=false;
  String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=1,packageWeight=0,packageCost=0; int? selectedSupplierId;
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else keypadValue+=k;});}
- void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else if(purchaseField=='weight')packageWeight=(v*1000).round();else packageCost=v.toInt();keypadValue='';});}
+ void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else packageCost=v.toInt();keypadValue='';});}
  Future<void> add(Map<String,Object?> p) async {
-  final count=packageCount, weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
+  final count=packageCount;
+  final weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
   final price=purchaseCostMode=='package'?packageCost:((packageCost*weight)/1000).round();
-  if(count<=0||weight<=0||price<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('حدد العدد والوزن والتكلفة أولاً')));return;}
-  setState(()=>cart.add({'product_id':p['id'],'name':p['name'],'unit':'حبة','packages':count,'weight_grams':weight,'package_cost':price}));
+  if(count<=0||weight<=0||price<=0){
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل العدد وتكلفة الشراء، وسيُؤخذ الوزن تلقائياً من معرض الأصناف')));
+   return;
+  }
+  setState((){
+   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price});
+   packageCount=1;packageWeight=0;packageCost=0;keypadValue='';
+  });
+ }
+ Future<void> editLineWeight(int index) async {
+  final item=cart[index];
+  final controller=TextEditingController(text:((item['weight_grams'] as int)/1000).toStringAsFixed(2));
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:Text('تعديل وزن ' + item['name'].toString() + ' في هذه الفاتورة'),
+   content:field(controller,'وزن الوحدة بالكيلو',number:true),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
+  if(ok!=true)return;
+  final value=double.tryParse(controller.text.replaceAll(',', '.'))??0;
+  if(value<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الوزن غير صحيح')));return;}
+  setState(()=>cart[index]['weight_grams']=(value*1000).round());
  }
  int get total=>cart.fold(0,(v,x)=>v+(x['packages'] as int)*(x['package_cost'] as int));
  Future<void> saveDraft() async {
@@ -239,24 +258,24 @@ class _PurchasePageState extends State<PurchasePage>{
      const Divider(height:8),
      Expanded(child:cart.isEmpty?const Center(child:Text('الأصناف والعمليات التي تختارها ستظهر هنا',style:TextStyle(color:Colors.grey))):ListView(children:cart.asMap().entries.map((e){
       final x=e.value,line=(x['packages'] as int)*(x['package_cost'] as int);
-      return Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[
+      return Padding(padding:const EdgeInsets.symmetric(vertical:4),child:InkWell(onTap:()=>editLineWeight(e.key),child:Row(children:[
        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
-        Text('الكمية ${x['packages']} عبوة، وزن العبوة ${((x['weight_grams'] as int)/1000).toStringAsFixed(2)} كيلو',style:const TextStyle(fontSize:10,color:Colors.grey)),
+        Text('الكمية ${x['packages']} ${x['unit']}، وزن الوحدة ${((x['weight_grams'] as int)/1000).toStringAsFixed(2)} كيلو • اضغط لتعديل الوزن',style:const TextStyle(fontSize:10,color:Colors.grey)),
         Text('تكلفة العبوة ${money(x['package_cost'] as num)}',style:const TextStyle(fontSize:10,color:Colors.grey))
        ])),
        Text(money(line),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
        IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:28,height:28),iconSize:15,onPressed:posting?null:()=>setState(()=>cart.removeAt(e.key)),icon:const Icon(Icons.close))
-      ]));
+      ])));
      }).toList())),
      const Divider(height:8),
      Row(children:[const Text('إجمالي التوريد',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(money(total),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17))])
     ])
    )),
    Container(padding:const EdgeInsets.fromLTRB(7,3,7,4),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
-    Wrap(spacing:3,runSpacing:2,children:[ChoiceChip(label:const Text('عدد العبوات'),selected:purchaseField=='packages',onSelected:(_)=>setState(()=>purchaseField='packages')),ChoiceChip(label:const Text('وزن العبوة كجم'),selected:purchaseField=='weight',onSelected:(_)=>setState(()=>purchaseField='weight')),ChoiceChip(label:const Text('التكلفة'),selected:purchaseField=='cost',onSelected:(_)=>setState(()=>purchaseField='cost'))]),
-    if(purchaseField=='cost')Row(children:[const Text('التكلفة:'),ChoiceChip(label:const Text('للعبوة'),selected:purchaseCostMode=='package',onSelected:(_)=>setState(()=>purchaseCostMode='package')),ChoiceChip(label:const Text('للكيلو'),selected:purchaseCostMode=='kg',onSelected:(_)=>setState(()=>purchaseCostMode='kg'))]),
-    Text('القيمة: ${keypadValue.isEmpty?'0':keypadValue} • العدد: $packageCount • الوزن: ${(packageWeight/1000).toStringAsFixed(2)} كجم • تكلفة العبوة: $packageCost',style:const TextStyle(fontSize:10)),
+    Wrap(spacing:3,runSpacing:2,children:[ChoiceChip(label:const Text('عدد الوحدات'),selected:purchaseField=='packages',onSelected:(_)=>setState(()=>purchaseField='packages')),ChoiceChip(label:const Text('تكلفة الشراء'),selected:purchaseField=='cost',onSelected:(_)=>setState(()=>purchaseField='cost'))]),
+    if(purchaseField=='cost')Row(children:[const Text('إدخال التكلفة:'),ChoiceChip(label:const Text('للوحدة'),selected:purchaseCostMode=='package',onSelected:(_)=>setState(()=>purchaseCostMode='package')),ChoiceChip(label:const Text('للكيلو'),selected:purchaseCostMode=='kg',onSelected:(_)=>setState(()=>purchaseCostMode='kg'))]),
+    Text('القيمة: ${keypadValue.isEmpty?'0':keypadValue} • العدد: $packageCount • تكلفة الشراء: $packageCost • الوزن يُقرأ تلقائياً من معرض الأصناف',style:const TextStyle(fontSize:10)),
     SizedBox(height:120,child:GridView.count(
      physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,mainAxisSpacing:2,crossAxisSpacing:2,childAspectRatio:3.2,
      children:[for(final k in ['7','8','9','⌫','4','5','6','مسح','1','2','3','.','0','00','اعتماد'])
