@@ -407,7 +407,6 @@ class _PartiesPageState extends State<PartiesPage>{
   final payments=await db.query('payments',where:'party_type=? AND party_id=?',whereArgs:['customer',id]);
   final allocationRows=await db.rawQuery('SELECT COALESCE(SUM(amount),0) AS total FROM payment_allocations WHERE invoice_type=? AND invoice_id IN (SELECT id FROM sales WHERE customer_id=?)',['sale',id]);
   final allocated=(allocationRows.first['total'] as num?)??0;
-  final invoicePaid=invoices.fold<num>(0,(sum,x)=>sum+((x['paid'] as num?)??0));
   final separatePayments=payments.fold<num>(0,(sum,x)=>sum+((x['amount'] as num?)??0));
   // Invoice paid already contains allocated payments; subtract only payments not allocated to invoices.
   balance-=separatePayments-allocated;
