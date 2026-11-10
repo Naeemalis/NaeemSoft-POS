@@ -358,7 +358,52 @@ class ShopDb {
           'quantity_grams':grams,'unit_price':price,'line_total':line,
           'cost_per_kg':type=='customer'?((source['cost_per_kg_snapshot'] as num?)?.toInt()??0):((source['kg_cost'] as num?)?.toInt()??0),
         });
-        // Returns are financial documents only; this cashier system does not update stock.
+        if (type == 'customer') {
+          final productRows = await tx.query('products', where: 'id = ? AND product_type = ?', whereArgs: [productId, 'sale'], limit: 1);
+          if (productRows.isEmpty) throw Exception('صنف المبيعات المرتبط بالمرتجع غير موجود');
+          final product = productRows.first;
+          final oldGrams = (product['stock_grams'] as num).toInt();
+          final oldValue = (product['inventory_value_djf'] as num).toInt();
+          final restoreCost = ((grams * ((source['cost_per_kg_snapshot'] as num?)?.toInt() ?? 0)) / 1000).round();
+          final newGrams = oldGrams + grams;
+          final newValue = oldValue + restoreCost;
+          await tx.update('products', {
+            'stock_grams': newGrams, 'stock': newGrams / 1000,
+            'inventory_value_djf': newValue,
+            'cost': newGrams == 0 ? 0 : (newValue * 1000 / newGrams).round(),
+          }, where: 'id = ?', whereArgs: [productId]);
+          await tx.insert('stock_movements', {
+            'product_id': productId, 'movement_type': 'adjustment',
+            'source_type': 'customer_return', 'source_id': returnId,
+            'quantity_grams': grams, 'unit_cost_per_kg': (source['cost_per_kg_snapshot'] as num?)?.toInt() ?? 0,
+            'value_delta_djf': restoreCost, 'created_at': DateTime.now().toIso8601String(),
+            'note': 'مرتجع زبون أعيد للمخزون',
+          });
+        } else {
+          final purchaseProduct = (await tx.query('products', columns: ['paired_sale_product_id'], where: 'id = ?', whereArgs: [productId], limit: 1));
+          final saleProductId = purchaseProduct.isEmpty ? null : purchaseProduct.first['paired_sale_product_id'] as int?;
+          if (saleProductId == null) throw Exception('صنف التوريد غير مربوط بصنف المبيعات');
+          final product = (await tx.query('products', where: 'id = ?', whereArgs: [saleProductId], limit: 1)).first;
+          final oldGrams = (product['stock_grams'] as num).toInt();
+          if (grams > oldGrams) throw Exception('لا يمكن إرجاع كمية للمورد أكبر من المتاح في المخزون');
+          final oldValue = (product['inventory_value_djf'] as num).toInt();
+          final averageCost = oldGrams == 0 ? 0 : (oldValue * 1000 / oldGrams).round();
+          final removedValue = ((grams * averageCost) / 1000).round();
+          final newGrams = oldGrams - grams;
+          final newValue = (oldValue - removedValue).clamp(0, oldValue);
+          await tx.update('products', {
+            'stock_grams': newGrams, 'stock': newGrams / 1000,
+            'inventory_value_djf': newValue,
+            'cost': newGrams == 0 ? 0 : (newValue * 1000 / newGrams).round(),
+          }, where: 'id = ?', whereArgs: [saleProductId]);
+          await tx.insert('stock_movements', {
+            'product_id': saleProductId, 'movement_type': 'adjustment',
+            'source_type': 'supplier_return', 'source_id': returnId,
+            'quantity_grams': -grams, 'unit_cost_per_kg': averageCost,
+            'value_delta_djf': -removedValue, 'created_at': DateTime.now().toIso8601String(),
+            'note': 'مرتجع مورد خُصم من المخزون',
+          });
+        }
       }
       return returnId;
     });
