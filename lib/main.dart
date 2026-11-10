@@ -313,7 +313,7 @@ class PurchaseInvoiceReviewPage extends StatelessWidget {
     const Divider(),
     ...items.map((x)=>Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Row(children:[
      Expanded(child:Text(x['name'].toString(),style:const TextStyle(fontWeight:FontWeight.bold))),
-     Text('${x['packages']} ${x['unit']}'),
+     Text('${x['packages']} ${x['unit']} • ${((x['weight_grams'] as num)/1000).toStringAsFixed(2)} كجم/وحدة'),
      const SizedBox(width:10),
      Text(money((x['packages'] as num)*(x['package_cost'] as num)),style:const TextStyle(fontWeight:FontWeight.bold)),
     ]))),
@@ -344,7 +344,7 @@ class _ProductsPageState extends State<ProductsPage>{
   final w=TextEditingController(text:((product?['default_weight'] as num?)??30).toString());
   final price=TextEditingController(text:((product?['sale_price'] as num?)??0).round().toString());
   final cost=TextEditingController(text:((product?['cost'] as num?)??0).round().toString());
-  final saleProducts=await ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name');
+  final saleProducts=await ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale' AND id != ?",whereArgs:[product?['id']??-1],orderBy:'name');
   String productType=(product?['product_type']??'sale').toString();
   int? pairedSaleProductId=product?['paired_sale_product_id'] as int?;
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
