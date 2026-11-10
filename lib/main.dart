@@ -397,6 +397,29 @@ class _ProductsPageState extends State<ProductsPage>{
 }
 class PartiesPage extends StatefulWidget {final String type;const PartiesPage({super.key,required this.type});@override State<PartiesPage> createState()=>_PartiesPageState();}
 class _PartiesPageState extends State<PartiesPage>{
+ Future<num> customerBalance(int id) async {
+  final db=ShopDb.instance.db;
+  final partyRows=await db.query('customers',where:'id=?',whereArgs:[id],limit:1);
+  if(partyRows.isEmpty)return 0;
+  num balance=(partyRows.first['opening_balance'] as num?)??0;
+  final invoices=await db.query('sales',where:"customer_id=? AND status='posted'",whereArgs:[id]);
+  for(final x in invoices){balance+=(x['total'] as num?)??0;balance-=(x['paid'] as num?)??0;}
+  final payments=await db.query('payments',where:'party_type=? AND party_id=?',whereArgs:['customer',id]);
+  final allocationRows=await db.rawQuery('SELECT COALESCE(SUM(amount),0) AS total FROM payment_allocations WHERE invoice_type=? AND invoice_id IN (SELECT id FROM sales WHERE customer_id=?)',['sale',id]);
+  final allocated=(allocationRows.first['total'] as num?)??0;
+  final invoicePaid=invoices.fold<num>(0,(sum,x)=>sum+((x['paid'] as num?)??0));
+  final separatePayments=payments.fold<num>(0,(sum,x)=>sum+((x['amount'] as num?)??0));
+  // Invoice paid already contains allocated payments; subtract only payments not allocated to invoices.
+  balance-=separatePayments-allocated;
+  final returns=await db.query('returns',where:'customer_id=?',whereArgs:[id]);
+  for(final x in returns){
+   final total=(x['total'] as num?)??0;
+   final cash=(x['cash_paid'] as num?)??0;
+   balance-=total-cash;
+  }
+  return balance;
+ }
+
  Future<void> edit(Map<String,Object?>? party)async{
   final n=TextEditingController(text:(party?['name']??'').toString()),phone=TextEditingController(text:(party?['phone']??'').toString());
   final customer=widget.type=='customer';
@@ -429,12 +452,25 @@ class _PartiesPageState extends State<PartiesPage>{
     if(!s.hasData)return const Center(child:CircularProgressIndicator());
     if(s.data!.isEmpty)return Center(child:Text(customer?'لا يوجد زبائن مسجلون':'لا يوجد موردون مسجلون'));
     return ListView(children:s.data!.map((x)=>ListTile(
-     leading:const Icon(Icons.person_outline),title:Text(x['name'] as String),subtitle:Text((x['phone']??'').toString()),
+     leading:const Icon(Icons.person_outline),
+     title:Text(x['name'] as String),
+     subtitle:customer
+      ? Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
+         if((x['phone']??'').toString().isNotEmpty)Text(x['phone'].toString()),
+         FutureBuilder<num>(future:customerBalance(x['id'] as int),builder:(context,balanceSnap){
+          if(!balanceSnap.hasData)return const Text('حالة الحساب: جارٍ الحساب…',style:TextStyle(fontSize:12));
+          final balance=balanceSnap.data!;
+          final label=balance>0?'مدين • عليه للمحل':balance<0?'دائن • للمحل عليه':'صفر • الحساب مسدد';
+          final color=balance>0?Colors.red:balance<0?Colors.green:Colors.grey;
+          return Text('حالة الحساب: $label  |  الرصيد: ${money(balance.abs())}',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:color));
+         }),
+        ])
+      :Text((x['phone']??'').toString()),
      trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(x):archive(x),itemBuilder:(_)=>const[
       PopupMenuItem(value:'edit',child:Text('تعديل الاسم والهاتف')),
       PopupMenuItem(value:'delete',child:Text('حذف')),
      ]),
-     onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>PartyStatementPage(type:widget.type,partyId:x['id'] as int))),
+     onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>PartyStatementPage(type:widget.type,partyId:x['id'] as int))).then((_) {if(mounted)setState((){});}),
     )).toList());
    }),
    floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:Text(customer?'إضافة زبون':'إضافة مورد')));
