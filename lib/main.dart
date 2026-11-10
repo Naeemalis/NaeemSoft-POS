@@ -455,7 +455,6 @@ class _PartiesPageState extends State<PartiesPage>{
      title:Text(x['name'] as String),
      subtitle:customer
       ? Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
-         if((x['phone']??'').toString().isNotEmpty)Text(x['phone'].toString()),
          FutureBuilder<num>(future:customerBalance(x['id'] as int),builder:(context,balanceSnap){
           if(!balanceSnap.hasData)return const Text('حالة الحساب: جارٍ الحساب…',style:TextStyle(fontSize:12));
           final balance=balanceSnap.data!;
@@ -463,6 +462,7 @@ class _PartiesPageState extends State<PartiesPage>{
           final color=balance>0?Colors.red:balance<0?Colors.green:Colors.grey;
           return Text('حالة الحساب: $label  |  الرصيد: ${money(balance.abs())}',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:color));
          }),
+         if((x['phone']??'').toString().isNotEmpty)Text(x['phone'].toString()),
         ])
       :Text((x['phone']??'').toString()),
      trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(x):archive(x),itemBuilder:(_)=>const[
