@@ -145,16 +145,17 @@ class _SalePageState extends State<SalePage>{
     margin:const EdgeInsets.symmetric(horizontal:7,vertical:3),padding:const EdgeInsets.all(8),
     decoration:BoxDecoration(border:Border.all(color:Theme.of(c).colorScheme.outlineVariant),borderRadius:BorderRadius.circular(10),color:Theme.of(c).colorScheme.surfaceContainerLowest),
     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('شاشة الكاشير',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد الأصناف: ${cart.length}',style:const TextStyle(fontSize:11))]),
+     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('قراءة الكاشير • العمليات المختارة',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد العمليات: ${cart.length}',style:const TextStyle(fontSize:11))]),
      const Divider(height:8),
-     Expanded(child:cart.isEmpty?const Center(child:Text('العمليات المختارة ستظهر هنا',style:TextStyle(color:Colors.grey))):ListView(children:cart.values.map((x){
-      final grams=x['grams'] as int,price=x['price_per_kg'] as int;
-      return Padding(padding:const EdgeInsets.symmetric(vertical:4),child:Row(children:[
+     Expanded(child:cart.isEmpty?const Center(child:Text('عند اختيار أي صنف ستظهر عمليته هنا مباشرة',style:TextStyle(color:Colors.grey))):ListView(children:cart.values.toList().asMap().entries.map((entry){
+      final x=entry.value,grams=x['grams'] as int,price=x['price_per_kg'] as int;
+      return Container(margin:const EdgeInsets.only(bottom:5),padding:const EdgeInsets.symmetric(horizontal:6,vertical:5),decoration:BoxDecoration(border:Border(bottom:BorderSide(color:Theme.of(c).colorScheme.outlineVariant))),child:Row(children:[
+       SizedBox(width:22,child:Text('${entry.key+1}.',style:const TextStyle(fontSize:11,color:Colors.grey))),
        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-        Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
-        Text('الكمية ${kg(grams)} كيلو، سعر الكيلو ${money(price)}',style:const TextStyle(fontSize:10,color:Colors.grey))
+        Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13)),
+        Text('الكمية: ${kg(grams)} كيلو • سعر الكيلو: ${money(price)}',style:const TextStyle(fontSize:11,color:Colors.grey))
        ])),
-       Text(money((grams*price/1000).round()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
+       Column(crossAxisAlignment:CrossAxisAlignment.end,children:[const Text('إجمالي الصنف',style:TextStyle(fontSize:9,color:Colors.grey)),Text(money((grams*price/1000).round()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12))]),
        IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:28,height:28),iconSize:15,onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id'])),icon:const Icon(Icons.close))
       ]));
      }).toList())),
@@ -254,7 +255,7 @@ class _PurchasePageState extends State<PurchasePage>{
     margin:const EdgeInsets.symmetric(horizontal:7,vertical:3),padding:const EdgeInsets.all(8),
     decoration:BoxDecoration(border:Border.all(color:Theme.of(c).colorScheme.outlineVariant),borderRadius:BorderRadius.circular(10),color:Theme.of(c).colorScheme.surfaceContainerLowest),
     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('شاشة كاشير التوريد',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد الأصناف: ${cart.length}',style:const TextStyle(fontSize:11))]),
+     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('قراءة كاشير التوريد • العمليات المختارة',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد العمليات: ${cart.length}',style:const TextStyle(fontSize:11))]),
      const Divider(height:8),
      Expanded(child:cart.isEmpty?const Center(child:Text('الأصناف والعمليات التي تختارها ستظهر هنا',style:TextStyle(color:Colors.grey))):ListView(children:cart.asMap().entries.map((e){
       final x=e.value,line=(x['packages'] as int)*(x['package_cost'] as int);
