@@ -804,15 +804,23 @@ class InvoiceDetailPage extends StatelessWidget {
      Text((sale?'الزبون: ':'المورد: ')+s.data!['party'].toString()),
     ]))),
     const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold))),
-    ...lines.map((x){
-     final quantity=sale?((x['quantity_grams'] as num)/1000):((x['quantity'] as num));
-     final unitPrice=sale?x['price_per_kg']:x['package_cost'];
-     return Card(child:ListTile(
-      title:Text((x['product_name']??'صنف محذوف').toString()),
-      subtitle:Text(sale?'الكمية: ${quantity.toStringAsFixed(3)} كيلو':'الكمية: ${x['packages']} ${x['unit']}، وزن الوحدة ${x['weight_each']} كيلو'),
-      trailing:Text(money(x['line_total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
-     ));
-    }),
+    if(lines.isNotEmpty)SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
+     columns:const [
+      DataColumn(label:Text('اسم الصنف')),
+      DataColumn(label:Text('الكمية')),
+      DataColumn(label:Text('إجمالي الصنف')),
+     ],
+     rows:lines.map((x){
+      final quantity=sale
+       ? '${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كجم'
+       : '${x['packages']} ${x['unit']} • ${x['weight_each']} كجم/وحدة';
+      return DataRow(cells:[
+       DataCell(Text((x['product_name']??'صنف محذوف').toString())),
+       DataCell(Text(quantity)),
+       DataCell(Text(money(x['line_total'] as num),style:const TextStyle(fontWeight:FontWeight.bold))),
+      ]);
+     }).toList(),
+    )),
     Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(children:[
      _invoiceAmount('الإجمالي',total),
      _invoiceAmount('المدفوع نقداً',paid),
