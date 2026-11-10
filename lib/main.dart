@@ -187,6 +187,10 @@ class _PurchasePageState extends State<PurchasePage>{
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
  void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else packageCost=v.toInt();keypadValue='';});}
  Future<void> add(Map<String,Object?> p) async {
+  if(p['paired_sale_product_id']==null){
+   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اربط صنف التوريد بصنف المبيعات من إدارة الأصناف أولاً')));
+   return;
+  }
   final count=packageCount;
   final weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
   final enteredCost=packageCost>0?packageCost:(p['cost'] as num).round();
