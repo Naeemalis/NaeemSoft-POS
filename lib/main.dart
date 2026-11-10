@@ -231,7 +231,13 @@ class _PurchasePageState extends State<PurchasePage>{
   final paid=TextEditingController(text:'0'),due=TextEditingController();
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('اعتماد فاتورة التوريد'),content:Column(mainAxisSize:MainAxisSize.min,children:[Text('الإجمالي: '+money(total)),field(paid,'المدفوع الآن',number:true),field(due,'موعد السداد YYYY-MM-DD')]),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ الفاتورة'))]));
   if(ok!=true)return;
-  setState(()=>posting=true);int? draftId=activeDraftId;final paidAmount=int.tryParse(paid.text)??0;final dueDate=due.text.trim().isEmpty?null:due.text.trim();
+  final snapshot=cart.map((x)=>Map<String,dynamic>.from(x)).toList();
+  final suppliers=await ShopDb.instance.db.query('suppliers',where:'id=?',whereArgs:[selectedSupplierId],limit:1);
+  final supplierName=suppliers.isEmpty?'مورد غير محدد':suppliers.first['name'].toString();
+  final paidAmount=int.tryParse(paid.text)??0;
+  final approved=await Navigator.push<bool>(context,MaterialPageRoute(builder:(_)=>PurchaseInvoiceReviewPage(items:snapshot,total:total,paid:paidAmount,party:supplierName)));
+  if(approved!=true||!mounted)return;
+  setState(()=>posting=true);int? draftId=activeDraftId;final dueDate=due.text.trim().isEmpty?null:due.text.trim();
   try{
    if(draftId==null){draftId=await ShopDb.instance.saveDraft(type:'purchase',items:cart,partyId:selectedSupplierId,total:total,paid:paidAmount,dueDate:dueDate);}
    else{await ShopDb.instance.saveDraft(type:'purchase',items:cart,partyId:selectedSupplierId,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);}
@@ -288,6 +294,39 @@ class _PurchasePageState extends State<PurchasePage>{
   ]);
  }
 }
+class PurchaseInvoiceReviewPage extends StatelessWidget {
+ final List<Map<String,dynamic>> items;
+ final int total,paid;
+ final String party;
+ const PurchaseInvoiceReviewPage({super.key,required this.items,required this.total,required this.paid,required this.party});
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:const Text('معاينة فاتورة التوريد قبل الترحيل')),
+  body:ListView(padding:const EdgeInsets.all(12),children:[
+   Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+    const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold,fontSize:20)),
+    const Center(child:Text('فاتورة توريد',style:TextStyle(fontWeight:FontWeight.bold,fontSize:16))),
+    const Divider(),
+    Text('المورد: $party'),
+    Text('التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),
+    const Divider(),
+    const Row(children:[Expanded(child:Text('اسم الصنف',style:TextStyle(fontWeight:FontWeight.bold))),Text('الكمية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:10),Text('إجمالي الصنف',style:TextStyle(fontWeight:FontWeight.bold))]),
+    const Divider(),
+    ...items.map((x)=>Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Row(children:[
+     Expanded(child:Text(x['name'].toString(),style:const TextStyle(fontWeight:FontWeight.bold))),
+     Text('${x['packages']} ${x['unit']}'),
+     const SizedBox(width:10),
+     Text(money((x['packages'] as num)*(x['package_cost'] as num)),style:const TextStyle(fontWeight:FontWeight.bold)),
+    ]))),
+    const Divider(),
+    _receiptRow('الإجمالي',money(total),strong:true),
+    _receiptRow('المدفوع',money(paid)),
+    _receiptRow('المتبقي',money(total-paid),strong:true),
+   ]))),
+   FilledButton.icon(onPressed:()=>Navigator.pop(c,true),icon:const Icon(Icons.check_circle),label:const Text('تأكيد وترحيل فاتورة التوريد')),
+   TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع للتعديل')),
+  ]));
+}
+
 class StockPage extends StatelessWidget {const StockPage({super.key});@override Widget build(BuildContext c)=>FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name'),builder:(c,s){
  if(!s.hasData)return const Center(child:CircularProgressIndicator());
  return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text('سعر البيع: '+money(p['sale_price'] as num)+' / كجم'),trailing:Text(kg(p['stock_grams'] as num)))).toList());
