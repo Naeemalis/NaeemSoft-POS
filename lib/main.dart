@@ -192,7 +192,7 @@ class _PurchasePageState extends State<PurchasePage>{
    return;
   }
   setState((){
-   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price});
+   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':purchaseCostMode,'entered_cost':packageCost});
    packageCount=1;packageWeight=0;packageCost=0;keypadValue='';
   });
  }
@@ -206,7 +206,7 @@ class _PurchasePageState extends State<PurchasePage>{
   if(ok!=true)return;
   final value=double.tryParse(controller.text.replaceAll(',', '.'))??0;
   if(value<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('الوزن غير صحيح')));return;}
-  setState(()=>cart[index]['weight_grams']=(value*1000).round());
+  setState((){cart[index]['weight_grams']=(value*1000).round();if(item['cost_mode']=='kg'){cart[index]['package_cost']=(((item['entered_cost'] as num)*value).round());}});
  }
  int get total=>cart.fold(0,(v,x)=>v+(x['packages'] as int)*(x['package_cost'] as int));
  Future<void> saveDraft() async {
