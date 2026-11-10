@@ -129,7 +129,7 @@ class _SalePageState extends State<SalePage>{
 
  @override Widget build(BuildContext c) {
   return Column(children:[
-   FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:'active=1',orderBy:'name'),builder:(c,s){
+   FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
     final ps=s.data!, n=((s.data!.length+6)~/7).clamp(1,1000);
     return SizedBox(height:n*78.0,child:GridView.builder(physics:const NeverScrollableScrollPhysics(),padding:const EdgeInsets.all(3),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:7,crossAxisSpacing:3,mainAxisSpacing:3,childAspectRatio:.78),itemCount:ps.length,itemBuilder:(c,i){
@@ -244,7 +244,7 @@ class _PurchasePageState extends State<PurchasePage>{
     if(!s.hasData)return const LinearProgressIndicator();
     return DropdownButtonFormField<int>(value:selectedSupplierId,decoration:const InputDecoration(labelText:'اختر المورد أولاً',prefixIcon:Icon(Icons.local_shipping_outlined),border:OutlineInputBorder(),isDense:true),items:s.data!.map((v)=>DropdownMenuItem<int>(value:v['id'] as int,child:Text(v['name'] as String))).toList(),onChanged:posting?null:(v)=>setState(()=>selectedSupplierId=v));
    })),
-   SizedBox(height:104,child:FutureBuilder<List<Map<String,Object?>>>(future:rows('products'),builder:(c,s){
+   SizedBox(height:104,child:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='purchase'",orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const Center(child:CircularProgressIndicator());
     if(s.data!.isEmpty)return const Center(child:Text('أضف الأصناف من الإدارة أولاً'));
     return ListView.builder(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:3),itemCount:s.data!.length,itemBuilder:(c,i){
