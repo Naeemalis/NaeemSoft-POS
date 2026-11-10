@@ -516,7 +516,7 @@ class SaleInvoiceReviewPage extends StatelessWidget {
  final ScreenshotController shot=ScreenshotController();
  String get receiptText {
   final b=StringBuffer('NaeemSoft POS\\nمعاينة فاتورة بيع\\nالزبون: $party\\n--------------------\\n');
-  for(var i=0;i<items.length;i++){final x=items[i],g=x['grams'] as int,p=x['price_per_kg'] as int;b.writeln('${i+1}. ${x['name']}');b.writeln('${(g/1000).toStringAsFixed(3)} كجم × ${money(p)} / كجم');b.writeln('الإجمالي: ${money((g*p/1000).round())}');}
+  for(var i=0;i<items.length;i++){final x=items[i],g=x['grams'] as int,p=x['price_per_kg'] as int;b.writeln('${i+1}. ${x['name']}');b.writeln('الكمية: ${(g/1000).toStringAsFixed(3)} كيلو');b.writeln('سعر الكيلو: ${money(p)}');b.writeln('الإجمالي: ${money((g*p/1000).round())}');}
   b.writeln('--------------------');b.writeln('الإجمالي: ${money(total)}');b.writeln('المدفوع: ${money(paid)}');b.writeln('المتبقي: ${money(total-paid)}');b.writeln('شكراً لتعاملكم معنا');return b.toString();
  }
  Future<void> shareImage(BuildContext c) async {
@@ -537,7 +537,7 @@ class ReceiptShareCard extends StatelessWidget {
  @override Widget build(BuildContext c)=>Container(width:360,padding:const EdgeInsets.all(18),color:Colors.white,child:DefaultTextStyle(style:const TextStyle(color:Colors.black,fontSize:13),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,mainAxisSize:MainAxisSize.min,children:[
   const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),const Text('فاتورة بيع',textAlign:TextAlign.center,style:TextStyle(fontSize:16,fontWeight:FontWeight.bold)),const Divider(thickness:2),
   Text('الزبون: $party'),Text('التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),const Divider(),const Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold)),
-  ...items.asMap().entries.map((e){final x=e.value,g=x['grams'] as int,p=x['price_per_kg'] as int;return Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('${e.key+1}. ${x['name']}',style:const TextStyle(fontWeight:FontWeight.bold)),Text('${(g/1000).toStringAsFixed(3)} كجم × ${money(p)} / كجم'),Text(money((g*p/1000).round()),textAlign:TextAlign.left,style:const TextStyle(fontWeight:FontWeight.bold)),const Divider()]));}),
+  ...items.asMap().entries.map((e){final x=e.value,g=x['grams'] as int,p=x['price_per_kg'] as int;return Padding(padding:const EdgeInsets.symmetric(vertical:5),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Text('${e.key+1}. ${x['name']}',style:const TextStyle(fontWeight:FontWeight.bold)),Text('الكمية: ${(g/1000).toStringAsFixed(3)} كيلو'),Text('سعر الكيلو: ${money(p)}'),Text(money((g*p/1000).round()),textAlign:TextAlign.left,style:const TextStyle(fontWeight:FontWeight.bold)),const Divider()]));}),
   _receiptRow('الإجمالي',money(total),strong:true),_receiptRow('المدفوع',money(paid)),_receiptRow('المتبقي',money(total-paid),strong:true),const SizedBox(height:8),const Text('شكراً لتعاملكم معنا',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold))
  ])));
 }
@@ -581,13 +581,13 @@ Future<File> _buildInvoicePdf({
   final x=lines[i];
   final name=(x['product_name']??'صنف محذوف').toString();
   final quantity=sale
-    ? '${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كجم'
-    : '${x['packages']} حبة • وزن الحبة ${x['weight_each']} كجم';
+    ? 'الكمية: ${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كيلو'
+    : 'الكمية: ${x['packages']} عبوة، وزن العبوة ${x['weight_each']} كيلو';
   final unit=sale
-    ? 'سعر الكيلو: ${money(x['price_per_kg'] as num)}'
-    : 'سعر العبوة: ${money(x['package_cost'] as num)}';
+    ? 'سعر الكيلو ${money(x['price_per_kg'] as num)}'
+    : 'سعر العبوة ${money(x['package_cost'] as num)}';
   sections.add(PdfSection.paragraph(
-    '**${i+1}. $name**\n$quantity • $unit\nالإجمالي: ${money(x['line_total'] as num)}'
+    '**${i+1}. $name**\n$quantity\n$unit\nإجمالي الصنف: ${money(x['line_total'] as num)}'
   ));
   sections.add(PdfSection.divider());
  }
@@ -688,7 +688,7 @@ class InvoiceDetailPage extends StatelessWidget {
      final unitPrice=sale?x['price_per_kg']:x['package_cost'];
      return Card(child:ListTile(
       title:Text((x['product_name']??'صنف محذوف').toString()),
-      subtitle:Text(sale?'الكمية: ${quantity.toStringAsFixed(3)} كجم • سعر الكيلو: ${money(unitPrice as num)}':'الكمية: ${x['packages']} حبة • سعر الحبة: ${money(unitPrice as num)}'),
+      subtitle:Text(sale?'الكمية: ${quantity.toStringAsFixed(3)} كيلو، سعر الكيلو: ${money(unitPrice as num)}':'الكمية: ${x['packages']} عبوة، سعر العبوة: ${money(unitPrice as num)}'),
       trailing:Text(money(x['line_total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
      ));
     }),
@@ -735,7 +735,8 @@ class _ReturnsPageState extends State<ReturnsPage>{
   final selected=<Map<String,dynamic>>[];
   for(final x in invoiceItems){
    final id=x['source_item_id'] as int;
-   final grams=int.tryParse(quantities[id]?.text??'0')??0;
+   final kilos=double.tryParse((quantities[id]?.text??'0').trim().replaceAll(',', '.'))??0;
+   final grams=(kilos*1000).round();
    if(grams>0)selected.add({'source_item_id':id,'grams':grams,'unit_price':(x['unit_price'] as num).toInt()});
   }
   if(selected.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية مرتجعة لصنف واحد على الأقل')));return;}
@@ -771,7 +772,7 @@ class _ReturnsPageState extends State<ReturnsPage>{
     return Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Text(x['product_name'] as String,style:const TextStyle(fontWeight:FontWeight.bold)),
      Text('المتاح للإرجاع: '+kg(x['remaining_grams'] as num)+' • سعر الوحدة: '+money(x['unit_price'] as num)),
-     TextField(controller:quantities[id],keyboardType:TextInputType.number,decoration:const InputDecoration(labelText:'الكمية المرتجعة بالجرام',border:OutlineInputBorder(),isDense:true)),
+     TextField(controller:quantities[id],keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'الكمية المرتجعة بالكيلو',hintText:'مثال: 1 أو 0.5',border:OutlineInputBorder(),isDense:true)),
     ])));
    }),
    if(type=='customer')field(cash,'المبلغ الذي أُعيد نقداً للزبون',number:true),
