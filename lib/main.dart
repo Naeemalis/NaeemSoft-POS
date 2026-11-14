@@ -161,8 +161,8 @@ Future<void> changeAppLanguage(String languageCode) async {
   await preferences.setString('app_language', languageCode);
   appLocale.value = Locale(languageCode);
 }
-String money(num n) => NumberFormat('#,##0', 'en').format(n) + ' DJF';
-String kg(num g) => (g / 1000).toStringAsFixed(3) + ' كجم';
+String money(num n) => NumberFormat('#,##0', appLocale.value.languageCode).format(n) + ' DJF';
+String kg(num g) => (g / 1000).toStringAsFixed(3) + (appLocale.value.languageCode == 'ar' ? ' كجم' : ' kg');
 Future<List<Map<String,Object?>>> rows(String t) => ShopDb.instance.query(t);
 Widget field(TextEditingController c, String label, {bool number=false}) => Padding(
   padding: const EdgeInsets.only(bottom: 8),
