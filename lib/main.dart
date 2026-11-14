@@ -375,6 +375,8 @@ String tr(String value) {
       'معاينة / طباعة / مشاركة PDF':'Preview / print / share PDF',
       'تعذر تحميل التقرير: ':'Could not load report: ',
       'صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.':'Estimated net profit equals gross profit after returns minus recorded expenses for the period.',
+    
+      'قيمة المخزون':'Inventory value',
     },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
@@ -725,6 +727,8 @@ String tr(String value) {
       'معاينة / طباعة / مشاركة PDF':'Aperçu / imprimer / partager PDF',
       'تعذر تحميل التقرير: ':'Impossible de charger le rapport : ',
       'صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.':'Le bénéfice net estimé correspond à la marge brute après retours moins les dépenses enregistrées pour la période.',
+    
+      'قيمة المخزون':'Valeur du stock',
     }
   };
   return translations[language]?[value] ?? value;
