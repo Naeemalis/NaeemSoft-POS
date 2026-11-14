@@ -271,4 +271,38 @@ void main() {
     );
   });
 
+  test('supplier settlements reduce supplier debt and retain overpayment as supplier credit', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final saleProduct = await shop.addProduct('بصل', 'كيلو', 1000, 300);
+    final purchaseProduct = await shop.addProduct(
+      'بصل توريد', 'جوان', 2000, 0,
+      productType: 'purchase', pairedSaleProductId: saleProduct,
+    );
+    final purchaseId = await shop.savePurchase(supplierId: supplier, paid: 0, items: [
+      {'product_id': purchaseProduct, 'unit': 'جوان', 'packages': 2,
+       'weight_grams': 1000, 'package_cost': 5000},
+    ]);
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), 10000);
+
+    await shop.recordPartyPayment(type: 'supplier', partyId: supplier, amount: 4000, note: 'سداد جزئي');
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), 6000);
+    var invoice = (await shop.db.query('purchases', where: 'id=?', whereArgs: [purchaseId])).single;
+    expect(invoice['paid'], 4000);
+
+    await shop.recordPartyPayment(type: 'supplier', partyId: supplier, amount: 6000, note: 'سداد كامل');
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), 0);
+    invoice = (await shop.db.query('purchases', where: 'id=?', whereArgs: [purchaseId])).single;
+    expect(invoice['paid'], 10000);
+
+    await shop.recordPartyPayment(type: 'supplier', partyId: supplier, amount: 1500, note: 'رصيد زائد');
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), -1500);
+    expect(await shop.db.query('supplier_payment_links'), hasLength(3));
+    expect(await shop.db.query('purchase_payment_allocations'), hasLength(2));
+    final allocations = await shop.db.rawQuery(
+      'SELECT COALESCE(SUM(amount),0) total FROM payment_allocations WHERE invoice_type=? AND invoice_id=?',
+      ['purchase', purchaseId],
+    );
+    expect(allocations.single['total'], 10000);
+  });
+
 }
