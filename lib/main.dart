@@ -560,7 +560,11 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
   if(ok!=true)return;
   final grams=((double.tryParse(weight.text.trim().replaceAll(',','.'))??0)*1000).round();
   try{
-   await ShopDb.instance.saveProductUnit(productId:(widget.product['id'] as num).toInt(),unitName:name.text,weightGrams:grams);
+   if(unit==null){
+    await ShopDb.instance.saveProductUnit(productId:(widget.product['id'] as num).toInt(),unitName:name.text,weightGrams:grams);
+   }else{
+    await ShopDb.instance.updateProductUnit(unitId:(unit['id'] as num).toInt(),productId:(widget.product['id'] as num).toInt(),unitName:name.text,weightGrams:grams);
+   }
    if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ الوحدة ومعامل تحويلها')));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحفظ: $e')));}
  }
