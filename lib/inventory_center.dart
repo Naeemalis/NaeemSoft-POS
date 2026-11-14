@@ -160,7 +160,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(children: [
-              Expanded(child: Text('الأصناف المتاحة: ${products.length - noStock} • بلا رصيد: $noStock')),
+              Expanded(child: Text('${_inventoryText(context, 'الأصناف المتاحة:', 'Available products:', 'Articles disponibles :')} ${products.length - noStock} • ${_inventoryText(context, 'بلا رصيد:', 'Out of stock:', 'En rupture :')} $noStock')),
               FilledButton.tonalIcon(
                 onPressed: widget.onManageProducts,
                 icon: const Icon(Icons.tune),
@@ -183,7 +183,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                       leading: CircleAvatar(child: Text('${index + 1}')),
                       title: Text(product['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
                       subtitle: Text('${_inventoryText(context, 'سعر البيع:', 'Sale price:', 'Prix de vente :')} ${_inventoryMoney(context, (product['sale_price'] as num?) ?? 0 )} / ${_inventoryText(context, 'كجم', 'kg', 'kg')}'
-                        '\nقيمة المخزون: ${_inventoryMoney(context, value)}'),
+                        '\n${_inventoryText(context, 'قيمة المخزون:', 'Stock value:', 'Valeur du stock :')} ${_inventoryMoney(context, value)}'),
                       isThreeLine: true,
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
