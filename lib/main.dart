@@ -110,7 +110,7 @@ class _SalePageState extends State<SalePage>{
  }
  Future<void> checkout() async {
   if(posting||cart.isEmpty)return;
-  final customers=await ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name');int? customer;
+  final customers=await ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name');
   final paid=TextEditingController(text:total.toString()),due=TextEditingController();
   int? customer=selectedCustomerId;
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
