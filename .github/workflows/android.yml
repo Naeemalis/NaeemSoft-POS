@@ -16,7 +16,7 @@ jobs:
           channel: stable
       # Generate the standard Android Gradle project files missing from this repository.
       - run: flutter create --platforms=android --project-name naeemsoft_pos .
-      # Pin Gradle 9.3.1 to the Aliyun mirror to avoid intermittent GitHub 504 redirects.
+      # Pin Gradle 9.5.0 to the Aliyun mirror to avoid intermittent GitHub 504 redirects.
       - name: Configure Gradle and Maven mirrors
         run: |
           python3 - <<'PY'
@@ -24,7 +24,7 @@ jobs:
           import re
           path = Path("android/gradle/wrapper/gradle-wrapper.properties")
           content = path.read_text()
-          url = "distributionUrl=https\\://mirrors.aliyun.com/gradle/distributions/v9.3.1/gradle-9.3.1-bin.zip"
+          url = "distributionUrl=https\\://mirrors.aliyun.com/gradle/distributions/v9.5.0/gradle-9.5.0-bin.zip"
           content = re.sub(r"^distributionUrl=.*$", lambda _: url, content, flags=re.MULTILINE)
           path.write_text(content)
           print(f"Configured Gradle distribution: {url}")
