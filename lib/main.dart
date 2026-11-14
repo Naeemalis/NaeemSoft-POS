@@ -356,12 +356,14 @@ class _ProductsPageState extends State<ProductsPage>{
   final price=TextEditingController(text:((product?['sale_price'] as num?)??0).round().toString());
   final cost=TextEditingController(text:((product?['cost'] as num?)??0).round().toString());
   final saleProducts=await ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale' AND id != ?",whereArgs:[product?['id']??-1],orderBy:'name');
+  final categories=await ShopDb.instance.db.query('categories',orderBy:'name');
+  int? categoryId=(product?['category_id'] as num?)?.toInt();
   String productType=(product?['product_type']??'sale').toString();
   int? pairedSaleProductId=product?['paired_sale_product_id'] as int?;
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(product==null?'إضافة صنف':'تعديل الصنف والسعر'),
    content:StatefulBuilder(builder:(c,setDialogState)=>SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),if(productType=='purchase')...[
+    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),DropdownButtonFormField<int?>(value:categories.any((x)=>(x['id'] as num).toInt()==categoryId)?categoryId:null,decoration:const InputDecoration(labelText:'التصنيف'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون تصنيف')),...categories.map((x)=>DropdownMenuItem<int?>(value:(x['id'] as num).toInt(),child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>categoryId=v)),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),if(productType=='purchase')...[
      field(cost,'سعر التكلفة الافتراضي للوحدة',number:true),
      DropdownButtonFormField<int?>(value:saleProducts.any((x)=>x['id']==pairedSaleProductId)?pairedSaleProductId:null,decoration:const InputDecoration(labelText:'صنف المبيعات المقابل للمخزون',border:OutlineInputBorder(),isDense:true),items:[const DropdownMenuItem<int?>(value:null,child:Text('اختر صنف المبيعات')),...saleProducts.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>pairedSaleProductId=v))
     ]
@@ -371,8 +373,8 @@ class _ProductsPageState extends State<ProductsPage>{
   final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??-1, purchaseCost=int.tryParse(cost.text)??-1;
   if(n.text.trim().isEmpty||u.text.trim().isEmpty||weight<=0||p<0||(productType=='purchase'&&(purchaseCost<0||pairedSaleProductId==null))){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تحقق من الاسم والوزن والسعر')));return;}
   try{
-   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null);}
-   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null);}
+   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId);}
+   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId);}
    if(mounted)setState((){});
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ الصنف: $e')));}
  }
@@ -384,7 +386,7 @@ class _ProductsPageState extends State<ProductsPage>{
   if(ok==true){await ShopDb.instance.deactivateProduct(product['id'] as int);if(mounted)setState((){});}
  }
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('إدارة الأصناف')),
+  appBar:AppBar(title:const Text('مركز إدارة الأصناف'),actions:[IconButton(tooltip:'إدارة التصنيفات',onPressed:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>const CategoriesPage())).then((_) {if(mounted)setState((){});}),icon:const Icon(Icons.category_outlined))]),
   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:'active=1',orderBy:'name'),builder:(c,s){
    if(s.hasError)return Center(child:Text('تعذر تحميل الأصناف: ${s.error}'));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
@@ -402,6 +404,43 @@ class _ProductsPageState extends State<ProductsPage>{
   }),
   floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:const Text('إضافة صنف')));
 }
+class CategoriesPage extends StatefulWidget {
+ const CategoriesPage({super.key});
+ @override State<CategoriesPage> createState()=>_CategoriesPageState();
+}
+class _CategoriesPageState extends State<CategoriesPage>{
+ Future<void> add() async {
+  final name=TextEditingController();
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:const Text('إضافة تصنيف'),
+   content:field(name,'اسم التصنيف'),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
+  if(ok!=true)return;
+  try{await ShopDb.instance.addCategory(name.text);if(mounted)setState((){});}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إضافة التصنيف: $e')));}
+ }
+ Future<void> remove(Map<String,Object?> row) async {
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:const Text('حذف التصنيف؟'),
+   content:Text('سيتم إلغاء ربط التصنيف بالصنف «${row['name']}» إن وجد، دون حذف الصنف أو فواتيره.'),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حذف التصنيف'))]));
+  if(ok==true){await ShopDb.instance.deleteCategory((row['id'] as num).toInt());if(mounted)setState((){});}
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:const Text('تصنيفات الأصناف')),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('categories',orderBy:'name'),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل التصنيفات: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   if(s.data!.isEmpty)return const Center(child:Text('لا توجد تصنيفات. أضف تصنيفاً جديداً.'));
+   return ListView(children:s.data!.map((x)=>ListTile(
+    leading:const Icon(Icons.folder_outlined),
+    title:Text(x['name'] as String),
+    trailing:IconButton(tooltip:'حذف التصنيف',onPressed:()=>remove(x),icon:const Icon(Icons.delete_outline)),
+   )).toList());
+  }),
+  floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة تصنيف')));
+}
+
 class PartiesPage extends StatefulWidget {final String type;const PartiesPage({super.key,required this.type});@override State<PartiesPage> createState()=>_PartiesPageState();}
 class _PartiesPageState extends State<PartiesPage>{
  Future<num> customerBalance(int id) async {
