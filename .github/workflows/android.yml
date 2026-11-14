@@ -1,10 +1,14 @@
 name: Android APK
 on:
   push:
-    branches: [main, feature/independent-invoices-no-stock, fix/supplier-account-ledger]
+    branches: [main, feature/independent-invoices-no-stock]
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: android-apk-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
