@@ -1779,7 +1779,7 @@ class _ReturnsPageState extends State<ReturnsPage>{
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(tr('مرتجعات الزبائن والموردين'))),
   body:ListView(padding:const EdgeInsets.all(12),children:[
-   SegmentedButton<String>(segments:const[
+   SegmentedButton<String>(segments:[
     ButtonSegment(value:'customer',label:Text(tr('مرتجع زبون')),icon:Icon(Icons.assignment_return)),
     ButtonSegment(value:'supplier',label:Text(tr('مرتجع للمورد')),icon:Icon(Icons.local_shipping_outlined)),
    ],selected:{type},onSelectionChanged:(v)=>changeType(v.first)),
