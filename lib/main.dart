@@ -58,7 +58,7 @@ String tr(String value) {
       'تعديل بيانات الزبون':'Edit customer details','تعديل بيانات المورد':'Edit supplier details',
       'الاسم':'Name','الهاتف':'Phone','حفظ':'Save','بحث':'Search','التاريخ':'Date','السعر':'Price',
       'الإجمالي':'Total','التفاصيل':'Details','طباعة':'Print','مشاركة':'Share','حفظ PDF':'Save PDF',
-      'كشف الحساب':'Account statement','سداد المورد':'Supplier settlement','تحصيل من الزبون':'Customer collection','فاتورة بيع':'Sales invoice','فاتورة توريد':'Purchase invoice','رقم الفاتورة: ':'Invoice number: ','التاريخ: ':'Date: ','الزبون: ':'Customer: ','المورد: ':'Supplier: ','تفاصيل الأصناف':'Item details','الكمية: ':'Quantity: ','كيلو':'kg','عبوة، وزن العبوة':'packages, package weight','إجمالي الصنف: ':'Item total: ','ملخص الحساب':'Account summary','الإجمالي: ':'Total: ','المدفوع: ':'Paid: ','المتبقي: ':'Remaining: ','شكراً لتعاملكم معنا':'Thank you for your business','سند قبض من زبون':'Customer receipt','سند سداد مورد':'Supplier payment voucher','سند قبض':'Receipt voucher','سند سداد':'Payment voucher','البيان: ':'Description: ','سداد حساب':'Account payment','تم تسجيل العملية بنجاح.':'Transaction recorded successfully.','معاينة فاتورة بيع':'Sales invoice preview','نقدي / غير مسجل':'Cash / walk-in','غير محدد':'Unspecified',
+      'كشف الحساب':'Account statement','سداد المورد':'Supplier settlement','تحصيل من الزبون':'Customer collection','فاتورة بيع':'Sales invoice','فاتورة توريد':'Purchase invoice','رقم الفاتورة: ':'Invoice number: ','التاريخ: ':'Date: ','الزبون: ':'Customer: ','المورد: ':'Supplier: ','تفاصيل الأصناف':'Item details','الكمية: ':'Quantity: ','كيلو':'kg','عبوة، وزن العبوة':'packages, package weight','إجمالي الصنف: ':'Item total: ','ملخص الحساب':'Account summary','الإجمالي: ':'Total: ','المدفوع: ':'Paid: ','المتبقي: ':'Remaining: ','شكراً لتعاملكم معنا':'Thank you for your business','سند قبض من زبون':'Customer receipt','سند سداد مورد':'Supplier payment voucher','سند قبض':'Receipt voucher','سند سداد':'Payment voucher','البيان: ':'Description: ','سداد حساب':'Account payment','تم تسجيل العملية بنجاح.':'Transaction recorded successfully.','معاينة فاتورة بيع':'Sales invoice preview','نقدي / غير مسجل':'Cash / walk-in','غير محدد':'Unspecified','رقم السند: ':'Voucher number: ','المبلغ: ':'Amount: ','معاينة الفاتورة PDF':'Invoice PDF preview','صنف محذوف':'Deleted product','كشف حساب زبون':'Customer statement','كشف حساب مورد':'Supplier statement','الاسم: ':'Name: ','الفترة: ':'Period: ',' إلى ':' to ','الرصيد المرحل: ':'Opening balance: ','الرصيد الافتتاحي للفترة: ':'Period opening balance: ','الرصيد الختامي: ':'Closing balance: ','تصفية الكشف حسب الفترة':'Filter statement by period','من: ':'From: ','إلى: ':'To: ','من البداية':'From beginning','لا توجد حركات في الفترة المحددة':'No transactions in the selected period','الرصيد ':'Balance ','الدائن':'Credit balance','المستحق':'Due',
       'أدخل كمية أو مبلغاً وسعراً صحيحاً':'Enter a valid quantity or amount and price','اختر وحدة الكمية':'Choose quantity unit',
       'المبلغ المدفوع':'Amount paid','موعد السداد YYYY-MM-DD':'Payment due date YYYY-MM-DD','بيع نقدي / بدون زبون':'Cash sale / no customer',
       'بيع مباشر':'Direct sale','قراءة الكاشير • العمليات المختارة':'Cashier • selected items','عند اختيار أي صنف ستظهر عمليته هنا مباشرة':'Selected items will appear here',
@@ -120,7 +120,7 @@ String tr(String value) {
       'تعديل بيانات الزبون':'Modifier les données du client','تعديل بيانات المورد':'Modifier les données du fournisseur',
       'الاسم':'Nom','الهاتف':'Téléphone','حفظ':'Enregistrer','بحث':'Rechercher','التاريخ':'Date','السعر':'Prix',
       'الإجمالي':'Total','التفاصيل':'Détails','طباعة':'Imprimer','مشاركة':'Partager','حفظ PDF':'Enregistrer PDF',
-      'كشف الحساب':'Relevé de compte','سداد المورد':'Règlement fournisseur','تحصيل من الزبون':'Encaissement client','فاتورة بيع':'Facture de vente','فاتورة توريد':'Facture d’achat','رقم الفاتورة: ':'N° de facture : ','التاريخ: ':'Date : ','الزبون: ':'Client : ','المورد: ':'Fournisseur : ','تفاصيل الأصناف':'Détails des articles','الكمية: ':'Quantité : ','كيلو':'kg','عبوة، وزن العبوة':'colis, poids du colis','إجمالي الصنف: ':'Total de l’article : ','ملخص الحساب':'Résumé du compte','الإجمالي: ':'Total : ','المدفوع: ':'Payé : ','المتبقي: ':'Reste à payer : ','شكراً لتعاملكم معنا':'Merci de votre confiance','سند قبض من زبون':'Reçu client','سند سداد مورد':'Bon de règlement fournisseur','سند قبض':'Reçu','سند سداد':'Bon de règlement','البيان: ':'Description : ','سداد حساب':'Règlement du compte','تم تسجيل العملية بنجاح.':'Opération enregistrée avec succès.','معاينة فاتورة بيع':'Aperçu de la facture de vente','نقدي / غير مسجل':'Comptant / passage','غير محدد':'Non spécifié',
+      'كشف الحساب':'Relevé de compte','سداد المورد':'Règlement fournisseur','تحصيل من الزبون':'Encaissement client','فاتورة بيع':'Facture de vente','فاتورة توريد':'Facture d’achat','رقم الفاتورة: ':'N° de facture : ','التاريخ: ':'Date : ','الزبون: ':'Client : ','المورد: ':'Fournisseur : ','تفاصيل الأصناف':'Détails des articles','الكمية: ':'Quantité : ','كيلو':'kg','عبوة، وزن العبوة':'colis, poids du colis','إجمالي الصنف: ':'Total de l’article : ','ملخص الحساب':'Résumé du compte','الإجمالي: ':'Total : ','المدفوع: ':'Payé : ','المتبقي: ':'Reste à payer : ','شكراً لتعاملكم معنا':'Merci de votre confiance','سند قبض من زبون':'Reçu client','سند سداد مورد':'Bon de règlement fournisseur','سند قبض':'Reçu','سند سداد':'Bon de règlement','البيان: ':'Description : ','سداد حساب':'Règlement du compte','تم تسجيل العملية بنجاح.':'Opération enregistrée avec succès.','معاينة فاتورة بيع':'Aperçu de la facture de vente','نقدي / غير مسجل':'Comptant / passage','غير محدد':'Non spécifié','رقم السند: ':'N° de pièce : ','المبلغ: ':'Montant : ','معاينة الفاتورة PDF':'Aperçu PDF de la facture','صنف محذوف':'Article supprimé','كشف حساب زبون':'Relevé client','كشف حساب مورد':'Relevé fournisseur','الاسم: ':'Nom : ','الفترة: ':'Période : ',' إلى ':' à ','الرصيد المرحل: ':'Solde reporté : ','الرصيد الافتتاحي للفترة: ':'Solde d’ouverture de la période : ','الرصيد الختامي: ':'Solde de clôture : ','تصفية الكشف حسب الفترة':'Filtrer le relevé par période','من: ':'Du : ','إلى: ':'Au : ','من البداية':'Depuis le début','لا توجد حركات في الفترة المحددة':'Aucune opération pour la période sélectionnée','الرصيد ':'Solde ','الدائن':'Créditeur','المستحق':'Dû',
       'أدخل كمية أو مبلغاً وسعراً صحيحاً':'Saisissez une quantité ou un montant et un prix valides','المبلغ المدفوع':'Montant payé',
       'موعد السداد YYYY-MM-DD':'Date d’échéance YYYY-MM-DD','بيع نقدي / بدون زبون':'Vente comptant / sans client',
       'بيع مباشر':'Vente directe','قراءة الكاشير • العمليات المختارة':'Caisse • articles sélectionnés','عند اختيار أي صنف ستظهر عمليته هنا مباشرة':'Les articles sélectionnés apparaîtront ici',
@@ -1073,18 +1073,18 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
  Future<void> export(Map<String,Object?> data) async {
   final party=data['party'] as Map<String,Object?>,tx=data['transactions'] as List<Map<String,Object?>>;
   final customer=widget.type=='customer';
-  final out=StringBuffer()..writeln('# NaeemSoft POS')..writeln('## كشف حساب '+(customer?'زبون':'مورد'))..writeln('**الاسم:** '+party['name'].toString())..writeln('**الفترة:** '+dateText(fromDate)+' إلى '+dateText(toDate))..writeln('**الرصيد المرحل:** '+money(data['opening'] as num))..writeln('')..writeln('| التاريخ | البيان | مدين | دائن | الرصيد |')..writeln('|---|---|---:|---:|---:|');
+  final out=StringBuffer()..writeln('# NaeemSoft POS')..writeln('## '+tr(customer?'كشف حساب زبون':'كشف حساب مورد'))..writeln('**'+tr('الاسم: ')+'** '+party['name'].toString())..writeln('**'+tr('الفترة: ')+'** '+dateText(fromDate)+tr(' إلى ')+dateText(toDate))..writeln('**'+tr('الرصيد المرحل: ')+'** '+money(data['opening'] as num))..writeln('')..writeln('| '+tr('التاريخ')+' | '+tr('البيان')+' | '+tr('مدين')+' | '+tr('دائن')+' | '+tr('الرصيد')+' |')..writeln('|---|---|---:|---:|---:|');
   for(final x in tx){
    final amount=x['amount'] as num,dir=x['direction'] as int;
    final debit=(customer?dir>0:dir<0)?amount:0,credit=(customer?dir<0:dir>0)?amount:0;
    out.writeln('| '+x['date'].toString()+' | '+x['label'].toString()+' | '+money(debit)+' | '+money(credit)+' | '+money(x['balance'] as num)+' |');
   }
-  out..writeln('')..writeln('**الرصيد الافتتاحي للفترة:** '+money(data['opening'] as num))..writeln('**الرصيد الختامي:** '+money(data['balance'] as num));
+  out..writeln('')..writeln('**'+tr('الرصيد الافتتاحي للفترة: ')+'** '+money(data['opening'] as num))..writeln('**'+tr('الرصيد الختامي: ')+'** '+money(data['balance'] as num));
   final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title: tr('كشف حساب ')+party['name'].toString(),author:'NaeemSoft POS',markdown:out.toString()));
   if(mounted)await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
  }
  @override Widget build(BuildContext context)=>Scaffold(
-  appBar:AppBar(title:Text(widget.type=='customer'?'كشف حساب الزبون':'كشف حساب المورد')),
+  appBar:AppBar(title:Text(tr(widget.type=='customer'?'كشف حساب زبون':'كشف حساب مورد'))),
   floatingActionButton:FloatingActionButton.extended(onPressed:saving?null:addPayment,icon:Icon(Icons.payments),label:Text(tr('تسجيل دفعة'))),
   body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
    if(s.hasError)return Center(child:Padding(padding:const EdgeInsets.all(16),child:Text('تعذر تحميل الكشف: '+s.error.toString())));
@@ -1095,20 +1095,20 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
    return ListView(padding:const EdgeInsets.all(12),children:[
     Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Text(party['name'] as String,style:Theme.of(c).textTheme.titleLarge),Text((party['phone']??'').toString()),const SizedBox(height:8),
-     Text('الرصيد الافتتاحي للفترة: '+money(opening)),
-     Text('الرصيد '+(balance<0?'الدائن':'المستحق')+': '+money(balance.abs()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),
+     Text(tr('الرصيد الافتتاحي للفترة: ')+money(opening)),
+     Text(tr('الرصيد ')+(balance<0?tr('الدائن'):tr('المستحق'))+': '+money(balance.abs()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:18)),
     ]))),
     Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
-     const Align(alignment:Alignment.centerRight,child:Text('تصفية الكشف حسب الفترة',style:TextStyle(fontWeight:FontWeight.bold))),
+     Align(alignment:Alignment.centerRight,child:Text(tr('تصفية الكشف حسب الفترة'),style:TextStyle(fontWeight:FontWeight.bold))),
      Row(children:[
-      Expanded(child:OutlinedButton.icon(onPressed:()=>chooseDate(true),icon:const Icon(Icons.calendar_month),label:Text('من: '+dateText(fromDate)))),
+      Expanded(child:OutlinedButton.icon(onPressed:()=>chooseDate(true),icon:const Icon(Icons.calendar_month),label:Text(tr('من: ')+dateText(fromDate)))),
       const SizedBox(width:8),
-      Expanded(child:OutlinedButton.icon(onPressed:()=>chooseDate(false),icon:const Icon(Icons.calendar_month),label:Text('إلى: '+dateText(toDate)))),
+      Expanded(child:OutlinedButton.icon(onPressed:()=>chooseDate(false),icon:const Icon(Icons.calendar_month),label:Text(tr('إلى: ')+dateText(toDate)))),
      ]),
      TextButton.icon(onPressed:()=>setState((){fromDate=null;toDate=null;}),icon:Icon(Icons.clear),label:Text(tr('عرض كل الفترة'))),
     ]))),
     SizedBox(width:double.infinity,child:OutlinedButton.icon(onPressed:()=>export(data),icon:Icon(Icons.picture_as_pdf),label:Text(tr('حفظ / مشاركة كشف الحساب PDF')))),
-    if(tx.isEmpty)const Padding(padding:EdgeInsets.all(24),child:Text('لا توجد حركات في الفترة المحددة',textAlign:TextAlign.center)),
+    if(tx.isEmpty)Padding(padding:EdgeInsets.all(24),child:Text(tr('لا توجد حركات في الفترة المحددة'),textAlign:TextAlign.center)),
     if(tx.isNotEmpty)SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
      columns:[DataColumn(label:Text(tr('التاريخ'))),DataColumn(label:Text(tr('البيان'))),DataColumn(label:Text(tr('مدين'))),DataColumn(label:Text(tr('دائن'))),DataColumn(label:Text(tr('الرصيد')))],
      rows:[
