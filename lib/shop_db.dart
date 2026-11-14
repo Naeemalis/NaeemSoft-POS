@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 13,
+      version: 14,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -21,6 +21,7 @@ class ShopDb {
         await _createDrafts(d);
         await _createReturns(d);
         await _createIdempotency(d);
+        await _createBatchAllocations(d);
       },
       onUpgrade: (d, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -97,8 +98,31 @@ class ShopDb {
           if (!await _hasColumn(d, 'products', 'expiry_warning_days')) await d.execute('ALTER TABLE products ADD COLUMN expiry_warning_days INTEGER NOT NULL DEFAULT 7');
           await d.execute('CREATE INDEX IF NOT EXISTS idx_purchase_batches_expiry ON purchase_batches(product_id, expiry_date, remaining_grams)');
         }
+        if (oldVersion < 14) await _createBatchAllocations(d);
       },
     );
+  }
+
+  Future<void> _createBatchAllocations(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS sale_batch_allocations(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_item_id INTEGER NOT NULL,
+      purchase_batch_id INTEGER NOT NULL,
+      quantity_grams INTEGER NOT NULL CHECK(quantity_grams > 0),
+      UNIQUE(sale_item_id, purchase_batch_id),
+      FOREIGN KEY(sale_item_id) REFERENCES sale_items(id) ON DELETE CASCADE,
+      FOREIGN KEY(purchase_batch_id) REFERENCES purchase_batches(id))''');
+    await d.execute('''CREATE TABLE IF NOT EXISTS return_batch_allocations(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      return_item_id INTEGER NOT NULL,
+      sale_item_id INTEGER NOT NULL,
+      purchase_batch_id INTEGER NOT NULL,
+      quantity_grams INTEGER NOT NULL CHECK(quantity_grams > 0),
+      FOREIGN KEY(return_item_id) REFERENCES return_items(id) ON DELETE CASCADE,
+      FOREIGN KEY(sale_item_id) REFERENCES sale_items(id),
+      FOREIGN KEY(purchase_batch_id) REFERENCES purchase_batches(id))''');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_sale_batch_item ON sale_batch_allocations(sale_item_id)');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_return_batch_item ON return_batch_allocations(sale_item_id, purchase_batch_id)');
   }
 
   Future<void> close() async { if (db.isOpen) await db.close(); }
@@ -779,11 +803,13 @@ class ShopDb {
         final validBatchGrams = validBatches.fold<int>(0,(sum,b)=>sum+(b['remaining_grams'] as num).toInt());
         if (expiryRequired && validBatchGrams < grams) throw Exception('لا توجد كمية صالحة كافية للبيع من ${product['name']}؛ تحقق من الصلاحية والدفعات');
         var batchToConsume = grams;
+        final consumedBatchAllocations = <Map<String, int>>[];
         for (final batch in validBatches) {
           if (batchToConsume <= 0) break;
           final available = (batch['remaining_grams'] as num).toInt();
           final take = available < batchToConsume ? available : batchToConsume;
           await tx.update('purchase_batches', {'remaining_grams': available - take}, where:'id=?', whereArgs:[batch['id']]);
+          consumedBatchAllocations.add({'batch_id': (batch['id'] as num).toInt(), 'grams': take});
           batchToConsume -= take;
         }
         final inventoryValue = (product['inventory_value_djf'] as num).toInt();
@@ -802,6 +828,13 @@ class ShopDb {
           'cost_total_djf': costTotal,
           'cost_per_kg_snapshot': averageCost,
         });
+        for (final allocation in consumedBatchAllocations) {
+          await tx.insert('sale_batch_allocations', {
+            'sale_item_id': saleItemId,
+            'purchase_batch_id': allocation['batch_id'],
+            'quantity_grams': allocation['grams'],
+          });
+        }
         await tx.insert('stock_movements', {
           'product_id': x['product_id'], 'movement_type': 'sale',
           'source_type': 'sale', 'source_id': saleId, 'sale_item_id': saleItemId,
