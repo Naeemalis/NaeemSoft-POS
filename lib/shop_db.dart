@@ -679,6 +679,102 @@ class ShopDb {
     });
   }
 
+  Future<int> recordPartyPayment({
+    required String type,
+    required int partyId,
+    required int amount,
+    String? note,
+    DateTime? paymentDate,
+  }) async {
+    if (type != 'customer' && type != 'supplier') throw Exception('نوع الحساب غير صحيح');
+    if (amount <= 0) throw Exception('قيمة السداد يجب أن تكون أكبر من صفر');
+    final customer = type == 'customer';
+    final partyTable = customer ? 'customers' : 'suppliers';
+    final invoiceTable = customer ? 'sales' : 'purchases';
+    final partyColumn = customer ? 'customer_id' : 'supplier_id';
+    final invoiceType = customer ? 'sale' : 'purchase';
+    return db.transaction((tx) async {
+      final party = await tx.query(partyTable, columns: ['id'], where:'id=?', whereArgs:[partyId], limit:1);
+      if (party.isEmpty) throw Exception('الحساب غير موجود');
+      final date = (paymentDate ?? DateTime.now()).toIso8601String();
+      final paymentId = await tx.insert('payments', {
+        'party_type':type, 'party_id':partyId, 'date':date,
+        'amount':amount, 'note':(note ?? '').trim(),
+      });
+      if (customer) {
+        await tx.insert('customer_payment_links', {'payment_id':paymentId,'customer_id':partyId});
+      } else {
+        await tx.insert('supplier_payment_links', {'payment_id':paymentId,'supplier_id':partyId});
+      }
+      final invoices = await tx.query(invoiceTable,
+        where:'$partyColumn=? AND status=?', whereArgs:[partyId,'posted'],
+        orderBy:'date ASC,id ASC');
+      var remaining = amount;
+      for (final invoice in invoices) {
+        if (remaining <= 0) break;
+        final due = ((invoice['total'] as num) - (invoice['paid'] as num)).toInt();
+        if (due <= 0) continue;
+        final allocated = remaining < due ? remaining : due;
+        await tx.update(invoiceTable,
+          {'paid':(invoice['paid'] as num).toInt()+allocated},
+          where:'id=?', whereArgs:[invoice['id']]);
+        await tx.insert('payment_allocations', {
+          'payment_id':paymentId, 'invoice_type':invoiceType,
+          'invoice_id':invoice['id'], 'amount':allocated,
+        });
+        if (customer) {
+          await tx.insert('sale_payment_allocations', {
+            'payment_id':paymentId,'sale_id':invoice['id'],'amount':allocated,
+          });
+        } else {
+          await tx.insert('purchase_payment_allocations', {
+            'payment_id':paymentId,'purchase_id':invoice['id'],'amount':allocated,
+          });
+        }
+        remaining -= allocated;
+      }
+      return paymentId;
+    });
+  }
+
+  Future<num> getPartyBalance({required String type, required int partyId}) async {
+    if (type != 'customer' && type != 'supplier') throw Exception('نوع الحساب غير صحيح');
+    final customer = type == 'customer';
+    final partyTable = customer ? 'customers' : 'suppliers';
+    final invoiceTable = customer ? 'sales' : 'purchases';
+    final partyColumn = customer ? 'customer_id' : 'supplier_id';
+    final invoiceType = customer ? 'sale' : 'purchase';
+    final returnColumn = customer ? 'customer_id' : 'supplier_id';
+    final partyRows = await db.query(partyTable, where:'id=?', whereArgs:[partyId], limit:1);
+    if (partyRows.isEmpty) return 0;
+    num balance = (partyRows.first['opening_balance'] as num?) ?? 0;
+    final invoices = await db.query(invoiceTable,
+      where:"$partyColumn=? AND status='posted'", whereArgs:[partyId]);
+    for (final invoice in invoices) {
+      balance += (invoice['total'] as num?) ?? 0;
+      balance -= (invoice['paid'] as num?) ?? 0;
+    }
+    final payments = await db.query('payments',
+      where:'party_type=? AND party_id=?', whereArgs:[type,partyId]);
+    final allocationRows = await db.rawQuery(
+      'SELECT COALESCE(SUM(amount),0) AS total FROM payment_allocations WHERE invoice_type=? AND invoice_id IN (SELECT id FROM $invoiceTable WHERE $partyColumn=?)',
+      [invoiceType,partyId]);
+    final allocated = (allocationRows.first['total'] as num?) ?? 0;
+    final totalPayments = payments.fold<num>(0,
+      (sum, payment) => sum + ((payment['amount'] as num?) ?? 0));
+    // Invoice paid already includes allocated payments; only the unallocated
+    // portion of a payment is deducted separately from the party balance.
+    balance -= totalPayments - allocated;
+    final returns = await db.query('returns',
+      where:'$returnColumn=?', whereArgs:[partyId]);
+    for (final row in returns) {
+      final total = (row['total'] as num?) ?? 0;
+      final cashPaid = (row['cash_paid'] as num?) ?? 0;
+      balance -= customer ? total - cashPaid : total;
+    }
+    return balance;
+  }
+
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
       db.query(table, orderBy: orderBy ?? 'id DESC');
 
