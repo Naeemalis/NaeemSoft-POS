@@ -344,13 +344,17 @@ class ShopDb {
   }
 
   Future<void> deleteProductUnit(int unitId,{required int productId}) async {
-    final row=await db.query('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId],limit:1);
-    if(row.isEmpty) return;
-    final product=(await db.query('products',columns:['purchase_unit'],where:'id=?',whereArgs:[productId],limit:1));
-    if(product.isNotEmpty && product.first['purchase_unit']==row.first['unit_name']) {
-      throw Exception('لا يمكن حذف الوحدة الافتراضية للصنف');
-    }
-    await db.delete('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId]);
+    await db.transaction((tx) async {
+      final row=await tx.query('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId],limit:1);
+      if(row.isEmpty) return;
+      final product=await tx.query('products',columns:['purchase_unit'],where:'id=?',whereArgs:[productId],limit:1);
+      final unitName=row.first['unit_name'].toString();
+      if(product.isNotEmpty && product.first['purchase_unit']==unitName) {
+        throw Exception('لا يمكن حذف الوحدة الافتراضية للصنف');
+      }
+      await tx.delete('supplier_product_units',where:'product_id=? AND unit_name=?',whereArgs:[productId,unitName]);
+      await tx.delete('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId]);
+    });
   }
 
   Future<void> saveSupplierProductUnit({
