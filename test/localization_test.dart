@@ -17,6 +17,8 @@ void main() {
     expect(app.tr('المبيعات'), 'Sales');
     expect(app.tr('التوريد'), 'Purchases');
     expect(app.tr('مستحق للمورد • على المحل'), 'Due to supplier • payable by shop');
+    expect(app.tr('تقرير المبيعات اليومية'), 'Daily sales report');
+    expect(app.tr('صافي الربح التقديري'), 'Estimated net profit');
     expect(app.kg(1000), '1.000 kg');
 
     app.appLocale.value = const Locale('fr');
@@ -24,6 +26,8 @@ void main() {
     expect(app.tr('المبيعات'), 'Ventes');
     expect(app.tr('التوريد'), 'Achats');
     expect(app.tr('مستحق للمورد • على المحل'), 'Dû au fournisseur • payable par le magasin');
+    expect(app.tr('تقرير المبيعات اليومية'), 'Rapport des ventes quotidiennes');
+    expect(app.tr('صافي الربح التقديري'), 'Bénéfice net estimé');
     expect(app.kg(1000), '1.000 kg');
   });
 }
