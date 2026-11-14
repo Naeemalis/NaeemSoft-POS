@@ -333,6 +333,9 @@ class ShopDb {
       if(rows.isEmpty) throw Exception('الوحدة غير موجودة');
       final oldName=rows.first['unit_name'].toString();
       await tx.update('product_units',{'unit_name':name,'default_weight_grams':weightGrams},where:'id=? AND product_id=?',whereArgs:[unitId,productId]);
+      if(oldName!=name){
+        await tx.update('supplier_product_units',{'unit_name':name},where:'product_id=? AND unit_name=?',whereArgs:[productId,oldName]);
+      }
       final product=(await tx.query('products',columns:['purchase_unit'],where:'id=?',whereArgs:[productId],limit:1));
       if(product.isNotEmpty && product.first['purchase_unit']==oldName) {
         await tx.update('products',{'purchase_unit':name,'default_weight':weightGrams/1000},where:'id=?',whereArgs:[productId]);
