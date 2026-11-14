@@ -2184,8 +2184,8 @@ class _ReportsPageState extends State<ReportsPage> {
   ));
   if(mounted)await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
  }
- Widget metric(String label,num value)=>Card(child:ListTile(
-  title:Text(tr(label)),trailing:Text(money(value),style:const TextStyle(fontWeight:FontWeight.bold)),
+ Widget metric(String label,String value)=>Card(child:ListTile(
+  title:Text(tr(label)),trailing:Text(value,style:const TextStyle(fontWeight:FontWeight.bold)),
  ));
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(tr('التقارير'))),
@@ -2216,20 +2216,20 @@ class _ReportsPageState extends State<ReportsPage> {
      final inventory=reportType=='inventory',sales=reportType=='sales';
      return ListView(padding:const EdgeInsets.fromLTRB(12,0,12,12),children:[
       if(inventory)...[
-       metric('عدد الأصناف', (d['products'] as List).length),
-       metric('إجمالي الكمية',((d['total_grams'] as num)/1000)),
-       metric('قيمة المخزون',d['total_value'] as num),
+       metric('عدد الأصناف', (d['products'] as List).length.toString()),
+       metric('إجمالي الكمية','${((d['total_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كجم')}'),
+       metric('قيمة المخزون',money(d['total_value'] as num)),
        ...(d['products'] as List<Map<String,Object?>>).map((p)=>ListTile(
         title:Text(p['name'] as String),
         subtitle:Text('${((p['stock_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كجم')}'),
         trailing:Text(money((p['inventory_value_djf'] as num?)??0)),
        )),
       ]else if(sales)...[
-       metric('إجمالي المبيعات',d['sales_total'] as num),
-       metric('مرتجعات الزبائن',d['customer_returns'] as num),
-       metric('صافي المبيعات',d['net_sales'] as num),
-       metric('المقبوض الصافي من المبيعات',d['sales_paid'] as num),
-       metric('المتبقي على الزبائن بعد المرتجعات',d['sales_due'] as num),
+       metric('إجمالي المبيعات',money(d['sales_total'] as num)),
+       metric('مرتجعات الزبائن',money(d['customer_returns'] as num)),
+       metric('صافي المبيعات',money(d['net_sales'] as num)),
+       metric('المقبوض الصافي من المبيعات',money(d['sales_paid'] as num)),
+       metric('المتبقي على الزبائن بعد المرتجعات',money(d['sales_due'] as num)),
        const Divider(),
        ...((d['sales'] as List<Map<String,Object?>>).map((x)=>ListTile(
         title:Text('${tr('فاتورة بيع رقم ')}${x['id']}'),
@@ -2237,11 +2237,11 @@ class _ReportsPageState extends State<ReportsPage> {
         trailing:Text(money(x['total'] as num)),
        ))),
       ]else...[
-       metric('إجمالي المبيعات',d['sales_total'] as num),
-       metric('مرتجعات الزبائن',d['customer_returns'] as num),
-       metric('مجمل الربح بعد المرتجعات',d['gross_profit'] as num),
-       metric('المصروفات',d['expenses'] as num),
-       metric('صافي الربح التقديري',d['net_profit'] as num),
+       metric('إجمالي المبيعات',money(d['sales_total'] as num)),
+       metric('مرتجعات الزبائن',money(d['customer_returns'] as num)),
+       metric('مجمل الربح بعد المرتجعات',money(d['gross_profit'] as num)),
+       metric('المصروفات',money(d['expenses'] as num)),
+       metric('صافي الربح التقديري',money(d['net_profit'] as num)),
        Text(tr('صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.'),style:const TextStyle(height:1.5)),
       ],
       const SizedBox(height:12),
