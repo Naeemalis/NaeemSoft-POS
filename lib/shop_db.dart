@@ -302,6 +302,13 @@ class ShopDb {
   }
 
 
+
+  static int calculateSaleGrams({required double enteredValue, required String mode, required int unitWeightGrams, required int pricePerKg}) {
+    if(enteredValue<=0) return 0;
+    if(mode=='cash') return pricePerKg>0 ? (enteredValue*1000/pricePerKg).round() : 0;
+    return (enteredValue*unitWeightGrams).round();
+  }
+
   Future<List<Map<String, Object?>>> getProductUnits(int productId) =>
       db.query('product_units', where:'product_id=?', whereArgs:[productId], orderBy:'id');
 
