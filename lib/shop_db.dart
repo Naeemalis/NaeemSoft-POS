@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 10,
+      version: 11,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -88,7 +88,9 @@ class ShopDb {
             await d.execute('ALTER TABLE products ADD COLUMN category_id INTEGER');
           }
           await _createProductSupplierUnits(d);
+    await _createRelationalLinks(d);
         }
+        if (oldVersion < 11) await _createRelationalLinks(d);
       },
     );
   }
@@ -183,6 +185,30 @@ class ShopDb {
     await d.execute('CREATE INDEX IF NOT EXISTS idx_payments_party_date ON payments(party_type, party_id, date)');
   }
 
+
+  Future<void> _createRelationalLinks(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS product_stock_links(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      purchase_product_id INTEGER NOT NULL UNIQUE,
+      stock_product_id INTEGER NOT NULL,
+      UNIQUE(purchase_product_id, stock_product_id),
+      CHECK(purchase_product_id <> stock_product_id),
+      FOREIGN KEY(purchase_product_id) REFERENCES products(id),
+      FOREIGN KEY(stock_product_id) REFERENCES products(id)
+    )''');
+    await d.execute('''INSERT OR IGNORE INTO product_stock_links(purchase_product_id, stock_product_id)
+      SELECT id, paired_sale_product_id FROM products
+      WHERE product_type='purchase' AND paired_sale_product_id IS NOT NULL''');
+    if (!await _hasColumn(d, 'stock_movements', 'purchase_item_id')) {
+      await d.execute('ALTER TABLE stock_movements ADD COLUMN purchase_item_id INTEGER REFERENCES purchase_items(id)');
+    }
+    if (!await _hasColumn(d, 'stock_movements', 'sale_item_id')) {
+      await d.execute('ALTER TABLE stock_movements ADD COLUMN sale_item_id INTEGER REFERENCES sale_items(id)');
+    }
+    await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_movement_purchase_item ON stock_movements(purchase_item_id) WHERE purchase_item_id IS NOT NULL');
+    await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_movement_sale_item ON stock_movements(sale_item_id) WHERE sale_item_id IS NOT NULL');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_product_stock_links_stock ON product_stock_links(stock_product_id)');
+  }
 
   Future<void> _createProductSupplierUnits(DatabaseExecutor d) async {
     await d.execute('''CREATE TABLE IF NOT EXISTS supplier_product_units(
@@ -484,6 +510,9 @@ class ShopDb {
       await tx.insert('product_units', {
         'product_id': id, 'unit_name': unit, 'default_weight_grams': defaultWeightGrams,
       });
+      if (productType == 'purchase' && pairedSaleProductId != null) {
+        await tx.insert('product_stock_links', {'purchase_product_id':id, 'stock_product_id':pairedSaleProductId});
+      }
       return id;
     });
   }
@@ -526,15 +555,16 @@ class ShopDb {
         final grams = packs * weight;
         final kgCost = grams == 0 ? 0 : ((packageCost * 1000) / weight).round();
         final lineTotal = packs * packageCost;
-        await tx.insert('purchase_items', {
+        final purchaseItemId = await tx.insert('purchase_items', {
           'purchase_id': purchaseId, 'product_id': x['product_id'], 'unit': x['unit'],
           'packages': packs, 'weight_each': weight / 1000, 'quantity': grams / 1000,
           'unit_cost': grams == 0 ? 0 : lineTotal / (grams / 1000),
           'line_total': lineTotal, 'package_cost': packageCost, 'kg_cost': kgCost,
         });
-        final purchaseProductRows = await tx.query('products', columns: ['id','product_type','paired_sale_product_id'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
+        final purchaseProductRows = await tx.query('products', columns: ['id','product_type'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
         if (purchaseProductRows.isEmpty || purchaseProductRows.first['product_type'] != 'purchase') throw Exception('صنف التوريد غير موجود أو نوعه غير صحيح');
-        final saleProductId = purchaseProductRows.first['paired_sale_product_id'] as int?;
+        final stockLinks = await tx.query('product_stock_links', columns: ['stock_product_id'], where: 'purchase_product_id = ?', whereArgs: [x['product_id']], limit: 1);
+        final saleProductId = stockLinks.isEmpty ? null : (stockLinks.first['stock_product_id'] as num).toInt();
         if (saleProductId == null) throw Exception('اربط صنف التوريد بصنف المبيعات من إدارة الأصناف أولاً');
         final saleProductRows = await tx.query('products', where: 'id = ? AND product_type = ?', whereArgs: [saleProductId, 'sale'], limit: 1);
         if (saleProductRows.isEmpty) throw Exception('صنف المبيعات المرتبط غير موجود');
@@ -551,7 +581,7 @@ class ShopDb {
         }, where: 'id = ?', whereArgs: [saleProductId]);
         await tx.insert('stock_movements', {
           'product_id': saleProductId, 'movement_type': 'purchase',
-          'source_type': 'purchase', 'source_id': purchaseId,
+          'source_type': 'purchase', 'source_id': purchaseId, 'purchase_item_id': purchaseItemId,
           'quantity_grams': grams, 'unit_cost_per_kg': kgCost,
           'value_delta_djf': addedValue, 'created_at': txDate,
           'note': 'توريد مرتبط بصنف المبيعات',
@@ -622,19 +652,19 @@ class ShopDb {
           'stock_grams': remainingGrams, 'stock': remainingGrams / 1000,
           'inventory_value_djf': remainingValue,
         }, where: 'id = ?', whereArgs: [x['product_id']]);
-        await tx.insert('stock_movements', {
-          'product_id': x['product_id'], 'movement_type': 'sale',
-          'source_type': 'sale', 'source_id': saleId,
-          'quantity_grams': -grams, 'unit_cost_per_kg': averageCost,
-          'value_delta_djf': -costTotal, 'created_at': txDate,
-          'note': 'بيع من مخزون المحل',
-        });
-        await tx.insert('sale_items', {
+        final saleItemId = await tx.insert('sale_items', {
           'sale_id': saleId, 'product_id': x['product_id'],
           'quantity': grams / 1000, 'unit_price': price,
           'line_total': line, 'quantity_grams': grams, 'price_per_kg': price,
           'cost_total_djf': costTotal,
           'cost_per_kg_snapshot': averageCost,
+        });
+        await tx.insert('stock_movements', {
+          'product_id': x['product_id'], 'movement_type': 'sale',
+          'source_type': 'sale', 'source_id': saleId, 'sale_item_id': saleItemId,
+          'quantity_grams': -grams, 'unit_cost_per_kg': averageCost,
+          'value_delta_djf': -costTotal, 'created_at': txDate,
+          'note': 'بيع من مخزون المحل',
         });
 
       }
@@ -703,6 +733,11 @@ class ShopDb {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
       await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId, 'category_id':categoryId}, where:'id=?', whereArgs:[id]);
+      if ((productType ?? (await tx.query('products', columns:['product_type'], where:'id=?', whereArgs:[id])).first['product_type']) == 'purchase' && pairedSaleProductId != null) {
+        await tx.insert('product_stock_links', {'purchase_product_id':id, 'stock_product_id':pairedSaleProductId}, conflictAlgorithm:ConflictAlgorithm.replace);
+      } else {
+        await tx.delete('product_stock_links', where:'purchase_product_id=?', whereArgs:[id]);
+      }
       final units=await tx.query('product_units',where:'product_id=?',whereArgs:[id],limit:1);
       if(units.isEmpty){
         await tx.insert('product_units',{'product_id':id,'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams});
