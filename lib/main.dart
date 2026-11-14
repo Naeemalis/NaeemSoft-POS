@@ -174,7 +174,7 @@ String tr(String value) {
       'لا توجد حركات في الفترة المحددة':'No transactions in the selected period',
       'الرصيد ':'Balance ',
       'الدائن':'Credit balance',
-      'المستحق':'Due','لغة التطبيق / Application language / Langue':'Application language / Langue de l’application',
+      'المستحق':'Due','مستحقات الزبائن بعد المرتجعات':'Customer balances due after returns','مستحقات الموردين بعد المرتجعات':'Supplier balances due after returns','إجمالي فواتير البيع':'Total sales invoices','إجمالي فواتير التوريد':'Total purchase invoices','لغة التطبيق / Application language / Langue':'Application language / Langue de l’application',
       'تم ترحيل فاتورة البيع رقم ':'Sales invoice posted #',
       'فاتورة توريد رقم ':'Purchase invoice #',
       'تعذر تحميل التنبيهات: ':'Could not load expiry alerts: ',
@@ -714,8 +714,8 @@ class DashboardPage extends StatelessWidget {
  @override Widget build(BuildContext c)=>FutureBuilder<List<num>>(future:load(),builder:(c,s){
   if(!s.hasData)return const Center(child:CircularProgressIndicator());
   final x=s.data!;
-  Widget metric(String label,String value,IconData icon)=>Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[CircleAvatar(child:Icon(icon)),const SizedBox(width:8),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(label,style:const TextStyle(fontSize:11)),Text(value,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:14))]))])));
-  Widget action(String label,IconData icon,Widget page)=>Card(child:InkWell(onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>page)),child:Padding(padding:const EdgeInsets.symmetric(vertical:12,horizontal:5),child:Column(children:[Icon(icon,size:24),const SizedBox(height:5),Text(label,style:const TextStyle(fontSize:10,fontWeight:FontWeight.w600))]))));
+  Widget metric(String label,String value,IconData icon)=>Card(child:Padding(padding:const EdgeInsets.all(10),child:Row(children:[CircleAvatar(child:Icon(icon)),const SizedBox(width:8),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(tr(label),style:const TextStyle(fontSize:11)),Text(value,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:14))]))])));
+  Widget action(String label,IconData icon,Widget page)=>Card(child:InkWell(onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>page)),child:Padding(padding:const EdgeInsets.symmetric(vertical:12,horizontal:5),child:Column(children:[Icon(icon,size:24),const SizedBox(height:5),Text(tr(label),style:const TextStyle(fontSize:10,fontWeight:FontWeight.w600))]))));
   return ListView(padding:const EdgeInsets.all(10),children:[
    Card(color:Theme.of(c).colorScheme.primaryContainer,child:Padding(padding:EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(tr('ملخص اليوم')),Text(money(x[0]),style:Theme.of(c).textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),Text(tr('إجمالي فواتير البيع المسجلة اليوم'))]))),
    GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,childAspectRatio:2.2,children:[metric('مشتريات اليوم',money(x[1]),Icons.local_shipping_outlined),metric('عدد الأصناف',x[2].toString(),Icons.category_outlined),metric('المخزون الحالي',kg(x[3]),Icons.inventory_2_outlined),metric('النظام','محلي • محل واحد',Icons.storefront_outlined)]),
@@ -1983,7 +1983,7 @@ class AccountsPage extends StatelessWidget {
    if(s.hasError)return Center(child:Text(tr('تعذر تحميل الحسابات: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    final v=s.data!;
-   Widget item(String title,num amount,IconData icon)=>Card(child:ListTile(leading:Icon(icon),title:Text(title),trailing:Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))));
+   Widget item(String title,num amount,IconData icon)=>Card(child:ListTile(leading:Icon(icon),title:Text(tr(title)),trailing:Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))));
    return ListView(padding:const EdgeInsets.all(12),children:[
     item('مستحقات الزبائن بعد المرتجعات',v[0],Icons.account_balance_wallet_outlined),
     item('مستحقات الموردين بعد المرتجعات',v[1],Icons.local_shipping_outlined),
