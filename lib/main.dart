@@ -173,7 +173,7 @@ String tr(String value) {
       'لا توجد حركات في الفترة المحددة':'No transactions in the selected period',
       'الرصيد ':'Balance ',
       'الدائن':'Credit balance',
-      'المستحق':'Due',
+      'المستحق':'Due','لغة التطبيق / Application language / Langue':'Application language / Langue de l’application',
       'تم ترحيل فاتورة البيع رقم ':'Sales invoice posted #',
       'فاتورة توريد رقم ':'Purchase invoice #',
       'تعذر تحميل التنبيهات: ':'Could not load expiry alerts: ',
@@ -480,7 +480,7 @@ String tr(String value) {
       'لا توجد حركات في الفترة المحددة':'Aucune opération pour la période sélectionnée',
       'الرصيد ':'Solde ',
       'الدائن':'Créditeur',
-      'المستحق':'Dû',
+      'المستحق':'Langue de l’application',
       'تم ترحيل فاتورة البيع رقم ':'Facture de vente validée n° ',
       'فاتورة توريد رقم ':'Facture d’achat n° ',
       'تعذر تحميل التنبيهات: ':'Impossible de charger les alertes d’expiration : ',
@@ -830,7 +830,7 @@ class _SalePageState extends State<SalePage>{
    activeDraftId=draftId;
    final invoiceId=await ShopDb.instance.saveSale(customerId:customer,items:snapshot,paid:paidAmount,dueDate:dueDate,draftId:draftId);
    activeDraftId=null;cart.clear();
-   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم ترحيل فاتورة البيع رقم $invoiceId'))));}
+   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم ترحيل فاتورة البيع رقم ')+invoiceId.toString())));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
@@ -987,7 +987,7 @@ class _PurchasePageState extends State<PurchasePage>{
    else{await ShopDb.instance.saveDraft(type:'purchase',items:cart,partyId:selectedSupplierId,total:total,paid:paidAmount,dueDate:dueDate,draftId:draftId);}
    activeDraftId=draftId;final id=await ShopDb.instance.savePurchase(supplierId:selectedSupplierId!,items:cart,paid:paidAmount,dueDate:dueDate,draftId:draftId);
    activeDraftId=null;cart.clear();
-   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text(tr('فاتورة توريد رقم $id')),content:Text('تم تسجيل التوريد بقيمة '+money(total)+' وتحديث مخزون أصناف المبيعات المرتبطة.'),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:Text(tr('حسناً')))]));}
+   if(mounted){setState((){});await showDialog<void>(context:context,builder:(c)=>AlertDialog(title:Text(tr('فاتورة توريد رقم ')+id.toString()),content:Text(tr('تم تسجيل التوريد بقيمة ')+money(total)+tr(' وتحديث مخزون أصناف المبيعات المرتبطة.')),actions:[FilledButton(onPressed:()=>Navigator.pop(c),child:Text(tr('حسناً')))]));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>posting=false);}
  }
@@ -1049,7 +1049,7 @@ class PurchaseInvoiceReviewPage extends StatelessWidget {
     const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold,fontSize:20)),
     Center(child:Text(tr('فاتورة توريد'),style:TextStyle(fontWeight:FontWeight.bold,fontSize:16))),
     const Divider(),
-    Text(tr('المورد: $party')),
+    Text(tr('المورد: ')+party),
     Text(tr('التاريخ: ')+DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())),
     const Divider(),
     Row(children:[Expanded(child:Text(tr('اسم الصنف'),style:TextStyle(fontWeight:FontWeight.bold))),Text(tr('الكمية'),style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:10),Text(tr('إجمالي الصنف'),style:TextStyle(fontWeight:FontWeight.bold))]),
@@ -1835,7 +1835,7 @@ class InvoiceDetailPage extends StatelessWidget {
      )),
     Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Text(tr(sale?'فاتورة مبيعات':'فاتورة توريد'),style:Theme.of(c).textTheme.titleLarge),
-     Text(tr('رقم الفاتورة: $invoiceId')),
+     Text(tr('رقم الفاتورة: ')+invoiceId.toString()),
      Text(tr('التاريخ: ')+h['date'].toString()),
      Text(tr(sale?'الزبون: ':'المورد: ')+s.data!['party'].toString()),
     ]))),
@@ -1925,7 +1925,7 @@ class _ReturnsPageState extends State<ReturnsPage>{
    final partyName=partyId==null?(type=='customer'?'زبون نقدي':'مورد غير محدد'):(await ShopDb.instance.db.query(type=='customer'?'customers':'suppliers',where:'id=?',whereArgs:[partyId],limit:1)).first['name'].toString();
    final returnTotal=selected.fold<int>(0,(sum,x)=>sum+(((x['grams'] as int)*(x['unit_price'] as int))/1000).round());
    setState((){invoiceId=null;invoiceItems=[];quantities.clear();cash.text='0';});
-   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم حفظ المرتجع رقم $id'))));
+   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم حفظ المرتجع رقم ')+id.toString())));
    await _showReturnReceipt(context,type:type,returnId:id,partyName:partyName,amount:returnTotal);
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>saving=false);}
