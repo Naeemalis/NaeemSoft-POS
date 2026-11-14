@@ -381,6 +381,8 @@ String tr(String value) {
       'المتبقي على الزبائن بعد المرتجعات':'Customer balance due after returns',
       'المقبوض الصافي من المبيعات':'Net sales receipts',
       'المتبقي للموردين بعد المرتجعات':'Supplier balance due after returns',
+    
+      'قيمة المخزون: ':'Stock value: ',
     },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
@@ -737,6 +739,8 @@ String tr(String value) {
       'المتبقي على الزبائن بعد المرتجعات':'Solde client dû après retours',
       'المقبوض الصافي من المبيعات':'Encaissements nets des ventes',
       'المتبقي للموردين بعد المرتجعات':'Solde fournisseur dû après retours',
+    
+      'قيمة المخزون: ':'Valeur du stock : ',
     }
   };
   return translations[language]?[value] ?? value;
