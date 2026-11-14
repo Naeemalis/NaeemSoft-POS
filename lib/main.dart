@@ -9,6 +9,7 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:screenshot/screenshot.dart';
 import 'shop_db.dart';
+import 'inventory_center.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +44,7 @@ class _MainShellState extends State<MainShell>{
    NavigationDestination(icon:Icon(Icons.home_outlined),label:'الرئيسية'),
    NavigationDestination(icon:Icon(Icons.point_of_sale),label:'بيع'),
    NavigationDestination(icon:Icon(Icons.add_shopping_cart),label:'توريد'),
-   NavigationDestination(icon:Icon(Icons.inventory_2_outlined),label:'المخزون'),
+   NavigationDestination(icon:Icon(Icons.inventory_2_outlined),label:'الأصناف والكميات'),
    NavigationDestination(icon:Icon(Icons.settings_outlined),label:'الإدارة')]));
 }
 class DashboardPage extends StatelessWidget {
@@ -79,11 +80,29 @@ class SalePage extends StatefulWidget {const SalePage({super.key});@override Sta
 class _SalePageState extends State<SalePage>{
  final Map<int,Map<String,dynamic>> cart={};
  int? activeDraftId;
+ int? selectedCustomerId;
  bool posting=false;
  String keypadValue=''; String saleMode='weight';
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(k=='½')keypadValue='0.5';else if(k=='¼')keypadValue='0.25';else if(k=='1 كجم')keypadValue='1';else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
+ Future<void> changeCustomer(int? customerId) async {
+  final updated=<int,Map<String,dynamic>>{};
+  for(final entry in cart.entries){
+   final product=await ShopDb.instance.db.query('products',columns:['sale_price'],where:'id=?',whereArgs:[entry.key],limit:1);
+   var price=product.isEmpty?((entry.value['price_per_kg'] as num).round()):(product.first['sale_price'] as num).round();
+   if(customerId!=null){
+    final custom=await ShopDb.instance.db.query('customer_product_prices',where:'customer_id=? AND product_id=? AND active=1',whereArgs:[customerId,entry.key],limit:1);
+    if(custom.isNotEmpty)price=(custom.first['price_per_kg'] as num).round();
+   }
+   updated[entry.key]={...entry.value,'price_per_kg':price};
+  }
+  if(mounted)setState((){selectedCustomerId=customerId;cart..clear()..addAll(updated);});
+ }
  Future<void> add(Map<String,Object?> p) async {
-  final price=(p['sale_price'] as num).round();
+  var price=(p['sale_price'] as num).round();
+  if(selectedCustomerId!=null){
+   final custom=await ShopDb.instance.db.query('customer_product_prices',where:'customer_id=? AND product_id=? AND active=1',whereArgs:[selectedCustomerId,p['id']],limit:1);
+   if(custom.isNotEmpty) price=(custom.first['price_per_kg'] as num).round();
+  }
   final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
   final grams=saleMode=='weight'?(value*1000).round():(price>0?(value*1000/price).round():0);
   final id=p['id'] as int, old=cart[id]?['grams'] as int? ?? 0;
@@ -104,18 +123,19 @@ class _SalePageState extends State<SalePage>{
  }
  Future<void> checkout() async {
   if(posting||cart.isEmpty)return;
-  final customers=await ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name');int? customer;
+  final customers=await ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name');
   final paid=TextEditingController(text:total.toString()),due=TextEditingController();
+  int? customer=selectedCustomerId;
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:const Text('بيانات فاتورة البيع'),
    content:Column(mainAxisSize:MainAxisSize.min,children:[
     Text('الإجمالي: '+money(total)),
-    DropdownButtonFormField<int?>(value:null,decoration:const InputDecoration(labelText:'الزبون (اختياري)'),
-     items:[const DropdownMenuItem<int?>(value:null,child:Text('نقدي / غير مسجل')),...customers.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:(v)=>customer=v),
+    Text('الزبون: '+(customer==null?'نقدي / غير مسجل':customers.firstWhere((x)=>x['id']==customer)['name'].toString())),
     field(paid,'المبلغ المدفوع',number:true),field(due,'موعد السداد YYYY-MM-DD')
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('معاينة الفاتورة'))]));
   if(ok!=true)return;
+  selectedCustomerId=customer;
   final paidAmount=int.tryParse(paid.text)??0,dueDate=due.text.trim().isEmpty?null:due.text.trim();
   final snapshot=cart.values.map((x)=>Map<String,dynamic>.from(x)).toList(),invoiceTotal=total;
   final party=customer==null?'نقدي / غير مسجل':(customers.firstWhere((x)=>x['id']==customer)['name'] as String);
@@ -135,6 +155,10 @@ class _SalePageState extends State<SalePage>{
 
  @override Widget build(BuildContext c) {
   return Column(children:[
+   Padding(padding:const EdgeInsets.fromLTRB(8,6,8,2),child:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name'),builder:(c,s){
+    if(!s.hasData)return const LinearProgressIndicator();
+    return DropdownButtonFormField<int?>(value:selectedCustomerId,decoration:const InputDecoration(labelText:'الزبون (اختياري) • السعر الخاص إن وجد',border:OutlineInputBorder(),isDense:true),items:[const DropdownMenuItem<int?>(value:null,child:Text('بيع نقدي / بدون زبون')),...s.data!.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:posting?null:(v)=>changeCustomer(v));
+   })),
    FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
     final ps=s.data!, n=((s.data!.length+6)~/7).clamp(1,1000);
@@ -183,7 +207,7 @@ class _PurchasePageState extends State<PurchasePage>{
  final List<Map<String,dynamic>> cart=[];
  int? activeDraftId;
  bool posting=false;
- String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=0,packageWeight=0,packageCost=0; int? selectedSupplierId;
+ String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=0,packageWeight=0,packageCost=0; String? expiryDate; int? selectedSupplierId;
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
  void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else packageCost=v.toInt();keypadValue='';});}
  Future<void> add(Map<String,Object?> p) async {
@@ -192,7 +216,18 @@ class _PurchasePageState extends State<PurchasePage>{
    return;
   }
   final count=packageCount;
-  final weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
+  final supplierUnit=await ShopDb.instance.db.query('supplier_product_units',where:'supplier_id=? AND product_id=? AND unit_name=?',whereArgs:[selectedSupplierId,p['id'],p['purchase_unit']],limit:1);
+  final supplierWeight=supplierUnit.isEmpty?null:(supplierUnit.first['weight_grams'] as num).toInt();
+  final weight=packageWeight>0?packageWeight:(supplierWeight??((p['default_weight'] as num)*1000).round());
+  final stockLink=await ShopDb.instance.db.query('product_stock_links',where:'purchase_product_id=?',whereArgs:[p['id']],limit:1);
+  final stockProduct=stockLink.isEmpty?null:(await ShopDb.instance.db.query('products',where:'id=?',whereArgs:[stockLink.first['stock_product_id']],limit:1)).firstOrNull;
+  final needsExpiry=(p['requires_expiry'] as num?)?.toInt()==1 || (stockProduct?['requires_expiry'] as num?)?.toInt()==1;
+  String? lineExpiry;
+  if (needsExpiry) {
+   final picked=await showDatePicker(context:context,initialDate:DateTime.now().add(const Duration(days:30)),firstDate:DateTime.now(),lastDate:DateTime(2100));
+   if(picked==null)return;
+   lineExpiry=DateFormat('yyyy-MM-dd').format(picked);
+  }
   final enteredCost=packageCost>0?packageCost:(p['cost'] as num).round();
   final effectiveMode=packageCost>0?purchaseCostMode:'package';
   final price=effectiveMode=='package'?enteredCost:((enteredCost*weight)/1000).round();
@@ -201,8 +236,8 @@ class _PurchasePageState extends State<PurchasePage>{
    return;
   }
   setState((){
-   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':effectiveMode,'entered_cost':enteredCost});
-   packageCount=0;packageWeight=0;packageCost=0;keypadValue='';
+   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':effectiveMode,'entered_cost':enteredCost,'expiry_date':lineExpiry});
+   packageCount=0;packageWeight=0;packageCost=0;keypadValue='';expiryDate=null;
   });
  }
  Future<void> editLineWeight(int index) async {
@@ -331,14 +366,51 @@ class PurchaseInvoiceReviewPage extends StatelessWidget {
   ]));
 }
 
-class StockPage extends StatelessWidget {const StockPage({super.key});@override Widget build(BuildContext c)=>FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name'),builder:(c,s){
- if(!s.hasData)return const Center(child:CircularProgressIndicator());
- return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text('سعر البيع: '+money(p['sale_price'] as num)+' / كجم'),trailing:Text(kg(p['stock_grams'] as num)))).toList());
-});}
+class StockPage extends StatelessWidget {
+  const StockPage({super.key});
+  @override
+  Widget build(BuildContext context) => InventoryCenterPage(
+    onManageProducts: () => Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductsPage()),
+    ),
+  );
+}
+class ExpiryAlertsPage extends StatelessWidget {
+ const ExpiryAlertsPage({super.key});
+ Future<List<Map<String,Object?>>> load() async {
+  return ShopDb.instance.db.rawQuery("""
+   SELECT b.id batch_id,b.expiry_date,b.remaining_grams,b.cost_per_kg,p.name product_name,p.expiry_warning_days
+   FROM purchase_batches b JOIN products p ON p.id=b.product_id
+   WHERE b.remaining_grams>0 AND b.expiry_date IS NOT NULL
+   AND date(b.expiry_date)<=date('now', '+' || p.expiry_warning_days || ' days')
+   ORDER BY date(b.expiry_date),p.name
+  """);
+ }
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('تنبيهات صلاحية الأصناف')),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:load(),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل التنبيهات: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   if(s.data!.isEmpty)return const Center(child:Text('لا توجد دفعات منتهية أو قريبة من الانتهاء'));
+   return ListView(children:s.data!.map((x){
+    final expiry=DateTime.tryParse(x['expiry_date'].toString());
+    final expired=expiry!=null&&expiry.isBefore(DateTime(DateTime.now().year,DateTime.now().month,DateTime.now().day));
+    return ListTile(
+     leading:Icon(expired?Icons.warning_amber_rounded:Icons.schedule,color:expired?Colors.red:Colors.orange),
+     title:Text(x['product_name'].toString()),
+     subtitle:Text('الانتهاء: ${x['expiry_date']} • المتبقي: ${kg(x['remaining_grams'] as num)}'),
+     trailing:Text(expired?'منتهي':'قريب',style:TextStyle(color:expired?Colors.red:Colors.orange,fontWeight:FontWeight.bold)),
+    );
+   }).toList());
+  }),
+ );
+}
+
 class AdminPage extends StatelessWidget {const AdminPage({super.key});@override Widget build(BuildContext c)=>ListView(children:[
  _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
  _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'المرتجعات',Icons.assignment_return,const ReturnsPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
- _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage())
+ _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage()),_link(c,'تنبيهات الصلاحية',Icons.warning_amber,const ExpiryAlertsPage())
 ]);Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)));}
 class ProductsPage extends StatefulWidget {const ProductsPage({super.key});@override State<ProductsPage> createState()=>_ProductsPageState();}
 class _ProductsPageState extends State<ProductsPage>{
@@ -347,14 +419,21 @@ class _ProductsPageState extends State<ProductsPage>{
   final u=TextEditingController(text:(product?['purchase_unit']??'جوان').toString());
   final w=TextEditingController(text:((product?['default_weight'] as num?)??30).toString());
   final price=TextEditingController(text:((product?['sale_price'] as num?)??0).round().toString());
+  final expiryDays=TextEditingController(text:((product?['expiry_warning_days'] as num?)??7).toString());
+  bool requiresExpiry=(product?['requires_expiry'] as num?)?.toInt()==1;
   final cost=TextEditingController(text:((product?['cost'] as num?)??0).round().toString());
   final saleProducts=await ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale' AND id != ?",whereArgs:[product?['id']??-1],orderBy:'name');
+  final categories=await ShopDb.instance.db.query('categories',orderBy:'name');
+  int? categoryId=(product?['category_id'] as num?)?.toInt();
   String productType=(product?['product_type']??'sale').toString();
   int? pairedSaleProductId=product?['paired_sale_product_id'] as int?;
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(product==null?'إضافة صنف':'تعديل الصنف والسعر'),
    content:StatefulBuilder(builder:(c,setDialogState)=>SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),if(productType=='purchase')...[
+    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),DropdownButtonFormField<int?>(value:categories.any((x)=>(x['id'] as num).toInt()==categoryId)?categoryId:null,decoration:const InputDecoration(labelText:'التصنيف'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون تصنيف')),...categories.map((x)=>DropdownMenuItem<int?>(value:(x['id'] as num).toInt(),child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>categoryId=v)),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),
+    CheckboxListTile(contentPadding:EdgeInsets.zero,value:requiresExpiry,title:const Text('يتطلب تاريخ انتهاء الصلاحية'),onChanged:(v)=>setDialogState(()=>requiresExpiry=v??false)),
+    if(requiresExpiry)field(expiryDays,'التنبيه قبل الانتهاء بعدد الأيام',number:true),
+    if(productType=='purchase')...[
      field(cost,'سعر التكلفة الافتراضي للوحدة',number:true),
      DropdownButtonFormField<int?>(value:saleProducts.any((x)=>x['id']==pairedSaleProductId)?pairedSaleProductId:null,decoration:const InputDecoration(labelText:'صنف المبيعات المقابل للمخزون',border:OutlineInputBorder(),isDense:true),items:[const DropdownMenuItem<int?>(value:null,child:Text('اختر صنف المبيعات')),...saleProducts.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>pairedSaleProductId=v))
     ]
@@ -364,8 +443,8 @@ class _ProductsPageState extends State<ProductsPage>{
   final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??-1, purchaseCost=int.tryParse(cost.text)??-1;
   if(n.text.trim().isEmpty||u.text.trim().isEmpty||weight<=0||p<0||(productType=='purchase'&&(purchaseCost<0||pairedSaleProductId==null))){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تحقق من الاسم والوزن والسعر')));return;}
   try{
-   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null);}
-   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null);}
+   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId,requiresExpiry:requiresExpiry,expiryWarningDays:int.tryParse(expiryDays.text)??7);}
+   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId,requiresExpiry:requiresExpiry,expiryWarningDays:int.tryParse(expiryDays.text)??7);}
    if(mounted)setState((){});
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ الصنف: $e')));}
  }
@@ -377,7 +456,7 @@ class _ProductsPageState extends State<ProductsPage>{
   if(ok==true){await ShopDb.instance.deactivateProduct(product['id'] as int);if(mounted)setState((){});}
  }
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:const Text('إدارة الأصناف')),
+  appBar:AppBar(title:const Text('مركز إدارة الأصناف'),actions:[IconButton(tooltip:'إدارة التصنيفات',onPressed:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>const CategoriesPage())).then((_) {if(mounted)setState((){});}),icon:const Icon(Icons.category_outlined))]),
   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:'active=1',orderBy:'name'),builder:(c,s){
    if(s.hasError)return Center(child:Text('تعذر تحميل الأصناف: ${s.error}'));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
@@ -386,15 +465,118 @@ class _ProductsPageState extends State<ProductsPage>{
     leading:const Icon(Icons.category_outlined),
     title:Text(p['name'] as String),
     subtitle:Text(p['product_type']=='purchase'?'${p['purchase_unit']} • تكلفة الوحدة الافتراضية: ${money(p['cost'] as num)}':'${p['purchase_unit']} • ${money(p['sale_price'] as num)} / كجم'),
-    trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(p):archive(p),itemBuilder:(_)=>const[
-     PopupMenuItem(value:'edit',child:Text('تعديل الاسم والوزن والسعر')),
-     PopupMenuItem(value:'delete',child:Text('حذف الصنف')),
+    trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);else if(v=='supplier')Navigator.push(context,MaterialPageRoute(builder:(_)=>SupplierPackageWeightsPage(product:p)));else archive(p);},itemBuilder:(_)=>[
+     const PopupMenuItem(value:'edit',child:Text('تعديل الاسم والوزن والسعر')),
+     if(p['product_type']=='purchase')const PopupMenuItem(value:'supplier',child:Text('أوزان العبوات حسب المورد')),
+     const PopupMenuItem(value:'delete',child:Text('حذف الصنف')),
     ]),
     onTap:()=>edit(p),
    )).toList());
   }),
   floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:const Text('إضافة صنف')));
 }
+class CategoriesPage extends StatefulWidget {
+ const CategoriesPage({super.key});
+ @override State<CategoriesPage> createState()=>_CategoriesPageState();
+}
+class _CategoriesPageState extends State<CategoriesPage>{
+ Future<void> add() async {
+  final name=TextEditingController();
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:const Text('إضافة تصنيف'),
+   content:field(name,'اسم التصنيف'),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
+  if(ok!=true)return;
+  try{await ShopDb.instance.addCategory(name.text);if(mounted)setState((){});}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر إضافة التصنيف: $e')));}
+ }
+ Future<void> remove(Map<String,Object?> row) async {
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:const Text('حذف التصنيف؟'),
+   content:Text('سيتم إلغاء ربط التصنيف بالصنف «${row['name']}» إن وجد، دون حذف الصنف أو فواتيره.'),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حذف التصنيف'))]));
+  if(ok==true){await ShopDb.instance.deleteCategory((row['id'] as num).toInt());if(mounted)setState((){});}
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:const Text('تصنيفات الأصناف')),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('categories',orderBy:'name'),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل التصنيفات: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   if(s.data!.isEmpty)return const Center(child:Text('لا توجد تصنيفات. أضف تصنيفاً جديداً.'));
+   return ListView(children:s.data!.map((x)=>ListTile(
+    leading:const Icon(Icons.folder_outlined),
+    title:Text(x['name'] as String),
+    trailing:IconButton(tooltip:'حذف التصنيف',onPressed:()=>remove(x),icon:const Icon(Icons.delete_outline)),
+   )).toList());
+  }),
+  floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة تصنيف')));
+}
+
+class SupplierPackageWeightsPage extends StatefulWidget {
+ final Map<String,Object?> product;
+ const SupplierPackageWeightsPage({super.key,required this.product});
+ @override State<SupplierPackageWeightsPage> createState()=>_SupplierPackageWeightsPageState();
+}
+class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>{
+ int? supplierId;
+ String unitName='جوان';
+ final weight=TextEditingController();
+ Future<List<Map<String,Object?>>> get suppliers=>ShopDb.instance.db.query('suppliers',where:'active=1',orderBy:'name');
+ Future<List<Map<String,Object?>>> get units=>ShopDb.instance.getSupplierProductUnits((widget.product['id'] as num).toInt());
+ Future<void> save() async {
+  final grams=((double.tryParse(weight.text.trim().replaceAll(',','.'))??0)*1000).round();
+  if(supplierId==null||grams<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اختر المورد وأدخل وزناً صحيحاً')));return;}
+  try{
+   await ShopDb.instance.saveSupplierProductUnit(
+    supplierId:supplierId!,productId:(widget.product['id'] as num).toInt(),
+    unitName:unitName,weightGrams:grams,
+   );
+   weight.clear();
+   if(mounted)setState((){});
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ وزن العبوة لهذا المورد')));
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحفظ: $e')));}
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:Text('أوزان الموردين • ${widget.product['name']}')),
+  body:ListView(padding:const EdgeInsets.all(12),children:[
+   Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+    const Align(alignment:Alignment.centerRight,child:Text('إضافة وزن عبوة خاص بمورد',style:TextStyle(fontWeight:FontWeight.bold))),
+    const SizedBox(height:10),
+    FutureBuilder<List<Map<String,Object?>>>(future:suppliers,builder:(c,s){
+     if(!s.hasData)return const LinearProgressIndicator();
+     return DropdownButtonFormField<int>(
+      value:supplierId,decoration:const InputDecoration(labelText:'المورد'),
+      items:s.data!.map((x)=>DropdownMenuItem<int>(value:(x['id'] as num).toInt(),child:Text(x['name'] as String))).toList(),
+      onChanged:(v)=>setState(()=>supplierId=v),
+     );
+    }),
+    const SizedBox(height:8),
+    DropdownButtonFormField<String>(
+     value:unitName,decoration:const InputDecoration(labelText:'نوع العبوة'),
+     items:const ['جوان','كيس','سحارة','حزمة','صندوق','كرتون','كيلو']
+      .map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),
+     onChanged:(v){if(v!=null)setState(()=>unitName=v);},
+    ),
+    const SizedBox(height:8),
+    field(weight,'وزن العبوة بالكيلو',number:true),
+    const SizedBox(height:8),
+    SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:save,icon:const Icon(Icons.save),label:const Text('حفظ وزن المورد'))),
+   ]))),
+   const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('الأوزان المسجلة حسب المورد',style:TextStyle(fontWeight:FontWeight.bold))),
+   FutureBuilder<List<Map<String,Object?>>>(future:units,builder:(c,s){
+    if(s.hasError)return Text('تعذر تحميل الأوزان: ${s.error}');
+    if(!s.hasData)return const Center(child:CircularProgressIndicator());
+    if(s.data!.isEmpty)return const Text('لا توجد أوزان خاصة مسجلة بعد.');
+    return Card(child:Column(children:s.data!.map((x)=>ListTile(
+     leading:const Icon(Icons.scale_outlined),
+     title:Text('${x['supplier_name']} • ${x['unit_name']}'),
+     subtitle:Text('وزن العبوة: ${((x['weight_grams'] as num).toDouble()/1000).toStringAsFixed(3)} كجم'),
+    )).toList()));
+   }),
+  ]),
+ );
+}
+
 class PartiesPage extends StatefulWidget {final String type;const PartiesPage({super.key,required this.type});@override State<PartiesPage> createState()=>_PartiesPageState();}
 class _PartiesPageState extends State<PartiesPage>{
  Future<num> customerBalance(int id) async {
@@ -475,6 +657,13 @@ class _PartiesPageState extends State<PartiesPage>{
    floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:Text(customer?'إضافة زبون':'إضافة مورد')));
  }
 }
+Future<void> _showPaymentReceipt(BuildContext context,{required String type,required int paymentId,required String partyName,required int amount,required String note}) async {
+ final customer=type=='customer';
+ final md='''# NaeemSoft POS\n\n## ${customer?'سند قبض من زبون':'سند سداد مورد'}\n\n- رقم السند: $paymentId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- المبلغ: ${money(amount)}\n- البيان: ${note.isEmpty?'سداد حساب':note}\n\nتم تسجيل العملية بنجاح.''';
+ final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'سند قبض':'سند سداد'} $paymentId',author:'NaeemSoft POS',markdown:md));
+ if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
+}
+
 class PartyStatementPage extends StatefulWidget {
  final String type;
  final int partyId;
@@ -551,8 +740,12 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   if(ok!=true||value<=0)return;
   setState(()=>saving=true);
   try{
+   int savedPaymentId=0;
    await ShopDb.instance.db.transaction((tx) async {
     final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
+    savedPaymentId=paymentId;
+    if(widget.type=='customer') await tx.insert('customer_payment_links',{'payment_id':paymentId,'customer_id':widget.partyId});
+    else await tx.insert('supplier_payment_links',{'payment_id':paymentId,'supplier_id':widget.partyId});
     final customer=widget.type=='customer',invoiceType=customer?'sale':'purchase';
     final invoiceTable=customer?'sales':'purchases',partyColumn=customer?'customer_id':'supplier_id';
     final invoices=await tx.query(invoiceTable,where:'$partyColumn=? AND status=?',whereArgs:[widget.partyId,'posted'],orderBy:'date ASC,id ASC');
@@ -564,10 +757,12 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
      final allocated=remaining<due?remaining:due;
      await tx.update(invoiceTable,{'paid':(invoice['paid'] as num).toInt()+allocated},where:'id=?',whereArgs:[invoice['id']]);
      await tx.insert('payment_allocations',{'payment_id':paymentId,'invoice_type':invoiceType,'invoice_id':invoice['id'],'amount':allocated});
+     if(customer) await tx.insert('sale_payment_allocations',{'payment_id':paymentId,'sale_id':invoice['id'],'amount':allocated});
+     else await tx.insert('purchase_payment_allocations',{'payment_id':paymentId,'purchase_id':invoice['id'],'amount':allocated});
      remaining-=allocated;
     }
    });
-   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تسجيل الدفعة وتوزيعها على أقدم الفواتير المستحقة')));}
+   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تسجيل السداد وتوزيعه على أقدم الفواتير المستحقة'))); await _showPaymentReceipt(context,type:widget.type,paymentId:savedPaymentId,partyName:(await ShopDb.instance.db.query(widget.type=='customer'?'customers':'suppliers',where:'id=?',whereArgs:[widget.partyId],limit:1)).first['name'].toString(),amount:value,note:note.text.trim());}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تسجيل الدفعة: $e')));}
   finally{if(mounted)setState(()=>saving=false);}
  }
@@ -878,6 +1073,13 @@ Widget _invoiceAmount(String label,num amount)=>Padding(
 
 
 
+Future<void> _showReturnReceipt(BuildContext context,{required String type,required int returnId,required String partyName,required int amount}) async {
+ final customer=type=='customer';
+ final md='''# NaeemSoft POS\n\n## ${customer?'سند مرتجع زبون':'سند إرجاع إلى المورد'}\n\n- رقم السند: $returnId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- قيمة المرتجع: ${money(amount)}\n\nتم تسجيل المرتجع وتحديث الحساب والمخزون.''';
+ final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'مرتجع زبون':'مرتجع مورد'} $returnId',author:'NaeemSoft POS',markdown:md));
+ if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
+}
+
 class ReturnsPage extends StatefulWidget {
  const ReturnsPage({super.key});
  @override State<ReturnsPage> createState()=>_ReturnsPageState();
@@ -911,10 +1113,18 @@ class _ReturnsPageState extends State<ReturnsPage>{
   if(selected.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية مرتجعة لصنف واحد على الأقل')));return;}
   setState(()=>saving=true);
   try{
-   final id=await ShopDb.instance.saveReturn(type:type,invoiceId:invoiceId!,items:selected,cashPaid:type=='customer'?(int.tryParse(cash.text)??0):0);
+   final sourceInvoiceId=invoiceId!;
+   final id=await ShopDb.instance.saveReturn(type:type,invoiceId:sourceInvoiceId,items:selected,cashPaid:type=='customer'?(int.tryParse(cash.text)??0):0);
    if(!mounted)return;
+   final partyColumn=type=='customer'?'customer_id':'supplier_id';
+   final invoiceTable=type=='customer'?'sales':'purchases';
+   final invoice=(await ShopDb.instance.db.query(invoiceTable,where:'id=?',whereArgs:[sourceInvoiceId],limit:1)).first;
+   final partyId=invoice[partyColumn] as int?;
+   final partyName=partyId==null?(type=='customer'?'زبون نقدي':'مورد غير محدد'):(await ShopDb.instance.db.query(type=='customer'?'customers':'suppliers',where:'id=?',whereArgs:[partyId],limit:1)).first['name'].toString();
+   final returnTotal=selected.fold<int>(0,(sum,x)=>sum+(((x['grams'] as int)*(x['unit_price'] as int))/1000).round());
    setState((){invoiceId=null;invoiceItems=[];quantities.clear();cash.text='0';});
-   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم حفظ المرتجع رقم '+id.toString())));
+   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم حفظ المرتجع رقم $id')));
+   await _showReturnReceipt(context,type:type,returnId:id,partyName:partyName,amount:returnTotal);
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>saving=false);}
  }

@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 9,
+      version: 13,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -83,6 +83,20 @@ class ShopDb {
             await d.execute('ALTER TABLE products ADD COLUMN paired_sale_product_id INTEGER');
           }
         }
+        if (oldVersion < 10) {
+          if (!await _hasColumn(d, 'products', 'category_id')) {
+            await d.execute('ALTER TABLE products ADD COLUMN category_id INTEGER');
+          }
+          await _createProductSupplierUnits(d);
+    await _createRelationalLinks(d);
+        }
+        if (oldVersion < 11) await _createRelationalLinks(d);
+        if (oldVersion < 12) await _createPartyPaymentLinks(d);
+        if (oldVersion < 13) {
+          if (!await _hasColumn(d, 'products', 'requires_expiry')) await d.execute('ALTER TABLE products ADD COLUMN requires_expiry INTEGER NOT NULL DEFAULT 0');
+          if (!await _hasColumn(d, 'products', 'expiry_warning_days')) await d.execute('ALTER TABLE products ADD COLUMN expiry_warning_days INTEGER NOT NULL DEFAULT 7');
+          await d.execute('CREATE INDEX IF NOT EXISTS idx_purchase_batches_expiry ON purchase_batches(product_id, expiry_date, remaining_grams)');
+        }
       },
     );
   }
@@ -100,7 +114,7 @@ class ShopDb {
       purchase_unit TEXT NOT NULL DEFAULT 'جوان', base_unit TEXT NOT NULL DEFAULT 'كجم',
       default_weight REAL NOT NULL DEFAULT 1, cost REAL NOT NULL DEFAULT 0,
       sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
-      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER)''');
+      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER, category_id INTEGER, requires_expiry INTEGER NOT NULL DEFAULT 0, expiry_warning_days INTEGER NOT NULL DEFAULT 7)''');
     await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('''CREATE TABLE purchases(
@@ -136,6 +150,7 @@ class ShopDb {
       id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL,
       unit_name TEXT NOT NULL, default_weight_grams INTEGER NOT NULL DEFAULT 1000,
       UNIQUE(product_id, unit_name), FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE)''');
+    await _createProductSupplierUnits(d);
     await d.execute('''CREATE TABLE IF NOT EXISTS customer_product_prices(
       id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
       price_per_kg INTEGER NOT NULL CHECK(price_per_kg >= 0), active INTEGER NOT NULL DEFAULT 1,
@@ -147,6 +162,7 @@ class ShopDb {
       source_type TEXT, source_id INTEGER, quantity_grams INTEGER NOT NULL,
       unit_cost_per_kg INTEGER NOT NULL DEFAULT 0, value_delta_djf INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, note TEXT,
       FOREIGN KEY(product_id) REFERENCES products(id))''');
+    await _createRelationalLinks(d);
     await d.execute('''CREATE TABLE IF NOT EXISTS payment_allocations(
       id INTEGER PRIMARY KEY AUTOINCREMENT, payment_id INTEGER NOT NULL,
       invoice_type TEXT NOT NULL CHECK(invoice_type IN ('sale','purchase')),
@@ -174,8 +190,139 @@ class ShopDb {
     await d.execute('CREATE INDEX IF NOT EXISTS idx_sales_customer_date ON sales(customer_id, date)');
     await d.execute('CREATE INDEX IF NOT EXISTS idx_stock_product_date ON stock_movements(product_id, created_at)');
     await d.execute('CREATE INDEX IF NOT EXISTS idx_payments_party_date ON payments(party_type, party_id, date)');
+    await _createPartyPaymentLinks(d);
   }
 
+
+  Future<void> _createRelationalLinks(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS product_stock_links(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      purchase_product_id INTEGER NOT NULL UNIQUE,
+      stock_product_id INTEGER NOT NULL,
+      UNIQUE(purchase_product_id, stock_product_id),
+      CHECK(purchase_product_id <> stock_product_id),
+      FOREIGN KEY(purchase_product_id) REFERENCES products(id),
+      FOREIGN KEY(stock_product_id) REFERENCES products(id)
+    )''');
+    await d.execute('''INSERT OR IGNORE INTO product_stock_links(purchase_product_id, stock_product_id)
+      SELECT id, paired_sale_product_id FROM products
+      WHERE product_type='purchase' AND paired_sale_product_id IS NOT NULL
+      AND EXISTS(SELECT 1 FROM products s WHERE s.id=products.paired_sale_product_id AND s.product_type='sale')''');
+    if (!await _hasColumn(d, 'stock_movements', 'purchase_item_id')) {
+      await d.execute('ALTER TABLE stock_movements ADD COLUMN purchase_item_id INTEGER REFERENCES purchase_items(id)');
+    }
+    if (!await _hasColumn(d, 'stock_movements', 'sale_item_id')) {
+      await d.execute('ALTER TABLE stock_movements ADD COLUMN sale_item_id INTEGER REFERENCES sale_items(id)');
+    }
+    await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_movement_purchase_item ON stock_movements(purchase_item_id) WHERE purchase_item_id IS NOT NULL');
+    await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_movement_sale_item ON stock_movements(sale_item_id) WHERE sale_item_id IS NOT NULL');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_product_stock_links_stock ON product_stock_links(stock_product_id)');
+  }
+
+  Future<void> _createPartyPaymentLinks(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS customer_payment_links(
+      payment_id INTEGER PRIMARY KEY,
+      customer_id INTEGER NOT NULL,
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(customer_id) REFERENCES customers(id)
+    )''');
+    await d.execute('''CREATE TABLE IF NOT EXISTS supplier_payment_links(
+      payment_id INTEGER PRIMARY KEY,
+      supplier_id INTEGER NOT NULL,
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
+    )''');
+    await d.execute('''CREATE TABLE IF NOT EXISTS sale_payment_allocations(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_id INTEGER NOT NULL,
+      sale_id INTEGER NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      UNIQUE(payment_id, sale_id),
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(sale_id) REFERENCES sales(id)
+    )''');
+    await d.execute('''CREATE TABLE IF NOT EXISTS purchase_payment_allocations(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_id INTEGER NOT NULL,
+      purchase_id INTEGER NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      UNIQUE(payment_id, purchase_id),
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(purchase_id) REFERENCES purchases(id)
+    )''');
+    await d.execute('''INSERT OR IGNORE INTO customer_payment_links(payment_id, customer_id)
+      SELECT id, party_id FROM payments WHERE party_type='customer'
+      AND EXISTS(SELECT 1 FROM customers c WHERE c.id=payments.party_id)''');
+    await d.execute('''INSERT OR IGNORE INTO supplier_payment_links(payment_id, supplier_id)
+      SELECT id, party_id FROM payments WHERE party_type='supplier'
+      AND EXISTS(SELECT 1 FROM suppliers s WHERE s.id=payments.party_id)''');
+    await d.execute('''INSERT OR IGNORE INTO sale_payment_allocations(payment_id, sale_id, amount)
+      SELECT pa.payment_id, pa.invoice_id, pa.amount FROM payment_allocations pa
+      JOIN sales s ON pa.invoice_type='sale' AND s.id=pa.invoice_id''');
+    await d.execute('''INSERT OR IGNORE INTO purchase_payment_allocations(payment_id, purchase_id, amount)
+      SELECT pa.payment_id, pa.invoice_id, pa.amount FROM payment_allocations pa
+      JOIN purchases p ON pa.invoice_type='purchase' AND p.id=pa.invoice_id''');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_customer_payment_links_customer ON customer_payment_links(customer_id)');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_supplier_payment_links_supplier ON supplier_payment_links(supplier_id)');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_sale_payment_allocations_sale ON sale_payment_allocations(sale_id)');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_purchase_payment_allocations_purchase ON purchase_payment_allocations(purchase_id)');
+  }
+
+  Future<void> _createProductSupplierUnits(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS supplier_product_units(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      supplier_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
+      unit_name TEXT NOT NULL,
+      weight_grams INTEGER NOT NULL CHECK(weight_grams > 0),
+      UNIQUE(supplier_id, product_id, unit_name),
+      FOREIGN KEY(supplier_id) REFERENCES suppliers(id),
+      FOREIGN KEY(product_id) REFERENCES products(id)
+    )''');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_supplier_product_units_lookup ON supplier_product_units(supplier_id, product_id)');
+  }
+
+  Future<int> addCategory(String name) async {
+    final value = name.trim();
+    if (value.isEmpty) throw Exception('اسم التصنيف مطلوب');
+    return db.insert('categories', {'name': value});
+  }
+
+  Future<void> renameCategory(int id, String name) async {
+    final value = name.trim();
+    if (value.isEmpty) throw Exception('اسم التصنيف مطلوب');
+    await db.update('categories', {'name': value}, where: 'id=?', whereArgs: [id]);
+  }
+
+  Future<void> deleteCategory(int id) async {
+    await db.transaction((tx) async {
+      await tx.update('products', {'category_id': null}, where: 'category_id=?', whereArgs: [id]);
+      await tx.delete('categories', where: 'id=?', whereArgs: [id]);
+    });
+  }
+
+  Future<void> saveSupplierProductUnit({
+    required int supplierId,
+    required int productId,
+    required String unitName,
+    required int weightGrams,
+  }) async {
+    final name = unitName.trim();
+    if (name.isEmpty || weightGrams <= 0) throw Exception('اسم الوحدة والوزن مطلوبان');
+    await db.insert('supplier_product_units', {
+      'supplier_id': supplierId,
+      'product_id': productId,
+      'unit_name': name,
+      'weight_grams': weightGrams,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, Object?>>> getSupplierProductUnits(int productId) =>
+      db.rawQuery('''SELECT spu.*, s.name AS supplier_name
+        FROM supplier_product_units spu
+        JOIN suppliers s ON s.id=spu.supplier_id
+        WHERE spu.product_id=? AND s.active=1
+        ORDER BY s.name, spu.unit_name''', [productId]);
 
   Future<void> _createIdempotency(DatabaseExecutor d) async {
     await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_source_draft ON purchases(source_draft_id) WHERE source_draft_id IS NOT NULL');
@@ -412,15 +559,18 @@ class ShopDb {
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
       db.query(table, orderBy: orderBy ?? 'id DESC');
 
-  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId}) async {
+  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId, int? categoryId, bool requiresExpiry = false, int expiryWarningDays = 7}) async {
     return db.transaction((tx) async {
       final id = await tx.insert('products', {
         'name': name.trim(), 'purchase_unit': unit, 'default_weight': defaultWeightGrams / 1000,
-        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId,
+        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId, 'category_id': categoryId, 'requires_expiry': requiresExpiry ? 1 : 0, 'expiry_warning_days': expiryWarningDays,
       });
       await tx.insert('product_units', {
         'product_id': id, 'unit_name': unit, 'default_weight_grams': defaultWeightGrams,
       });
+      if (productType == 'purchase' && pairedSaleProductId != null) {
+        await tx.insert('product_stock_links', {'purchase_product_id':id, 'stock_product_id':pairedSaleProductId});
+      }
       return id;
     });
   }
@@ -463,15 +613,16 @@ class ShopDb {
         final grams = packs * weight;
         final kgCost = grams == 0 ? 0 : ((packageCost * 1000) / weight).round();
         final lineTotal = packs * packageCost;
-        await tx.insert('purchase_items', {
+        final purchaseItemId = await tx.insert('purchase_items', {
           'purchase_id': purchaseId, 'product_id': x['product_id'], 'unit': x['unit'],
           'packages': packs, 'weight_each': weight / 1000, 'quantity': grams / 1000,
           'unit_cost': grams == 0 ? 0 : lineTotal / (grams / 1000),
           'line_total': lineTotal, 'package_cost': packageCost, 'kg_cost': kgCost,
         });
-        final purchaseProductRows = await tx.query('products', columns: ['id','product_type','paired_sale_product_id'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
+        final purchaseProductRows = await tx.query('products', columns: ['id','product_type'], where: 'id = ?', whereArgs: [x['product_id']], limit: 1);
         if (purchaseProductRows.isEmpty || purchaseProductRows.first['product_type'] != 'purchase') throw Exception('صنف التوريد غير موجود أو نوعه غير صحيح');
-        final saleProductId = purchaseProductRows.first['paired_sale_product_id'] as int?;
+        final stockLinks = await tx.query('product_stock_links', columns: ['stock_product_id'], where: 'purchase_product_id = ?', whereArgs: [x['product_id']], limit: 1);
+        final saleProductId = stockLinks.isEmpty ? null : (stockLinks.first['stock_product_id'] as num).toInt();
         if (saleProductId == null) throw Exception('اربط صنف التوريد بصنف المبيعات من إدارة الأصناف أولاً');
         final saleProductRows = await tx.query('products', where: 'id = ? AND product_type = ?', whereArgs: [saleProductId, 'sale'], limit: 1);
         if (saleProductRows.isEmpty) throw Exception('صنف المبيعات المرتبط غير موجود');
@@ -486,9 +637,20 @@ class ShopDb {
           'stock_grams': newGrams, 'stock': newGrams / 1000,
           'inventory_value_djf': newValue, 'cost': averageCost,
         }, where: 'id = ?', whereArgs: [saleProductId]);
+        final expiryDate = (x['expiry_date'] ?? '').toString().trim();
+        if (expiryDate.isNotEmpty) {
+          await tx.insert('purchase_batches', {
+            'purchase_item_id': purchaseItemId, 'product_id': saleProductId,
+            'quantity_grams': grams, 'remaining_grams': grams,
+            'expiry_date': expiryDate, 'cost_per_kg': kgCost,
+          });
+        } else {
+          final expiryRequired = (saleProduct['requires_expiry'] as num?)?.toInt() == 1;
+          if (expiryRequired) throw Exception('الصنف ${saleProduct['name']} يتطلب تاريخ انتهاء الصلاحية');
+        }
         await tx.insert('stock_movements', {
           'product_id': saleProductId, 'movement_type': 'purchase',
-          'source_type': 'purchase', 'source_id': purchaseId,
+          'source_type': 'purchase', 'source_id': purchaseId, 'purchase_item_id': purchaseItemId,
           'quantity_grams': grams, 'unit_cost_per_kg': kgCost,
           'value_delta_djf': addedValue, 'created_at': txDate,
           'note': 'توريد مرتبط بصنف المبيعات',
@@ -500,9 +662,13 @@ class ShopDb {
           'party_type': 'supplier', 'party_id': supplierId,
           'date': txDate, 'amount': paid, 'note': 'دفعة عند التوريد',
         });
+        await tx.insert('supplier_payment_links', {'payment_id':paymentId, 'supplier_id':supplierId});
         await tx.insert('payment_allocations', {
           'payment_id': paymentId, 'invoice_type': 'purchase',
           'invoice_id': purchaseId, 'amount': paid,
+        });
+        await tx.insert('purchase_payment_allocations', {
+          'payment_id':paymentId, 'purchase_id':purchaseId, 'amount':paid,
         });
       }
       if (draftId != null) await tx.delete('invoice_drafts', where: 'id = ?', whereArgs: [draftId]);
@@ -550,6 +716,20 @@ class ShopDb {
         final product = productRows.first;
         final availableGrams = (product['stock_grams'] as num).toInt();
         if (grams > availableGrams) throw Exception('المخزون غير كافٍ للصنف ' + product['name'].toString() + '؛ المتاح ' + (availableGrams / 1000).toString() + ' كجم');
+        final expiryRequired = (product['requires_expiry'] as num?)?.toInt() == 1;
+        final batches = await tx.query('purchase_batches', where:'product_id=? AND remaining_grams>0 AND expiry_date IS NOT NULL', whereArgs:[x['product_id']], orderBy:'expiry_date ASC,id ASC');
+        final today = DateTime.now().toIso8601String().substring(0,10);
+        final validBatches = batches.where((b)=>(b['expiry_date'] as String).compareTo(today)>=0).toList();
+        final validBatchGrams = validBatches.fold<int>(0,(sum,b)=>sum+(b['remaining_grams'] as num).toInt());
+        if (expiryRequired && validBatchGrams < grams) throw Exception('لا توجد كمية صالحة كافية للبيع من ${product['name']}؛ تحقق من الصلاحية والدفعات');
+        var batchToConsume = grams;
+        for (final batch in validBatches) {
+          if (batchToConsume <= 0) break;
+          final available = (batch['remaining_grams'] as num).toInt();
+          final take = available < batchToConsume ? available : batchToConsume;
+          await tx.update('purchase_batches', {'remaining_grams': available - take}, where:'id=?', whereArgs:[batch['id']]);
+          batchToConsume -= take;
+        }
         final inventoryValue = (product['inventory_value_djf'] as num).toInt();
         final averageCost = availableGrams == 0 ? 0 : (inventoryValue * 1000 / availableGrams).round();
         final costTotal = ((grams * averageCost) / 1000).round();
@@ -559,19 +739,19 @@ class ShopDb {
           'stock_grams': remainingGrams, 'stock': remainingGrams / 1000,
           'inventory_value_djf': remainingValue,
         }, where: 'id = ?', whereArgs: [x['product_id']]);
-        await tx.insert('stock_movements', {
-          'product_id': x['product_id'], 'movement_type': 'sale',
-          'source_type': 'sale', 'source_id': saleId,
-          'quantity_grams': -grams, 'unit_cost_per_kg': averageCost,
-          'value_delta_djf': -costTotal, 'created_at': txDate,
-          'note': 'بيع من مخزون المحل',
-        });
-        await tx.insert('sale_items', {
+        final saleItemId = await tx.insert('sale_items', {
           'sale_id': saleId, 'product_id': x['product_id'],
           'quantity': grams / 1000, 'unit_price': price,
           'line_total': line, 'quantity_grams': grams, 'price_per_kg': price,
           'cost_total_djf': costTotal,
           'cost_per_kg_snapshot': averageCost,
+        });
+        await tx.insert('stock_movements', {
+          'product_id': x['product_id'], 'movement_type': 'sale',
+          'source_type': 'sale', 'source_id': saleId, 'sale_item_id': saleItemId,
+          'quantity_grams': -grams, 'unit_cost_per_kg': averageCost,
+          'value_delta_djf': -costTotal, 'created_at': txDate,
+          'note': 'بيع من مخزون المحل',
         });
 
       }
@@ -580,8 +760,12 @@ class ShopDb {
           'party_type': 'customer', 'party_id': customerId,
           'date': txDate, 'amount': paid, 'note': 'دفعة عند البيع',
         });
+        await tx.insert('customer_payment_links', {'payment_id':paymentId, 'customer_id':customerId});
         await tx.insert('payment_allocations', {
           'payment_id': paymentId, 'invoice_type': 'sale', 'invoice_id': saleId, 'amount': paid,
+        });
+        await tx.insert('sale_payment_allocations', {
+          'payment_id':paymentId, 'sale_id':saleId, 'amount':paid,
         });
       }
       if (draftId != null) await tx.delete('invoice_drafts', where: 'id = ?', whereArgs: [draftId]);
@@ -589,10 +773,62 @@ class ShopDb {
     });
   }
 
-  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId}) async {
+  Future<void> setCountedStock({
+    required int productId,
+    required int countedGrams,
+    String? note,
+  }) async {
+    if (countedGrams < 0) throw Exception('كمية الجرد لا يمكن أن تكون سالبة');
+    await db.transaction((tx) async {
+      final rows = await tx.query(
+        'products',
+        where: "id = ? AND product_type = 'sale' AND active = 1",
+        whereArgs: [productId],
+        limit: 1,
+      );
+      if (rows.isEmpty) throw Exception('صنف المبيعات غير موجود أو غير نشط');
+      final product = rows.first;
+      final oldGrams = (product['stock_grams'] as num).toInt();
+      final oldValue = (product['inventory_value_djf'] as num?)?.toInt() ?? 0;
+      final deltaGrams = countedGrams - oldGrams;
+      if (deltaGrams == 0) return;
+
+      final averageCost = oldGrams > 0
+          ? (oldValue * 1000 / oldGrams).round()
+          : ((product['cost'] as num?)?.round() ?? 0);
+      final valueDelta = deltaGrams > 0
+          ? ((deltaGrams * averageCost) / 1000).round()
+          : -(((-deltaGrams * averageCost) / 1000).round()).clamp(0, oldValue);
+      final newValue = (oldValue + valueDelta).clamp(0, 0x7fffffff);
+      await tx.update('products', {
+        'stock_grams': countedGrams,
+        'stock': countedGrams / 1000,
+        'inventory_value_djf': newValue,
+        'cost': countedGrams == 0 ? 0 : (newValue * 1000 / countedGrams).round(),
+      }, where: 'id = ?', whereArgs: [productId]);
+      await tx.insert('stock_movements', {
+        'product_id': productId,
+        'movement_type': 'adjustment',
+        'source_type': 'stock_count',
+        'source_id': null,
+        'quantity_grams': deltaGrams,
+        'unit_cost_per_kg': averageCost,
+        'value_delta_djf': newValue - oldValue,
+        'created_at': DateTime.now().toIso8601String(),
+        'note': note?.trim().isNotEmpty == true ? note!.trim() : 'تسوية جرد الكمية الفعلية',
+      });
+    });
+  }
+
+  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId, int? categoryId, bool? requiresExpiry, int? expiryWarningDays}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
-      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId}, where:'id=?', whereArgs:[id]);
+      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId, 'category_id':categoryId, if (requiresExpiry != null) 'requires_expiry':requiresExpiry ? 1 : 0, if (expiryWarningDays != null) 'expiry_warning_days':expiryWarningDays}, where:'id=?', whereArgs:[id]);
+      if ((productType ?? (await tx.query('products', columns:['product_type'], where:'id=?', whereArgs:[id])).first['product_type']) == 'purchase' && pairedSaleProductId != null) {
+        await tx.insert('product_stock_links', {'purchase_product_id':id, 'stock_product_id':pairedSaleProductId}, conflictAlgorithm:ConflictAlgorithm.replace);
+      } else {
+        await tx.delete('product_stock_links', where:'purchase_product_id=?', whereArgs:[id]);
+      }
       final units=await tx.query('product_units',where:'product_id=?',whereArgs:[id],limit:1);
       if(units.isEmpty){
         await tx.insert('product_units',{'product_id':id,'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams});
