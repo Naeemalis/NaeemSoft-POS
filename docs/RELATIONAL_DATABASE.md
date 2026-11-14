@@ -33,7 +33,7 @@ erDiagram
   PRODUCTS ||--o{ STOCK_MOVEMENTS : stock_ledger
   SUPPLIERS ||--o{ PAYMENTS : receives
   CUSTOMERS ||--o{ PAYMENTS : makes
-  PAYMENTS ||--o{ PAYMENT_ALLOCATIONS : allocated_to
+  PAYMENTS ||--o| CUSTOMER_PAYMENT_LINKS : customer_party\n  CUSTOMERS ||--o{ CUSTOMER_PAYMENT_LINKS : receives\n  PAYMENTS ||--o| SUPPLIER_PAYMENT_LINKS : supplier_party\n  SUPPLIERS ||--o{ SUPPLIER_PAYMENT_LINKS : receives\n  PAYMENTS ||--o{ SALE_PAYMENT_ALLOCATIONS : allocated_to\n  SALES ||--o{ SALE_PAYMENT_ALLOCATIONS : receives\n  PAYMENTS ||--o{ PURCHASE_PAYMENT_ALLOCATIONS : allocated_to\n  PURCHASES ||--o{ PURCHASE_PAYMENT_ALLOCATIONS : receives
 ```
 
 ## Tables and their roles
@@ -51,7 +51,7 @@ erDiagram
 | `purchases` / `purchase_items` | Purchase invoice header and product lines | supplier → invoice → lines |
 | `sales` / `sale_items` | Sales invoice header and product lines | optional customer → invoice → lines |
 | `stock_movements` | Immutable stock movement ledger | product + exact source invoice line |
-| `payments` / `payment_allocations` | Cash receipts/payments and invoice allocation | party → payment → allocation |
+| `payments` | Payment event | parent of party and allocation junctions |\n| `customer_payment_links` / `supplier_payment_links` | Enforce payment-to-party foreign keys without polymorphic party references | payment ↔ one customer or supplier |\n| `sale_payment_allocations` / `purchase_payment_allocations` | Enforce payment-to-invoice foreign keys | payment ↔ sale or purchase invoice |
 | `waste_records` | Spoilage/damage records | product |
 | `returns` / `return_items` | Customer/supplier return documents | original invoice and product line |
 
@@ -93,6 +93,6 @@ erDiagram
 
 ## Implementation status
 
-Database schema version 11 introduces `product_stock_links` and exact invoice-line foreign-key references from stock movements. Existing `paired_sale_product_id` values are migrated into the bridge table. Existing invoice and account records are retained.
+Database schema version 12 introduces `product_stock_links`, exact invoice-line foreign-key references from stock movements, and typed payment-party/payment-invoice junction tables. Existing `paired_sale_product_id`, payment party references, and generic payment allocations are migrated into the relational bridge tables when their target records exist. Existing invoice and account records are retained. Legacy polymorphic payment columns remain temporarily for compatibility; new payment postings write both the legacy records and the typed junction rows.
 
 Remaining work: connect supplier-specific package weights directly to the purchase cashier selector, customer-specific price selection to the sales cashier, and finish end-to-end tests for returns, overpayments, and month-long operation scenarios.
