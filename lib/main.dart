@@ -212,7 +212,7 @@ String tr(String value) {
       'تم حفظ المرتجع رقم ':'Return saved #',
       'تعذر تحميل الحسابات: ':'Could not load accounts: ',
       'هذا ملخص للأرصدة والفواتير، وليس تقرير صافي ربح. حساب الربح يتطلب تكلفة فعلية ومصروفات مسجلة.':'This is an account and invoice summary, not a net-profit report. Profit requires actual costs and recorded expenses.',
-      'تعذر تحميل المسودات: ':'Could not load drafts: ',
+      'تعذر تحميل المسودات: ':'Could not load drafts: ','تعديل وزن ':'Edit weight ',' في هذه الفاتورة':' in this invoice','تكلفة الوحدة الافتراضية: ':'Default unit cost: ','بدون اسم':'Unnamed',,
       'ترحّل فواتير التوريد إلى المخزون، وتخصم فواتير البيع الكميات من الرصيد.':'Purchase invoices add stock; sales invoices deduct quantities.',
       'وحدة بيع':'Sales unit',
       'حُفظت مسودة فاتورة البيع رقم ':'Sales draft saved #',
@@ -520,7 +520,7 @@ String tr(String value) {
       'تم حفظ المرتجع رقم ':'Retour enregistré n° ',
       'تعذر تحميل الحسابات: ':'Impossible de charger les comptes : ',
       'هذا ملخص للأرصدة والفواتير، وليس تقرير صافي ربح. حساب الربح يتطلب تكلفة فعلية ومصروفات مسجلة.':'Ceci est un résumé des soldes et factures, pas un rapport de bénéfice net. Le bénéfice nécessite les coûts réels et les dépenses enregistrées.',
-      'تعذر تحميل المسودات: ':'Impossible de charger les brouillons : ',
+      'تعذر تحميل المسودات: ':'Impossible de charger les brouillons : ','تعديل وزن ':'Modifier le poids ',' في هذه الفاتورة':' dans cette facture','تكلفة الوحدة الافتراضية: ':'Coût unitaire par défaut : ','بدون اسم':'Sans nom',,
       'ترحّل فواتير التوريد إلى المخزون، وتخصم فواتير البيع الكميات من الرصيد.':'Les achats alimentent le stock ; les ventes déduisent les quantités.',
       'وحدة بيع':'Unité de vente',
       'حُفظت مسودة فاتورة البيع رقم ':'Brouillon de vente enregistré n° ',
@@ -909,7 +909,7 @@ class _PurchasePageState extends State<PurchasePage>{
      content:DropdownButtonFormField<String>(
       value:productUnits.any((x)=>x['unit_name']==choice)?choice:productUnits.first['unit_name'] as String,
       decoration:InputDecoration(labelText: tr('وحدة التوريد')),
-      items:productUnits.map((x)=>DropdownMenuItem<String>(value:x['unit_name'] as String,child:Text('${x['unit_name']} • ${((x['default_weight_grams'] as num)/1000).toStringAsFixed(3)} كجم'))).toList(),
+      items:productUnits.map((x)=>DropdownMenuItem<String>(value:x['unit_name'] as String,child:Text('${x['unit_name']} • ${((x['default_weight_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كيلو')}'))).toList(),
       onChanged:(v){if(v!=null)setChoice(()=>choice=v);},
      ),
      actions:[TextButton(onPressed:()=>Navigator.pop(c),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,choice),child:Text(tr('اختيار')))],
@@ -950,7 +950,7 @@ class _PurchasePageState extends State<PurchasePage>{
   final item=cart[index];
   final controller=TextEditingController(text:((item['weight_grams'] as int)/1000).toStringAsFixed(2));
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
-   title:Text('تعديل وزن ' + item['name'].toString() + ' في هذه الفاتورة'),
+   title:Text(tr('تعديل وزن ') + item['name'].toString() + tr(' في هذه الفاتورة')),
    content:field(controller,'وزن الوحدة بالكيلو',number:true),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('حفظ')))]));
   if(ok!=true)return;
@@ -1003,7 +1003,7 @@ class _PurchasePageState extends State<PurchasePage>{
     if(!s.hasData)return const Center(child:CircularProgressIndicator());
     if(s.data!.isEmpty)return Center(child:Text(tr('أضف الأصناف من الإدارة أولاً')));
     return ListView.builder(scrollDirection:Axis.horizontal,padding:const EdgeInsets.symmetric(horizontal:3),itemCount:s.data!.length,itemBuilder:(c,i){
-     final p=s.data![i];return SizedBox(width:w/7.2,child:Card(margin:const EdgeInsets.all(2),child:InkWell(onTap:posting||selectedSupplierId==null?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),Text(p['purchase_unit'] as String,style:const TextStyle(fontSize:9)),const Text('إضافة',style:TextStyle(fontSize:9))])))));
+     final p=s.data![i];return SizedBox(width:w/7.2,child:Card(margin:const EdgeInsets.all(2),child:InkWell(onTap:posting||selectedSupplierId==null?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),Text(p['purchase_unit'] as String,style:const TextStyle(fontSize:9)),Text(tr('إضافة'),style:TextStyle(fontSize:9))])))));
     });
    })),
    Expanded(child:Container(
@@ -1190,7 +1190,7 @@ class _ProductsPageState extends State<ProductsPage>{
    return ListView(children:s.data!.map((p)=>ListTile(
     leading:const Icon(Icons.category_outlined),
     title:Text(p['name'] as String),
-    subtitle:Text(p['product_type']=='purchase'?'${p['purchase_unit']} • تكلفة الوحدة الافتراضية: ${money(p['cost'] as num)}':'${p['purchase_unit']} • ${money(p['sale_price'] as num)} / كجم'),
+    subtitle:Text(p['product_type']=='purchase'?'${p['purchase_unit']} • ${tr('تكلفة الوحدة الافتراضية: ')}${money(p['cost'] as num)}':'${p['purchase_unit']} • ${money(p['sale_price'] as num)} / ${tr('كيلو')}'),
     trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);else if(v=='supplier')Navigator.push(context,MaterialPageRoute(builder:(_)=>SupplierPackageWeightsPage(product:p)));else if(v=='units')Navigator.push(context,MaterialPageRoute(builder:(_)=>ProductUnitsPage(product:p))).then((_){if(mounted)setState((){});});else archive(p);},itemBuilder:(_)=>[
      PopupMenuItem(value:'edit',child:Text(tr('تعديل الاسم والوزن والسعر'))),
      PopupMenuItem(value:'units',child:Text(tr('إدارة الوحدات والعبوات'))),
@@ -1476,7 +1476,7 @@ class PartyStatementPage extends StatefulWidget {
 class _PartyStatementPageState extends State<PartyStatementPage>{
  bool saving=false;
  DateTime? fromDate,toDate;
- String dateText(DateTime? d)=>d==null?'من البداية':DateFormat('yyyy-MM-dd').format(d);
+ String dateText(DateTime? d)=>d==null?tr('من البداية'):DateFormat('yyyy-MM-dd').format(d);
  Future<void> chooseDate(bool isFrom) async {
   final picked=await showDatePicker(context:context,initialDate:(isFrom?fromDate:toDate)??DateTime.now(),firstDate:DateTime(2000),lastDate:DateTime(2100));
   if(picked!=null&&mounted)setState(()=>isFrom?fromDate=picked:toDate=picked);
@@ -1943,7 +1943,7 @@ class _ReturnsPageState extends State<ReturnsPage>{
     if(!s.hasData)return const LinearProgressIndicator();
     return DropdownButtonFormField<int>(
      value:invoiceId,decoration:InputDecoration(labelText: tr('اختر الفاتورة الأصلية'),border:OutlineInputBorder()),
-     items:s.data!.map((x)=>DropdownMenuItem<int>(value:x['id'] as int,child:Text('#'+x['id'].toString()+' • '+(x['party_name']??'بدون اسم').toString()+' • '+money(x['total'] as num)))).toList(),
+     items:s.data!.map((x)=>DropdownMenuItem<int>(value:x['id'] as int,child:Text('#'+x['id'].toString()+' • '+(x['party_name']??tr('بدون اسم')).toString()+' • '+money(x['total'] as num)))).toList(),
      onChanged:(v){if(v!=null){setState(()=>invoiceId=v);loadItems(v);}},
     );
    }),
