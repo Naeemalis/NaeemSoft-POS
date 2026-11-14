@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'shop_db.dart';
 
-String _inventoryMoney(num value) => '\${value.round()} DJF';
-String _inventoryKg(num grams) => '\${(grams / 1000).toStringAsFixed(3)} كجم';
+String _inventoryMoney(num value) => '${value.round()} DJF';
+String _inventoryKg(num grams) => '${(grams / 1000).toStringAsFixed(3)} كجم';
 
 class InventoryCenterPage extends StatefulWidget {
   final VoidCallback onManageProducts;
@@ -25,9 +25,9 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('جرد \${product['name']}'),
+        title: Text('جرد ${product['name']}'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('الرصيد المسجل: \${_inventoryKg(current)}'),
+          Text('الرصيد المسجل: ${_inventoryKg(current)}'),
           const SizedBox(height: 10),
           TextField(
             controller: quantity,
@@ -88,7 +88,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
           child: Column(children: [
             Padding(
               padding: const EdgeInsets.all(14),
-              child: Text('حركة مخزون \${product['name']}', style: Theme.of(sheetContext).textTheme.titleLarge),
+              child: Text('حركة مخزون ${product['name']}', style: Theme.of(sheetContext).textTheme.titleLarge),
             ),
             const Divider(height: 1),
             Expanded(
@@ -105,10 +105,10 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                           grams >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
                           color: grams >= 0 ? Colors.green : Colors.orange,
                         ),
-                        title: Text('\${grams >= 0 ? '+' : ''}\${_inventoryKg(grams.abs())}'),
-                        subtitle: Text('\${movement['note'] ?? movement['movement_type']}\n$date'),
+                        title: Text('${grams >= 0 ? '+' : ''}${_inventoryKg(grams.abs())}'),
+                        subtitle: Text('${movement['note'] ?? movement['movement_type']}\n$date'),
                         isThreeLine: true,
-                        trailing: Text('\${(movement['value_delta_djf'] as num?)?.toInt() ?? 0} DJF'),
+                        trailing: Text('${(movement['value_delta_djf'] as num?)?.toInt() ?? 0} DJF'),
                       );
                     },
                   ),
@@ -128,7 +128,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
     body: FutureBuilder<List<Map<String, Object?>>>(
       future: _loadProducts(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: Text('تعذر تحميل المخزون: \${snapshot.error}'));
+        if (snapshot.hasError) return Center(child: Text('تعذر تحميل المخزون: ${snapshot.error}'));
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         final products = snapshot.data!;
         final totalGrams = products.fold<int>(0, (sum, p) => sum + (p['stock_grams'] as num).toInt());
@@ -138,7 +138,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
           Padding(
             padding: const EdgeInsets.all(10),
             child: Row(children: [
-              Expanded(child: _summaryCard('عدد الأصناف', '\${products.length}', Icons.category_outlined)),
+              Expanded(child: _summaryCard('عدد الأصناف', '${products.length}', Icons.category_outlined)),
               const SizedBox(width: 6),
               Expanded(child: _summaryCard('إجمالي الكمية', _inventoryKg(totalGrams), Icons.scale_outlined)),
               const SizedBox(width: 6),
@@ -148,7 +148,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Row(children: [
-              Expanded(child: Text('الأصناف المتاحة: \${products.length - noStock} • بلا رصيد: $noStock')),
+              Expanded(child: Text('الأصناف المتاحة: ${products.length - noStock} • بلا رصيد: $noStock')),
               FilledButton.tonalIcon(
                 onPressed: widget.onManageProducts,
                 icon: const Icon(Icons.tune),
@@ -168,10 +168,10 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                     final grams = (product['stock_grams'] as num).toInt();
                     final value = (product['inventory_value_djf'] as num?) ?? 0;
                     return ListTile(
-                      leading: CircleAvatar(child: Text('\${index + 1}')),
+                      leading: CircleAvatar(child: Text('${index + 1}')),
                       title: Text(product['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text('سعر البيع: \${_inventoryMoney((product['sale_price'] as num?) ?? 0)} / كجم'
-                        '\nقيمة المخزون: \${_inventoryMoney(value)}'),
+                      subtitle: Text('سعر البيع: ${_inventoryMoney((product['sale_price'] as num?) ?? 0)} / كجم'
+                        '\nقيمة المخزون: ${_inventoryMoney(value)}'),
                       isThreeLine: true,
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
