@@ -352,6 +352,29 @@ String tr(String value) {
       'مسودات التوريد':'Purchase drafts',
       'مسودة بيع #':'Sales draft #',
       'مسودة توريد #':'Purchase draft #',
+    
+      'التقارير':'Reports',
+      'نوع التقرير':'Report type',
+      'تقرير المبيعات اليومية':'Daily sales report',
+      'تقرير المخزون':'Inventory report',
+      'تقرير الأرباح والخسائر':'Profit and loss report',
+      'المؤشر':'Metric',
+      'القيمة':'Value',
+      'إجمالي المبيعات':'Total sales',
+      'مرتجعات الزبائن':'Customer returns',
+      'صافي المبيعات':'Net sales',
+      'المقبوض من المبيعات':'Sales received',
+      'المتبقي على الزبائن':'Customer balances due',
+      'مرتجعات الموردين':'Supplier returns',
+      'مجمل الربح بعد المرتجعات':'Gross profit after returns',
+      'المصروفات':'Expenses',
+      'صافي الربح التقديري':'Estimated net profit',
+      'تفاصيل فواتير البيع':'Sales invoice details',
+      'الزبون':'Customer',
+      'إجمالي الكمية: ':'Total quantity: ',
+      'معاينة / طباعة / مشاركة PDF':'Preview / print / share PDF',
+      'تعذر تحميل التقرير: ':'Could not load report: ',
+      'صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.':'Estimated net profit equals gross profit after returns minus recorded expenses for the period.',
     },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
@@ -679,6 +702,29 @@ String tr(String value) {
       'مسودات التوريد':'Brouillons d’achat',
       'مسودة بيع #':'Brouillon de vente n° ',
       'مسودة توريد #':'Brouillon d’achat n° ',
+    
+      'التقارير':'Rapports',
+      'نوع التقرير':'Type de rapport',
+      'تقرير المبيعات اليومية':'Rapport des ventes quotidiennes',
+      'تقرير المخزون':'Rapport de stock',
+      'تقرير الأرباح والخسائر':'Rapport des profits et pertes',
+      'المؤشر':'Indicateur',
+      'القيمة':'Valeur',
+      'إجمالي المبيعات':'Ventes totales',
+      'مرتجعات الزبائن':'Retours clients',
+      'صافي المبيعات':'Ventes nettes',
+      'المقبوض من المبيعات':'Encaissements des ventes',
+      'المتبقي على الزبائن':'Soldes clients dus',
+      'مرتجعات الموردين':'Retours fournisseurs',
+      'مجمل الربح بعد المرتجعات':'Marge brute après retours',
+      'المصروفات':'Dépenses',
+      'صافي الربح التقديري':'Bénéfice net estimé',
+      'تفاصيل فواتير البيع':'Détails des factures de vente',
+      'الزبون':'Client',
+      'إجمالي الكمية: ':'Quantité totale : ',
+      'معاينة / طباعة / مشاركة PDF':'Aperçu / imprimer / partager PDF',
+      'تعذر تحميل التقرير: ':'Impossible de charger le rapport : ',
+      'صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.':'Le bénéfice net estimé correspond à la marge brute après retours moins les dépenses enregistrées pour la période.',
     }
   };
   return translations[language]?[value] ?? value;
@@ -1169,7 +1215,7 @@ class AdminPage extends StatelessWidget {
   ),
   _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
   _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'المرتجعات',Icons.assignment_return,const ReturnsPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
-  _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage()),_link(c,'تنبيهات الصلاحية',Icons.warning_amber,const ExpiryAlertsPage())
+  _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage()),_link(c,'التقارير',Icons.analytics,const ReportsPage()),_link(c,'تنبيهات الصلاحية',Icons.warning_amber,const ExpiryAlertsPage())
  ]);
  Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(
   leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),
@@ -1994,6 +2040,192 @@ class AccountsPage extends StatelessWidget {
    ]);
   }),
 );
+}
+
+class ReportsPage extends StatefulWidget {
+ const ReportsPage({super.key});
+ @override State<ReportsPage> createState()=>_ReportsPageState();
+}
+
+class _ReportsPageState extends State<ReportsPage> {
+ late DateTimeRange range;
+ String reportType='sales';
+ @override void initState(){
+  super.initState();
+  final now=DateTime.now();
+  final today=DateTime(now.year,now.month,now.day);
+  range=DateTimeRange(start:today,end:today);
+ }
+ String day(DateTime value)=>DateFormat('yyyy-MM-dd').format(value);
+ Future<void> chooseRange() async {
+  final picked=await showDateRangePicker(
+   context:context,firstDate:DateTime(2000),lastDate:DateTime(2100),
+   initialDateRange:range,
+  );
+  if(picked!=null&&mounted)setState(()=>range=picked);
+ }
+ Future<Map<String,Object?>> load() async {
+  final db=ShopDb.instance.db;
+  if(reportType=='inventory'){
+   final products=await db.query('products',where:"product_type='sale' AND active=1",orderBy:'name');
+   final totalGrams=products.fold<int>(0,(sum,x)=>sum+(x['stock_grams'] as num).toInt());
+   final totalValue=products.fold<int>(0,(sum,x)=>sum+((x['inventory_value_djf'] as num?)?.toInt()??0));
+   return {'products':products,'total_grams':totalGrams,'total_value':totalValue};
+  }
+  final from=day(range.start),to=day(range.end);
+  final sales=await db.rawQuery(
+   "SELECT s.id,s.date,s.total,s.paid,COALESCE(c.name,?) customer_name FROM sales s LEFT JOIN customers c ON c.id=s.customer_id WHERE s.status='posted' AND substr(s.date,1,10) BETWEEN ? AND ? ORDER BY s.date,s.id",
+   [tr('نقدي / غير مسجل'),from,to]);
+  final purchases=await db.rawQuery(
+   "SELECT COALESCE(SUM(total),0) total,COALESCE(SUM(paid),0) paid FROM purchases WHERE status='posted' AND substr(date,1,10) BETWEEN ? AND ?",
+   [from,to]);
+  final customerReturns=await db.rawQuery(
+   "SELECT COALESCE(SUM(total),0) total,COALESCE(SUM(cash_paid),0) cash FROM returns WHERE return_type='customer' AND substr(date,1,10) BETWEEN ? AND ?",
+   [from,to]);
+  final supplierReturns=await db.rawQuery(
+   "SELECT COALESCE(SUM(total),0) total FROM returns WHERE return_type='supplier' AND substr(date,1,10) BETWEEN ? AND ?",
+   [from,to]);
+  final margin=await db.rawQuery(
+   "SELECT COALESCE(SUM(si.line_total-si.cost_total_djf),0) value FROM sale_items si JOIN sales s ON s.id=si.sale_id WHERE s.status='posted' AND substr(s.date,1,10) BETWEEN ? AND ?",
+   [from,to]);
+  final returnMargin=await db.rawQuery(
+   "SELECT COALESCE(SUM(ri.line_total-ROUND(ri.quantity_grams*ri.cost_per_kg/1000.0)),0) value FROM return_items ri JOIN returns r ON r.id=ri.return_id WHERE r.return_type='customer' AND substr(r.date,1,10) BETWEEN ? AND ?",
+   [from,to]);
+  final expenses=await db.rawQuery(
+   "SELECT COALESCE(SUM(amount),0) value FROM expenses WHERE substr(expense_date,1,10) BETWEEN ? AND ?",
+   [from,to]);
+  final salesTotal=sales.fold<num>(0,(sum,x)=>sum+(x['total'] as num));
+  final salesPaid=sales.fold<num>(0,(sum,x)=>sum+(x['paid'] as num));
+  final returnTotal=(customerReturns.first['total'] as num);
+  final supplierReturnTotal=(supplierReturns.first['total'] as num);
+  final grossProfit=(margin.first['value'] as num)-(returnMargin.first['value'] as num);
+  final expenseTotal=(expenses.first['value'] as num);
+  return {
+   'sales':sales,'sales_total':salesTotal,'sales_paid':salesPaid,
+   'sales_due':salesTotal-salesPaid,'customer_returns':returnTotal,
+   'net_sales':salesTotal-returnTotal,
+   'purchase_total':(purchases.first['total'] as num),
+   'purchase_paid':(purchases.first['paid'] as num),
+   'supplier_returns':supplierReturnTotal,
+   'net_purchases':(purchases.first['total'] as num)-supplierReturnTotal,
+   'gross_profit':grossProfit,'expenses':expenseTotal,
+   'net_profit':grossProfit-expenseTotal,
+   'customer_refunds':(customerReturns.first['cash'] as num),
+  };
+ }
+ Future<void> exportPdf(Map<String,Object?> data) async {
+  final inventory=reportType=='inventory';
+  final sales=reportType=='sales';
+  final title=tr(inventory?'تقرير المخزون':sales?'تقرير المبيعات اليومية':'تقرير الأرباح والخسائر');
+  final out=StringBuffer()
+   ..writeln('# NaeemSoft POS')
+   ..writeln('## $title')
+   ..writeln('**${tr('الفترة: ')}** ${day(range.start)} — ${day(range.end)}')
+   ..writeln('');
+  if(inventory){
+   out.writeln('| ${tr('اسم الصنف')} | ${tr('الكمية')} | ${tr('قيمة المخزون')} |');
+   out.writeln('|---|---:|---:|');
+   for(final p in data['products'] as List<Map<String,Object?>>){
+    out.writeln('| ${p['name']} | ${((p['stock_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كجم')} | ${money((p['inventory_value_djf'] as num?)??0)} |');
+   }
+   out.writeln('\n**${tr('إجمالي الكمية: ')}** ${((data['total_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كجم')}');
+   out.writeln('\n**${tr('قيمة المخزون: ')}** ${money(data['total_value'] as num)}');
+  }else{
+   out.writeln('| ${tr('المؤشر')} | ${tr('القيمة')} |');
+   out.writeln('|---|---:|');
+   final keys=sales
+    ? <String>['sales_total','customer_returns','net_sales','sales_paid','sales_due','purchase_total','supplier_returns']
+    : <String>['sales_total','customer_returns','gross_profit','expenses','net_profit'];
+   final labels={
+    'sales_total':'إجمالي المبيعات','customer_returns':'مرتجعات الزبائن',
+    'net_sales':'صافي المبيعات','sales_paid':'المقبوض من المبيعات',
+    'sales_due':'المتبقي على الزبائن','purchase_total':'إجمالي التوريد',
+    'supplier_returns':'مرتجعات الموردين','gross_profit':'مجمل الربح بعد المرتجعات',
+    'expenses':'المصروفات','net_profit':'صافي الربح التقديري',
+   };
+   for(final key in keys)out.writeln('| ${tr(labels[key]!)} | ${money(data[key] as num)} |');
+   if(sales){
+    out.writeln('\n### ${tr('تفاصيل فواتير البيع')}');
+    out.writeln('| # | ${tr('التاريخ')} | ${tr('الزبون')} | ${tr('الإجمالي')} | ${tr('المدفوع')} |');
+    out.writeln('|---:|---|---|---:|---:|');
+    for(final x in data['sales'] as List<Map<String,Object?>>){
+     out.writeln('| ${x['id']} | ${x['date']} | ${x['customer_name']} | ${money(x['total'] as num)} | ${money(x['paid'] as num)} |');
+    }
+   }
+  }
+  await FontResolver.preload(['تقرير المخزون','تقرير المبيعات اليومية','تقرير الأرباح والخسائر','إجمالي المبيعات','صافي الربح التقديري']);
+  final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(
+   title:title,author:'NaeemSoft POS',markdown:out.toString(),
+  ));
+  if(mounted)await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
+ }
+ Widget metric(String label,num value)=>Card(child:ListTile(
+  title:Text(tr(label)),trailing:Text(money(value),style:const TextStyle(fontWeight:FontWeight.bold)),
+ ));
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:Text(tr('التقارير'))),
+  body:Column(children:[
+   Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+    DropdownButtonFormField<String>(
+     value:reportType,decoration:InputDecoration(labelText:tr('نوع التقرير')),
+     items:[
+      DropdownMenuItem(value:'sales',child:Text(tr('تقرير المبيعات اليومية'))),
+      DropdownMenuItem(value:'inventory',child:Text(tr('تقرير المخزون'))),
+      DropdownMenuItem(value:'profit',child:Text(tr('تقرير الأرباح والخسائر'))),
+     ],
+     onChanged:(v){if(v!=null)setState(()=>reportType=v);},
+    ),
+    if(reportType!='inventory')Padding(
+     padding:const EdgeInsets.only(top:8),
+     child:OutlinedButton.icon(
+      onPressed:chooseRange,icon:const Icon(Icons.date_range),
+      label:Text('${day(range.start)} — ${day(range.end)}'),
+     ),
+    ),
+   ])),
+   Expanded(child:FutureBuilder<Map<String,Object?>>(
+    future:load(),builder:(context,s){
+     if(s.hasError)return Center(child:Text(tr('تعذر تحميل التقرير: ')+s.error.toString()));
+     if(!s.hasData)return const Center(child:CircularProgressIndicator());
+     final d=s.data!;
+     final inventory=reportType=='inventory',sales=reportType=='sales';
+     return ListView(padding:const EdgeInsets.fromLTRB(12,0,12,12),children:[
+      if(inventory)...[
+       metric('عدد الأصناف', (d['products'] as List).length),
+       metric('إجمالي الكمية',((d['total_grams'] as num)/1000)),
+       metric('قيمة المخزون',d['total_value'] as num),
+       ...(d['products'] as List<Map<String,Object?>>).map((p)=>ListTile(
+        title:Text(p['name'] as String),
+        subtitle:Text('${((p['stock_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كجم')}'),
+        trailing:Text(money((p['inventory_value_djf'] as num?)??0)),
+       )),
+      ]else if(sales)...[
+       metric('إجمالي المبيعات',d['sales_total'] as num),
+       metric('مرتجعات الزبائن',d['customer_returns'] as num),
+       metric('صافي المبيعات',d['net_sales'] as num),
+       metric('المقبوض من المبيعات',d['sales_paid'] as num),
+       metric('المتبقي على الزبائن',d['sales_due'] as num),
+       const Divider(),
+       ...((d['sales'] as List<Map<String,Object?>>).map((x)=>ListTile(
+        title:Text('${tr('فاتورة بيع رقم ')}${x['id']}'),
+        subtitle:Text('${x['date']} • ${x['customer_name']}'),
+        trailing:Text(money(x['total'] as num)),
+       ))),
+      ]else...[
+       metric('إجمالي المبيعات',d['sales_total'] as num),
+       metric('مرتجعات الزبائن',d['customer_returns'] as num),
+       metric('مجمل الربح بعد المرتجعات',d['gross_profit'] as num),
+       metric('المصروفات',d['expenses'] as num),
+       metric('صافي الربح التقديري',d['net_profit'] as num),
+       Text(tr('صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.'),style:const TextStyle(height:1.5)),
+      ],
+      const SizedBox(height:12),
+      FilledButton.icon(onPressed:()=>exportPdf(d),icon:const Icon(Icons.picture_as_pdf),label:Text(tr('معاينة / طباعة / مشاركة PDF'))),
+     ]);
+    },
+   )),
+  ]),
+ );
 }
 
 class DraftsPage extends StatefulWidget {
