@@ -631,7 +631,7 @@ class _PartiesPageState extends State<PartiesPage>{
 }
 Future<void> _showPaymentReceipt(BuildContext context,{required String type,required int paymentId,required String partyName,required int amount,required String note}) async {
  final customer=type=='customer';
- final md='# NaeemSoft POS\n\n## ${customer?'سند قبض من زبون':'سند سداد مورد'}\n\n- رقم السند: $paymentId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- المبلغ: ${money(amount)}\n- البيان: ${note.isEmpty?'سداد حساب':note}\n\nتم تسجيل العملية بنجاح.';
+ final md='''# NaeemSoft POS\n\n## ${customer?'سند قبض من زبون':'سند سداد مورد'}\n\n- رقم السند: $paymentId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- المبلغ: ${money(amount)}\n- البيان: ${note.isEmpty?'سداد حساب':note}\n\nتم تسجيل العملية بنجاح.''';
  final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'سند قبض':'سند سداد'} $paymentId',author:'NaeemSoft POS',markdown:md));
  if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
 }
@@ -1047,7 +1047,7 @@ Widget _invoiceAmount(String label,num amount)=>Padding(
 
 Future<void> _showReturnReceipt(BuildContext context,{required String type,required int returnId,required String partyName,required int amount}) async {
  final customer=type=='customer';
- final md='# NaeemSoft POS\n\n## ${customer?'سند مرتجع زبون':'سند إرجاع إلى المورد'}\n\n- رقم السند: $returnId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- قيمة المرتجع: ${money(amount)}\n\nتم تسجيل المرتجع وتحديث الحساب والمخزون.';
+ final md='''# NaeemSoft POS\n\n## ${customer?'سند مرتجع زبون':'سند إرجاع إلى المورد'}\n\n- رقم السند: $returnId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- قيمة المرتجع: ${money(amount)}\n\nتم تسجيل المرتجع وتحديث الحساب والمخزون.''';
  final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'مرتجع زبون':'مرتجع مورد'} $returnId',author:'NaeemSoft POS',markdown:md));
  if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
 }
