@@ -216,9 +216,30 @@ class _PurchasePageState extends State<PurchasePage>{
    return;
   }
   final count=packageCount;
-  final supplierUnit=await ShopDb.instance.db.query('supplier_product_units',where:'supplier_id=? AND product_id=? AND unit_name=?',whereArgs:[selectedSupplierId,p['id'],p['purchase_unit']],limit:1);
+  final productUnits=await ShopDb.instance.getProductUnits((p['id'] as num).toInt());
+  var selectedUnit=(p['purchase_unit']??'كيلو').toString();
+  if(productUnits.isNotEmpty){
+   final selected=await showDialog<String>(context:context,builder:(c){
+    var choice=selectedUnit;
+    return StatefulBuilder(builder:(c,setChoice)=>AlertDialog(
+     title:Text('اختر عبوة ${p['name']}'),
+     content:DropdownButtonFormField<String>(
+      value:productUnits.any((x)=>x['unit_name']==choice)?choice:productUnits.first['unit_name'] as String,
+      decoration:const InputDecoration(labelText:'وحدة التوريد'),
+      items:productUnits.map((x)=>DropdownMenuItem<String>(value:x['unit_name'] as String,child:Text('${x['unit_name']} • ${((x['default_weight_grams'] as num)/1000).toStringAsFixed(3)} كجم'))).toList(),
+      onChanged:(v){if(v!=null)setChoice(()=>choice=v);},
+     ),
+     actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,choice),child:const Text('اختيار'))],
+    ));
+   });
+   if(selected==null)return;
+   selectedUnit=selected;
+  }
+  final configuredUnit=productUnits.where((x)=>x['unit_name']==selectedUnit).toList();
+  final supplierUnit=await ShopDb.instance.db.query('supplier_product_units',where:'supplier_id=? AND product_id=? AND unit_name=?',whereArgs:[selectedSupplierId,p['id'],selectedUnit],limit:1);
   final supplierWeight=supplierUnit.isEmpty?null:(supplierUnit.first['weight_grams'] as num).toInt();
-  final weight=packageWeight>0?packageWeight:(supplierWeight??((p['default_weight'] as num)*1000).round());
+  final configuredWeight=configuredUnit.isEmpty?((p['default_weight'] as num)*1000).round():(configuredUnit.first['default_weight_grams'] as num).toInt();
+  final weight=packageWeight>0?packageWeight:(supplierWeight??configuredWeight);
   final stockLink=await ShopDb.instance.db.query('product_stock_links',where:'purchase_product_id=?',whereArgs:[p['id']],limit:1);
   final stockProduct=stockLink.isEmpty?null:(await ShopDb.instance.db.query('products',where:'id=?',whereArgs:[stockLink.first['stock_product_id']],limit:1)).firstOrNull;
   final needsExpiry=(p['requires_expiry'] as num?)?.toInt()==1 || (stockProduct?['requires_expiry'] as num?)?.toInt()==1;
@@ -236,7 +257,7 @@ class _PurchasePageState extends State<PurchasePage>{
    return;
   }
   setState((){
-   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':effectiveMode,'entered_cost':enteredCost,'expiry_date':lineExpiry});
+   cart.add({'product_id':p['id'],'name':p['name'],'unit':selectedUnit,'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':effectiveMode,'entered_cost':enteredCost,'expiry_date':lineExpiry});
    packageCount=0;packageWeight=0;packageCost=0;keypadValue='';expiryDate=null;
   });
  }
