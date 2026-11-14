@@ -2053,7 +2053,6 @@ class AccountsPage extends StatelessWidget {
   final b=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM purchases WHERE status='posted'");
   return [customerDue,supplierDue,s.first['v'] as num,b.first['v'] as num];
  }
- }
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(tr('ملخص الحسابات'))),
   body:FutureBuilder<List<num>>(future:load(),builder:(context,s){
