@@ -26,13 +26,17 @@ void main() {
 
   test('product units are configurable and preserve the default purchase unit', () async {
     final product = await shop.addProduct('بطاطس', 'جوان', 30000, 180);
+    final supplier=await shop.db.insert('suppliers',{'name':'مورد اختبار'});
     await shop.saveProductUnit(productId:product, unitName:'كيس', weightGrams:25000);
+    await shop.saveSupplierProductUnit(supplierId:supplier,productId:product,unitName:'كيس',weightGrams:24000);
     final units = await shop.getProductUnits(product);
     expect(units.map((x)=>x['unit_name']), containsAll(['جوان','كيس']));
     final bag = units.singleWhere((x)=>x['unit_name']=='كيس');
     expect(bag['default_weight_grams'], 25000);
     await shop.updateProductUnit(unitId:bag['id'] as int,productId:product,unitName:'كيس كبير',weightGrams:27000);
     expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']),contains('كيس كبير'));
+    final supplierUnit=await shop.db.query('supplier_product_units',where:'supplier_id=? AND product_id=?',whereArgs:[supplier,product]);
+    expect(supplierUnit.single['unit_name'],'كيس كبير');
     await shop.saveProductUnit(productId:product, unitName:'جوان', weightGrams:35000);
     final row = (await shop.db.query('products',where:'id=?',whereArgs:[product])).single;
     expect((row['default_weight'] as num).toDouble(), 35);
