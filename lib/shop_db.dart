@@ -301,6 +301,32 @@ class ShopDb {
     });
   }
 
+
+  Future<List<Map<String, Object?>>> getProductUnits(int productId) =>
+      db.query('product_units', where:'product_id=?', whereArgs:[productId], orderBy:'id');
+
+  Future<void> saveProductUnit({required int productId, required String unitName, required int weightGrams}) async {
+    final name=unitName.trim();
+    if(name.isEmpty || weightGrams<=0) throw Exception('اسم الوحدة والوزن يجب أن يكونا صحيحين');
+    await db.transaction((tx) async {
+      await tx.insert('product_units', {'product_id':productId,'unit_name':name,'default_weight_grams':weightGrams}, conflictAlgorithm:ConflictAlgorithm.replace);
+      final product=(await tx.query('products',columns:['purchase_unit'],where:'id=?',whereArgs:[productId],limit:1));
+      if(product.isNotEmpty && product.first['purchase_unit']==name) {
+        await tx.update('products',{'default_weight':weightGrams/1000},where:'id=?',whereArgs:[productId]);
+      }
+    });
+  }
+
+  Future<void> deleteProductUnit(int unitId,{required int productId}) async {
+    final row=await db.query('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId],limit:1);
+    if(row.isEmpty) return;
+    final product=(await db.query('products',columns:['purchase_unit'],where:'id=?',whereArgs:[productId],limit:1));
+    if(product.isNotEmpty && product.first['purchase_unit']==row.first['unit_name']) {
+      throw Exception('لا يمكن حذف الوحدة الافتراضية للصنف');
+    }
+    await db.delete('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId]);
+  }
+
   Future<void> saveSupplierProductUnit({
     required int supplierId,
     required int productId,
