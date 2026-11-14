@@ -100,4 +100,30 @@ void main() {
     final stock = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
     expect(stock.single['stock_grams'], 9000);
   });
+
+  test('stock count adjustment records positive and negative movements', () async {
+    final product = await shop.addProduct('بطاطس', 'كيلو', 1000, 300, cost: 200);
+    await shop.setCountedStock(productId: product, countedGrams: 10000, note: 'جرد أولي');
+    var row = (await shop.db.query('products', where: 'id=?', whereArgs: [product])).single;
+    expect(row['stock_grams'], 10000);
+    expect(row['inventory_value_djf'], 2000);
+
+    await shop.setCountedStock(productId: product, countedGrams: 8500, note: 'نقص بالجرد');
+    row = (await shop.db.query('products', where: 'id=?', whereArgs: [product])).single;
+    expect(row['stock_grams'], 8500);
+    expect(row['inventory_value_djf'], 1700);
+
+    final movements = await shop.db.query('stock_movements', where: 'product_id=?', whereArgs: [product], orderBy: 'id');
+    expect(movements, hasLength(2));
+    expect(movements[0]['quantity_grams'], 10000);
+    expect(movements[1]['quantity_grams'], -1500);
+    expect(movements[1]['value_delta_djf'], -300);
+  });
+
+  test('stock count does not create a movement when quantity is unchanged', () async {
+    final product = await shop.addProduct('جزر', 'كيلو', 1000, 250);
+    await shop.setCountedStock(productId: product, countedGrams: 0);
+    expect(await shop.db.query('stock_movements'), isEmpty);
+  });
+
 }
