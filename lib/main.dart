@@ -9,6 +9,7 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:screenshot/screenshot.dart';
 import 'shop_db.dart';
+import 'inventory_center.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,7 +44,7 @@ class _MainShellState extends State<MainShell>{
    NavigationDestination(icon:Icon(Icons.home_outlined),label:'الرئيسية'),
    NavigationDestination(icon:Icon(Icons.point_of_sale),label:'بيع'),
    NavigationDestination(icon:Icon(Icons.add_shopping_cart),label:'توريد'),
-   NavigationDestination(icon:Icon(Icons.inventory_2_outlined),label:'المخزون'),
+   NavigationDestination(icon:Icon(Icons.inventory_2_outlined),label:'الأصناف والكميات'),
    NavigationDestination(icon:Icon(Icons.settings_outlined),label:'الإدارة')]));
 }
 class DashboardPage extends StatelessWidget {
@@ -331,10 +332,16 @@ class PurchaseInvoiceReviewPage extends StatelessWidget {
   ]));
 }
 
-class StockPage extends StatelessWidget {const StockPage({super.key});@override Widget build(BuildContext c)=>FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name'),builder:(c,s){
- if(!s.hasData)return const Center(child:CircularProgressIndicator());
- return ListView(children:s.data!.map((p)=>ListTile(title:Text(p['name'] as String),subtitle:Text('سعر البيع: '+money(p['sale_price'] as num)+' / كجم'),trailing:Text(kg(p['stock_grams'] as num)))).toList());
-});}
+class StockPage extends StatelessWidget {
+  const StockPage({super.key});
+  @override
+  Widget build(BuildContext context) => InventoryCenterPage(
+    onManageProducts: () => Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ProductsPage()),
+    ),
+  );
+}
 class AdminPage extends StatelessWidget {const AdminPage({super.key});@override Widget build(BuildContext c)=>ListView(children:[
  _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
  _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'المرتجعات',Icons.assignment_return,const ReturnsPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
