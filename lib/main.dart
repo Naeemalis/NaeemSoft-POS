@@ -465,8 +465,9 @@ class _ProductsPageState extends State<ProductsPage>{
     leading:const Icon(Icons.category_outlined),
     title:Text(p['name'] as String),
     subtitle:Text(p['product_type']=='purchase'?'${p['purchase_unit']} • تكلفة الوحدة الافتراضية: ${money(p['cost'] as num)}':'${p['purchase_unit']} • ${money(p['sale_price'] as num)} / كجم'),
-    trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);else if(v=='supplier')Navigator.push(context,MaterialPageRoute(builder:(_)=>SupplierPackageWeightsPage(product:p)));else archive(p);},itemBuilder:(_)=>[
+    trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);else if(v=='supplier')Navigator.push(context,MaterialPageRoute(builder:(_)=>SupplierPackageWeightsPage(product:p)));else if(v=='units')Navigator.push(context,MaterialPageRoute(builder:(_)=>ProductUnitsPage(product:p))).then((_){if(mounted)setState((){});});else archive(p);},itemBuilder:(_)=>[
      const PopupMenuItem(value:'edit',child:Text('تعديل الاسم والوزن والسعر')),
+     const PopupMenuItem(value:'units',child:Text('إدارة الوحدات والعبوات')),
      if(p['product_type']=='purchase')const PopupMenuItem(value:'supplier',child:Text('أوزان العبوات حسب المورد')),
      const PopupMenuItem(value:'delete',child:Text('حذف الصنف')),
     ]),
@@ -510,6 +511,72 @@ class _CategoriesPageState extends State<CategoriesPage>{
    )).toList());
   }),
   floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة تصنيف')));
+}
+
+
+class ProductUnitsPage extends StatefulWidget {
+ final Map<String,Object?> product;
+ const ProductUnitsPage({super.key,required this.product});
+ @override State<ProductUnitsPage> createState()=>_ProductUnitsPageState();
+}
+class _ProductUnitsPageState extends State<ProductUnitsPage>{
+ final name=TextEditingController();
+ final weight=TextEditingController();
+ int? editingId;
+ String? editingName;
+ Future<List<Map<String,Object?>>> get units=>ShopDb.instance.getProductUnits((widget.product['id'] as num).toInt());
+ Future<void> editUnit([Map<String,Object?>? unit]) async {
+  name.text=(unit?['unit_name']??'').toString();
+  weight.text=unit==null?'':(((unit['default_weight_grams'] as num).toDouble())/1000).toStringAsFixed(3);
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:Text(unit==null?'إضافة وحدة أو عبوة':'تعديل الوحدة'),
+   content:Column(mainAxisSize:MainAxisSize.min,children:[
+    field(name,'اسم الوحدة (كيس، جوان، حزمة، كرتون...)'),
+    field(weight,'الوزن أو معامل التحويل بالكيلو',number:true),
+    const Align(alignment:Alignment.centerRight,child:Text('أدخل ما تعادله الوحدة بالكيلوغرام. مثال: كيس 25 كجم = 25')),
+   ]),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حفظ'))]));
+  if(ok!=true)return;
+  final grams=((double.tryParse(weight.text.trim().replaceAll(',','.'))??0)*1000).round();
+  try{
+   await ShopDb.instance.saveProductUnit(productId:(widget.product['id'] as num).toInt(),unitName:name.text,weightGrams:grams);
+   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ الوحدة ومعامل تحويلها')));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحفظ: $e')));}
+ }
+ Future<void> remove(Map<String,Object?> unit) async {
+  final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
+   title:const Text('حذف الوحدة؟'),
+   content:Text('سيتم حذف وحدة «${unit['unit_name']}» من إعدادات الصنف.'),
+   actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('حذف'))]));
+  if(ok!=true)return;
+  try{await ShopDb.instance.deleteProductUnit((unit['id'] as num).toInt(),productId:(widget.product['id'] as num).toInt());if(mounted)setState((){});}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:Text('وحدات وعبوات • ${widget.product['name']}')),
+  floatingActionButton:FloatingActionButton.extended(onPressed:()=>editUnit(),icon:const Icon(Icons.add),label:const Text('إضافة وحدة')),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:units,builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل الوحدات: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   if(s.data!.isEmpty)return const Center(child:Text('لا توجد وحدات معرفة لهذا الصنف'));
+   return ListView(padding:const EdgeInsets.all(12),children:[
+    Card(child:Padding(padding:const EdgeInsets.all(12),child:Text('الصنف: ${widget.product['name']}\nكل وحدة تسجل بمعامل تحويل إلى الكيلوغرام، ويُستخدم وزن المورد إذا كان له وزن خاص لهذه العبوة.'))),
+    ...s.data!.map((x){
+     final isBase=x['unit_name']==widget.product['purchase_unit'];
+     final kg=((x['default_weight_grams'] as num).toDouble()/1000);
+     return Card(child:ListTile(
+      leading:const Icon(Icons.inventory_2_outlined),
+      title:Text(x['unit_name'].toString()),
+      subtitle:Text('${kg.toStringAsFixed(3)} كجم • ${isBase?'الوحدة الافتراضية':''}'),
+      trailing:Wrap(spacing:0,children:[
+       IconButton(tooltip:'تعديل',onPressed:()=>editUnit(x),icon:const Icon(Icons.edit_outlined)),
+       if(!isBase)IconButton(tooltip:'حذف',onPressed:()=>remove(x),icon:const Icon(Icons.delete_outline)),
+      ]),
+     ));
+    }),
+   ]);
+  }),
+ );
 }
 
 class SupplierPackageWeightsPage extends StatefulWidget {
