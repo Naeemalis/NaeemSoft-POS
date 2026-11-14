@@ -201,7 +201,7 @@ String tr(String value) {
       'تعذر حفظ البيانات: ':'Could not save data: ',
       'سيختفي':'This record will disappear',
       'من قوائم الاختيار، مع الاحتفاظ بفواتيره وكشف حسابه.':'from selection lists; its invoices and statement will be retained.',
-      'تعذر تحميل القائمة: ':'Could not load list: ',
+      'تعذر تحميل القائمة: ':'Could not load list: ','مستحق للمورد • على المحل':'Due to supplier • payable by shop','رصيد دائن • للمحل عند المورد':'Supplier credit • held by supplier','مدين • عليه للمحل':'Customer owes the shop','دائن • للمحل عليه':'Customer credit • owed by shop','صفر • الحساب مسدد':'Zero • settled',
       'حالة الحساب: جارٍ الحساب…':'Account status: calculating…',
       'الرصيد: ':'Balance: ',
       'تعذر تسجيل الدفعة: ':'Could not record payment: ',
@@ -507,7 +507,7 @@ String tr(String value) {
       'تعذر حفظ البيانات: ':'Impossible d’enregistrer les données : ',
       'سيختفي':'Cet enregistrement disparaîtra',
       'من قوائم الاختيار، مع الاحتفاظ بفواتيره وكشف حسابه.':'des listes ; ses factures et son relevé seront conservés.',
-      'تعذر تحميل القائمة: ':'Impossible de charger la liste : ',
+      'تعذر تحميل القائمة: ':'Impossible de charger la liste : ','مستحق للمورد • على المحل':'Dû au fournisseur • payable par le magasin','رصيد دائن • للمحل عند المورد':'Crédit du magasin chez le fournisseur','مدين • عليه للمحل':'Client débiteur • dû au magasin','دائن • للمحل عليه':'Crédit client • dû par le magasin','صفر • الحساب مسدد':'Zéro • soldé',
       'حالة الحساب: جارٍ الحساب…':'État du compte : calcul en cours…',
       'الرصيد: ':'Solde : ',
       'تعذر تسجيل الدفعة: ':'Impossible d’enregistrer le paiement : ',
@@ -1378,27 +1378,8 @@ class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>
 
 class PartiesPage extends StatefulWidget {final String type;const PartiesPage({super.key,required this.type});@override State<PartiesPage> createState()=>_PartiesPageState();}
 class _PartiesPageState extends State<PartiesPage>{
- Future<num> customerBalance(int id) async {
-  final db=ShopDb.instance.db;
-  final partyRows=await db.query('customers',where:'id=?',whereArgs:[id],limit:1);
-  if(partyRows.isEmpty)return 0;
-  num balance=(partyRows.first['opening_balance'] as num?)??0;
-  final invoices=await db.query('sales',where:"customer_id=? AND status='posted'",whereArgs:[id]);
-  for(final x in invoices){balance+=(x['total'] as num?)??0;balance-=(x['paid'] as num?)??0;}
-  final payments=await db.query('payments',where:'party_type=? AND party_id=?',whereArgs:['customer',id]);
-  final allocationRows=await db.rawQuery('SELECT COALESCE(SUM(amount),0) AS total FROM payment_allocations WHERE invoice_type=? AND invoice_id IN (SELECT id FROM sales WHERE customer_id=?)',['sale',id]);
-  final allocated=(allocationRows.first['total'] as num?)??0;
-  final separatePayments=payments.fold<num>(0,(sum,x)=>sum+((x['amount'] as num?)??0));
-  // Invoice paid already contains allocated payments; subtract only payments not allocated to invoices.
-  balance-=separatePayments-allocated;
-  final returns=await db.query('returns',where:'customer_id=?',whereArgs:[id]);
-  for(final x in returns){
-   final total=(x['total'] as num?)??0;
-   final cash=(x['cash_paid'] as num?)??0;
-   balance-=total-cash;
-  }
-  return balance;
- }
+ Future<num> partyBalance(int id) =>
+  ShopDb.instance.getPartyBalance(type:widget.type,partyId:id);
 
  Future<void> edit(Map<String,Object?>? party)async{
   final n=TextEditingController(text:(party?['name']??'').toString()),phone=TextEditingController(text:(party?['phone']??'').toString());
@@ -1434,18 +1415,19 @@ class _PartiesPageState extends State<PartiesPage>{
     return ListView(children:s.data!.map((x)=>ListTile(
      leading:const Icon(Icons.person_outline),
      title:Text(x['name'] as String),
-     subtitle:customer
-      ? Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
-         FutureBuilder<num>(future:customerBalance(x['id'] as int),builder:(context,balanceSnap){
-          if(!balanceSnap.hasData)return Text(tr('حالة الحساب: جارٍ الحساب…'),style:TextStyle(fontSize:12));
-          final balance=balanceSnap.data!;
-          final label=balance>0?'مدين • عليه للمحل':balance<0?'دائن • للمحل عليه':'صفر • الحساب مسدد';
-          final color=balance>0?Colors.red:balance<0?Colors.green:Colors.grey;
-          return Text('${tr('حالة الحساب: ')}$label  |  ${tr('الرصيد: ')}${money(balance.abs())}',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:color));
-         }),
-         if((x['phone']??'').toString().isNotEmpty)Text(x['phone'].toString()),
-        ])
-      :Text((x['phone']??'').toString()),
+     subtitle:Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
+       FutureBuilder<num>(future:partyBalance((x['id'] as num).toInt()),builder:(context,balanceSnap){
+        if(!balanceSnap.hasData)return Text(tr('حالة الحساب: جارٍ الحساب…'),style:TextStyle(fontSize:12));
+        final balance=balanceSnap.data!;
+        final label=balance==0?tr('صفر • الحساب مسدد'):
+          customer?(balance>0?tr('مدين • عليه للمحل'):tr('دائن • للمحل عليه')):
+          (balance>0?tr('مستحق للمورد • على المحل'):tr('رصيد دائن • للمحل عند المورد'));
+        final color=balance==0?Colors.grey:(balance>0?Colors.red:Colors.green);
+        return Text('${tr('حالة الحساب: ')}$label  |  ${tr('الرصيد: ')}${money(balance.abs())}',
+          style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:color));
+       }),
+       if((x['phone']??'').toString().isNotEmpty)Text(x['phone'].toString()),
+      ]),
      trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(x):archive(x),itemBuilder:(_)=>[
       PopupMenuItem(value:'edit',child:Text(tr('تعديل الاسم والهاتف'))),
       PopupMenuItem(value:'delete',child:Text(tr('حذف'))),
@@ -1539,28 +1521,9 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   if(ok!=true||value<=0)return;
   setState(()=>saving=true);
   try{
-   int savedPaymentId=0;
-   await ShopDb.instance.db.transaction((tx) async {
-    final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
-    savedPaymentId=paymentId;
-    if(widget.type=='customer') await tx.insert('customer_payment_links',{'payment_id':paymentId,'customer_id':widget.partyId});
-    else await tx.insert('supplier_payment_links',{'payment_id':paymentId,'supplier_id':widget.partyId});
-    final customer=widget.type=='customer',invoiceType=customer?'sale':'purchase';
-    final invoiceTable=customer?'sales':'purchases',partyColumn=customer?'customer_id':'supplier_id';
-    final invoices=await tx.query(invoiceTable,where:'$partyColumn=? AND status=?',whereArgs:[widget.partyId,'posted'],orderBy:'date ASC,id ASC');
-    var remaining=value;
-    for(final invoice in invoices){
-     if(remaining<=0)break;
-     final due=((invoice['total'] as num)-(invoice['paid'] as num)).toInt();
-     if(due<=0)continue;
-     final allocated=remaining<due?remaining:due;
-     await tx.update(invoiceTable,{'paid':(invoice['paid'] as num).toInt()+allocated},where:'id=?',whereArgs:[invoice['id']]);
-     await tx.insert('payment_allocations',{'payment_id':paymentId,'invoice_type':invoiceType,'invoice_id':invoice['id'],'amount':allocated});
-     if(customer) await tx.insert('sale_payment_allocations',{'payment_id':paymentId,'sale_id':invoice['id'],'amount':allocated});
-     else await tx.insert('purchase_payment_allocations',{'payment_id':paymentId,'purchase_id':invoice['id'],'amount':allocated});
-     remaining-=allocated;
-    }
-   });
+   final savedPaymentId=await ShopDb.instance.recordPartyPayment(
+    type:widget.type,partyId:widget.partyId,amount:value,note:note.text.trim(),
+   );
    if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم تسجيل السداد وتوزيعه على أقدم الفواتير المستحقة')))); await _showPaymentReceipt(context,type:widget.type,paymentId:savedPaymentId,partyName:(await ShopDb.instance.db.query(widget.type=='customer'?'customers':'suppliers',where:'id=?',whereArgs:[widget.partyId],limit:1)).first['name'].toString(),amount:value,note:note.text.trim());}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر تسجيل الدفعة: ')+e.toString())));}
   finally{if(mounted)setState(()=>saving=false);}
