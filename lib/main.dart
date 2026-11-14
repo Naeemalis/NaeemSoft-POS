@@ -2040,13 +2040,19 @@ class AccountsPage extends StatelessWidget {
  const AccountsPage({super.key});
  Future<List<num>> load() async {
   final db=ShopDb.instance.db;
-  final r=await db.rawQuery("SELECT COALESCE(SUM(total-paid),0) v FROM sales WHERE status='posted'");
-  final p=await db.rawQuery("SELECT COALESCE(SUM(total-paid),0) v FROM purchases WHERE status='posted'");
-  final cr=await db.rawQuery("SELECT COALESCE(SUM(total-cash_paid),0) v FROM returns WHERE return_type='customer'");
-  final sr=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM returns WHERE return_type='supplier'");
+  final customers=await db.query('customers');
+  final suppliers=await db.query('suppliers');
+  num customerDue=0,supplierDue=0;
+  for(final party in customers){
+   customerDue+=await ShopDb.instance.getPartyBalance(type:'customer',partyId:(party['id'] as num).toInt());
+  }
+  for(final party in suppliers){
+   supplierDue+=await ShopDb.instance.getPartyBalance(type:'supplier',partyId:(party['id'] as num).toInt());
+  }
   final s=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM sales WHERE status='posted'");
   final b=await db.rawQuery("SELECT COALESCE(SUM(total),0) v FROM purchases WHERE status='posted'");
-  return [(r.first['v'] as num)-(cr.first['v'] as num),(p.first['v'] as num)-(sr.first['v'] as num),s.first['v'] as num,b.first['v'] as num];
+  return [customerDue,supplierDue,s.first['v'] as num,b.first['v'] as num];
+ }
  }
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(tr('ملخص الحسابات'))),
