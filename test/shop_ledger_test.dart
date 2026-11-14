@@ -48,6 +48,7 @@ void main() {
     final removable = refreshed.singleWhere((x)=>x['unit_name']=='كيس كبير');
     await shop.deleteProductUnit(removable['id'] as int,productId:product);
     expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']), isNot(contains('كيس كبير')));
+    expect(await shop.db.query('supplier_product_units',where:'product_id=? AND unit_name=?',whereArgs:[product,'كيس كبير']),isEmpty);
   });
 
   test('supplier invoice increases stock of its linked sales product', () async {
