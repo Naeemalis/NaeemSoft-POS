@@ -639,12 +639,16 @@ class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>
      );
     }),
     const SizedBox(height:8),
-    DropdownButtonFormField<String>(
-     value:unitName,decoration:const InputDecoration(labelText:'نوع العبوة'),
-     items:const ['جوان','كيس','سحارة','حزمة','صندوق','كرتون','كيلو']
-      .map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),
-     onChanged:(v){if(v!=null)setState(()=>unitName=v);},
-    ),
+    FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.getProductUnits((widget.product['id'] as num).toInt()),builder:(c,unitSnapshot){
+     final configured=unitSnapshot.data??[];
+     final names=configured.isEmpty?const ['جوان','كيس','سحارة','حزمة','صندوق','كرتون','كيلو']:configured.map((x)=>x['unit_name'].toString()).toList();
+     final value=names.contains(unitName)?unitName:names.first;
+     return DropdownButtonFormField<String>(
+      value:value,decoration:const InputDecoration(labelText:'نوع العبوة'),
+      items:names.map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),
+      onChanged:(v){if(v!=null)setState(()=>unitName=v);},
+     );
+    }),
     const SizedBox(height:8),
     field(weight,'وزن العبوة بالكيلو',number:true),
     const SizedBox(height:8),
