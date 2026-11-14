@@ -82,7 +82,7 @@ class _SalePageState extends State<SalePage>{
  int? activeDraftId;
  int? selectedCustomerId;
  bool posting=false;
- String keypadValue=''; String saleMode='weight';
+ String keypadValue=''; String saleMode='weight'; String selectedSaleUnitName='كيلو'; int selectedSaleUnitWeightGrams=1000;
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(k=='½')keypadValue='0.5';else if(k=='¼')keypadValue='0.25';else if(k=='1 كجم')keypadValue='1';else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
  Future<void> changeCustomer(int? customerId) async {
   final updated=<int,Map<String,dynamic>>{};
@@ -103,11 +103,39 @@ class _SalePageState extends State<SalePage>{
    final custom=await ShopDb.instance.db.query('customer_product_prices',where:'customer_id=? AND product_id=? AND active=1',whereArgs:[selectedCustomerId,p['id']],limit:1);
    if(custom.isNotEmpty) price=(custom.first['price_per_kg'] as num).round();
   }
+  final id=(p['id'] as num).toInt();
+  var unitName='كيلو',unitWeight=1000;
+  if(saleMode=='weight'){
+   final units=await ShopDb.instance.getProductUnits(id);
+   if(units.isNotEmpty){
+    final defaultName=(p['purchase_unit']??'كيلو').toString();
+    final initial=units.firstWhere((x)=>x['unit_name']==defaultName,orElse:()=>units.first);
+    final chosen=units.length==1?initial:await showDialog<Map<String,Object?>>(context:context,builder:(c){
+     var selected=(initial['id'] as num).toInt();
+     return StatefulBuilder(builder:(c,setChoice)=>AlertDialog(
+      title:Text('وحدة بيع ${p['name']}'),
+      content:DropdownButtonFormField<int>(
+       value:selected,
+       decoration:const InputDecoration(labelText:'اختر وحدة الكمية'),
+       items:units.map((x)=>DropdownMenuItem<int>(value:(x['id'] as num).toInt(),child:Text('${x['unit_name']} • ${((x['default_weight_grams'] as num)/1000).toStringAsFixed(3)} كجم'))).toList(),
+       onChanged:(v){if(v!=null)setChoice(()=>selected=v);},
+      ),
+      actions:[TextButton(onPressed:()=>Navigator.pop(c),child:const Text('إلغاء')),FilledButton(onPressed:()=>Navigator.pop(c,units.firstWhere((x)=>(x['id'] as num).toInt()==selected)),child:const Text('اختيار'))],
+     ));
+    });
+    if(chosen==null)return;
+    unitName=chosen['unit_name'].toString();
+    unitWeight=(chosen['default_weight_grams'] as num).toInt();
+   }
+  }
   final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
-  final grams=saleMode=='weight'?(value*1000).round():(price>0?(value*1000/price).round():0);
-  final id=p['id'] as int, old=cart[id]?['grams'] as int? ?? 0;
-  if(grams<=0||price<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية وسعراً صحيحين')));return;}
-  setState((){cart[id]={'product_id':id,'name':p['name'],'grams':old+grams,'price_per_kg':price};keypadValue='';});
+  final grams=ShopDb.calculateSaleGrams(enteredValue:value,mode:saleMode,unitWeightGrams:unitWeight,pricePerKg:price);
+  final old=cart[id]?['grams'] as int? ?? 0;
+  if(grams<=0||price<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية أو مبلغاً وسعراً صحيحاً')));return;}
+  setState(){
+   cart[id]={'product_id':id,'name':p['name'],'grams':old+grams,'price_per_kg':price,'unit_name':unitName};
+   selectedSaleUnitName=unitName;selectedSaleUnitWeightGrams=unitWeight;keypadValue='';
+  });
  }
  int get total=>cart.values.fold(0,(v,x)=>v+(((x['grams'] as int)*(x['price_per_kg'] as int))/1000).round());
  Future<void> saveDraft() async {
@@ -183,7 +211,7 @@ class _SalePageState extends State<SalePage>{
        SizedBox(width:22,child:Text('${entry.key+1}.',style:const TextStyle(fontSize:11,color:Colors.grey))),
        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13)),
-        Text('الكمية: ${kg(grams)} كيلو • سعر الكيلو: ${money(price)}',style:const TextStyle(fontSize:11,color:Colors.grey))
+        Text('الكمية: ${kg(grams)} كيلو • الوحدة: ${x['unit_name']??'كيلو'} • سعر الكيلو: ${money(price)}',style:const TextStyle(fontSize:11,color:Colors.grey))
        ])),
        Column(crossAxisAlignment:CrossAxisAlignment.end,children:[const Text('إجمالي الصنف',style:TextStyle(fontSize:9,color:Colors.grey)),Text(money((grams*price/1000).round()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12))]),
        IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:28,height:28),iconSize:15,onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id'])),icon:const Icon(Icons.close))
@@ -194,7 +222,7 @@ class _SalePageState extends State<SalePage>{
     ])
    )),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
-    Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'أدخل الرقم':keypadValue)+(saleMode=='cash'?' DJF':' كجم'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
+    Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text('وزن')),ButtonSegment(value:'cash',label:Text('نقد'))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),const SizedBox(width:6),Text((keypadValue.isEmpty?'أدخل الرقم':keypadValue)+(saleMode=='cash'?' DJF':' × ${selectedSaleUnitName}'),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
     cashierNumberPad(keys:['7','8','9','⌫','4','5','6','مسح','1','2','3',if(saleMode=='weight')'½' else '.','0','.',if(saleMode=='weight')'¼' else '00',if(saleMode=='weight')'1 كجم' else 'مسح'],onKey:key),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:const Text('مسودة'))),const SizedBox(width:5),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:const Text('المسودات')))]),
     SizedBox(width:double.infinity,height:42,child:FilledButton(onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع')))
