@@ -966,7 +966,7 @@ class AdminPage extends StatelessWidget {
    subtitle:Text(tr('العربية • English • Français')),
    trailing:DropdownButton<String>(
     value:appLocale.value.languageCode,
-    items:const [
+    items: [
      DropdownMenuItem(value:'ar',child:Text(tr('العربية'))),
      DropdownMenuItem(value:'en',child:Text('English')),
      DropdownMenuItem(value:'fr',child:Text('Français')),
@@ -1295,7 +1295,7 @@ class _PartiesPageState extends State<PartiesPage>{
          if((x['phone']??'').toString().isNotEmpty)Text(x['phone'].toString()),
         ])
       :Text((x['phone']??'').toString()),
-     trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(x):archive(x),itemBuilder:(_)=>const[
+     trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(x):archive(x),itemBuilder:(_)=>[
       PopupMenuItem(value:'edit',child:Text(tr('تعديل الاسم والهاتف'))),
       PopupMenuItem(value:'delete',child:Text(tr('حذف'))),
      ]),
@@ -1687,7 +1687,7 @@ class InvoiceDetailPage extends StatelessWidget {
     ]))),
     Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text(tr('تفاصيل الأصناف'),style:TextStyle(fontWeight:FontWeight.bold))),
     if(lines.isNotEmpty)SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
-     columns:const [
+     columns: [
       DataColumn(label:Text(tr('اسم الصنف'))),
       DataColumn(label:Text(tr('الكمية'))),
       DataColumn(label:Text(tr('إجمالي الصنف'))),
@@ -1863,7 +1863,7 @@ class _DraftsPageState extends State<DraftsPage>{
      trailing:PopupMenuButton<String>(onSelected:(v)async{
       if(v=='delete'){await remove(d['id'] as int);}
       else{final full=await ShopDb.instance.getDraft(d['id'] as int);if(context.mounted)Navigator.pop(context,full);}
-     },itemBuilder:(_)=>const[
+     },itemBuilder:(_)=>[
       PopupMenuItem(value:'open',child:Text(tr('استعادة المسودة'))),
       PopupMenuItem(value:'delete',child:Text(tr('حذف المسودة'))),
      ]),
