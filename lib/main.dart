@@ -377,6 +377,10 @@ String tr(String value) {
       'صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.':'Estimated net profit equals gross profit after returns minus recorded expenses for the period.',
     
       'قيمة المخزون':'Inventory value',
+    
+      'المتبقي على الزبائن بعد المرتجعات':'Customer balance due after returns',
+      'المقبوض الصافي من المبيعات':'Net sales receipts',
+      'المتبقي للموردين بعد المرتجعات':'Supplier balance due after returns',
     },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
@@ -729,6 +733,10 @@ String tr(String value) {
       'صافي الربح التقديري يساوي مجمل الربح بعد المرتجعات ناقص المصروفات المسجلة للفترة.':'Le bénéfice net estimé correspond à la marge brute après retours moins les dépenses enregistrées pour la période.',
     
       'قيمة المخزون':'Valeur du stock',
+    
+      'المتبقي على الزبائن بعد المرتجعات':'Solde client dû après retours',
+      'المقبوض الصافي من المبيعات':'Encaissements nets des ventes',
+      'المتبقي للموردين بعد المرتجعات':'Solde fournisseur dû après retours',
     }
   };
   return translations[language]?[value] ?? value;
@@ -2105,13 +2113,13 @@ class _ReportsPageState extends State<ReportsPage> {
   final grossProfit=(margin.first['value'] as num)-(returnMargin.first['value'] as num);
   final expenseTotal=(expenses.first['value'] as num);
   return {
-   'sales':sales,'sales_total':salesTotal,'sales_paid':salesPaid,
-   'sales_due':salesTotal-salesPaid,'customer_returns':returnTotal,
+   'sales':sales,'sales_total':salesTotal,'sales_paid':salesPaid-(customerReturns.first['cash'] as num),
+   'sales_due':salesTotal-salesPaid-(returnTotal-(customerReturns.first['cash'] as num)),'customer_returns':returnTotal,
    'net_sales':salesTotal-returnTotal,
    'purchase_total':(purchases.first['total'] as num),
    'purchase_paid':(purchases.first['paid'] as num),
    'supplier_returns':supplierReturnTotal,
-   'net_purchases':(purchases.first['total'] as num)-supplierReturnTotal,
+   'net_purchases':(purchases.first['total'] as num)-supplierReturnTotal,\n   'purchase_due':(purchases.first['total'] as num)-(purchases.first['paid'] as num)-supplierReturnTotal,
    'gross_profit':grossProfit,'expenses':expenseTotal,
    'net_profit':grossProfit-expenseTotal,
    'customer_refunds':(customerReturns.first['cash'] as num),
@@ -2138,13 +2146,13 @@ class _ReportsPageState extends State<ReportsPage> {
    out.writeln('| ${tr('المؤشر')} | ${tr('القيمة')} |');
    out.writeln('|---|---:|');
    final keys=sales
-    ? <String>['sales_total','customer_returns','net_sales','sales_paid','sales_due','purchase_total','supplier_returns']
+    ? <String>['sales_total','customer_returns','net_sales','sales_paid','sales_due','purchase_total','supplier_returns','purchase_due']
     : <String>['sales_total','customer_returns','gross_profit','expenses','net_profit'];
    final labels={
     'sales_total':'إجمالي المبيعات','customer_returns':'مرتجعات الزبائن',
     'net_sales':'صافي المبيعات','sales_paid':'المقبوض من المبيعات',
     'sales_due':'المتبقي على الزبائن','purchase_total':'إجمالي التوريد',
-    'supplier_returns':'مرتجعات الموردين','gross_profit':'مجمل الربح بعد المرتجعات',
+    'supplier_returns':'مرتجعات الموردين','purchase_due':'المتبقي للموردين بعد المرتجعات','gross_profit':'مجمل الربح بعد المرتجعات',
     'expenses':'المصروفات','net_profit':'صافي الربح التقديري',
    };
    for(final key in keys)out.writeln('| ${tr(labels[key]!)} | ${money(data[key] as num)} |');
@@ -2207,8 +2215,8 @@ class _ReportsPageState extends State<ReportsPage> {
        metric('إجمالي المبيعات',d['sales_total'] as num),
        metric('مرتجعات الزبائن',d['customer_returns'] as num),
        metric('صافي المبيعات',d['net_sales'] as num),
-       metric('المقبوض من المبيعات',d['sales_paid'] as num),
-       metric('المتبقي على الزبائن',d['sales_due'] as num),
+       metric('المقبوض الصافي من المبيعات',d['sales_paid'] as num),
+       metric('المتبقي على الزبائن بعد المرتجعات',d['sales_due'] as num),
        const Divider(),
        ...((d['sales'] as List<Map<String,Object?>>).map((x)=>ListTile(
         title:Text('${tr('فاتورة بيع رقم ')}${x['id']}'),
