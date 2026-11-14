@@ -132,7 +132,7 @@ class _SalePageState extends State<SalePage>{
   final grams=ShopDb.calculateSaleGrams(enteredValue:value,mode:saleMode,unitWeightGrams:unitWeight,pricePerKg:price);
   final old=cart[id]?['grams'] as int? ?? 0;
   if(grams<=0||price<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية أو مبلغاً وسعراً صحيحاً')));return;}
-  setState(){
+  setState((){
    cart[id]={'product_id':id,'name':p['name'],'grams':old+grams,'price_per_kg':price,'unit_name':unitName};
    selectedSaleUnitName=unitName;selectedSaleUnitWeightGrams=unitWeight;keypadValue='';
   });
