@@ -23,6 +23,8 @@ void main() {
     expect(units.map((x)=>x['unit_name']), containsAll(['جوان','كيس']));
     final bag = units.singleWhere((x)=>x['unit_name']=='كيس');
     expect(bag['default_weight_grams'], 25000);
+    await shop.updateProductUnit(unitId:bag['id'] as int,productId:product,unitName:'كيس كبير',weightGrams:27000);
+    expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']),contains('كيس كبير'));
     await shop.saveProductUnit(productId:product, unitName:'جوان', weightGrams:35000);
     final row = (await shop.db.query('products',where:'id=?',whereArgs:[product])).single;
     expect((row['default_weight'] as num).toDouble(), 35);
@@ -31,9 +33,9 @@ void main() {
       throwsException,
     );
     final refreshed = await shop.getProductUnits(product);
-    final removable = refreshed.singleWhere((x)=>x['unit_name']=='كيس');
+    final removable = refreshed.singleWhere((x)=>x['unit_name']=='كيس كبير');
     await shop.deleteProductUnit(removable['id'] as int,productId:product);
-    expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']), isNot(contains('كيس')));
+    expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']), isNot(contains('كيس كبير')));
   });
 
   test('supplier invoice increases stock of its linked sales product', () async {
