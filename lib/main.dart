@@ -8,13 +8,26 @@ import 'package:flutter_pdf_export/flutter_pdf_export.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:screenshot/screenshot.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'shop_db.dart';
 import 'inventory_center.dart';
 
+final ValueNotifier<Locale> appLocale = ValueNotifier<Locale>(const Locale('ar'));
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final preferences = await SharedPreferences.getInstance();
+  final savedLanguage = preferences.getString('app_language') ?? 'ar';
+  appLocale.value = Locale(['ar', 'en', 'fr'].contains(savedLanguage) ? savedLanguage : 'ar');
   await ShopDb.instance.open();
   runApp(const NaeemSoftApp());
+}
+
+Future<void> changeAppLanguage(String languageCode) async {
+  if (!['ar', 'en', 'fr'].contains(languageCode)) return;
+  final preferences = await SharedPreferences.getInstance();
+  await preferences.setString('app_language', languageCode);
+  appLocale.value = Locale(languageCode);
 }
 String money(num n) => NumberFormat('#,##0', 'en').format(n) + ' DJF';
 String kg(num g) => (g / 1000).toStringAsFixed(3) + ' كجم';
@@ -26,12 +39,23 @@ Widget field(TextEditingController c, String label, {bool number=false}) => Padd
 
 class NaeemSoftApp extends StatelessWidget {
  const NaeemSoftApp({super.key});
- @override Widget build(BuildContext c)=>MaterialApp(
-  title:'NaeemSoft POS',debugShowCheckedModeBanner:false,locale:const Locale('ar'),
-  supportedLocales:const [Locale('ar'),Locale('en')],
-  localizationsDelegates:GlobalMaterialLocalizations.delegates,
-  theme:ThemeData(useMaterial3:true,colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff218653))),
-  home:const Directionality(textDirection:ui.TextDirection.rtl,child:MainShell()));
+ @override Widget build(BuildContext c)=>ValueListenableBuilder<Locale>(
+  valueListenable:appLocale,
+  builder:(context,locale,_)=>MaterialApp(
+   title:'NaeemSoft POS',debugShowCheckedModeBanner:false,locale:locale,
+   supportedLocales:const [Locale('ar'),Locale('en'),Locale('fr')],
+   localizationsDelegates:const [
+    GlobalMaterialLocalizations.delegate,
+    GlobalWidgetsLocalizations.delegate,
+    GlobalCupertinoLocalizations.delegate,
+   ],
+   theme:ThemeData(useMaterial3:true,colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xff218653))),
+   home:Directionality(
+    textDirection:locale.languageCode=='ar'?ui.TextDirection.rtl:ui.TextDirection.ltr,
+    child:const MainShell(),
+   ),
+  ),
+ );
 }
 class MainShell extends StatefulWidget {const MainShell({super.key});@override State<MainShell> createState()=>_MainShellState();}
 class _MainShellState extends State<MainShell>{
@@ -457,11 +481,32 @@ class ExpiryAlertsPage extends StatelessWidget {
  );
 }
 
-class AdminPage extends StatelessWidget {const AdminPage({super.key});@override Widget build(BuildContext c)=>ListView(children:[
- _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
- _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'المرتجعات',Icons.assignment_return,const ReturnsPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
- _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage()),_link(c,'تنبيهات الصلاحية',Icons.warning_amber,const ExpiryAlertsPage())
-]);Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)));}
+class AdminPage extends StatelessWidget {
+ const AdminPage({super.key});
+ @override Widget build(BuildContext c)=>ListView(children:[
+  ListTile(
+   leading:const Icon(Icons.language),
+   title:const Text('لغة التطبيق / Application language / Langue'),
+   subtitle:const Text('العربية • English • Français'),
+   trailing:DropdownButton<String>(
+    value:appLocale.value.languageCode,
+    items:const [
+     DropdownMenuItem(value:'ar',child:Text('العربية')),
+     DropdownMenuItem(value:'en',child:Text('English')),
+     DropdownMenuItem(value:'fr',child:Text('Français')),
+    ],
+    onChanged:(value){if(value!=null)changeAppLanguage(value);},
+   ),
+  ),
+  _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
+  _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'المرتجعات',Icons.assignment_return,const ReturnsPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
+  _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage()),_link(c,'تنبيهات الصلاحية',Icons.warning_amber,const ExpiryAlertsPage())
+ ]);
+ Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(
+  leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),
+  onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)),
+ );
+}
 class ProductsPage extends StatefulWidget {const ProductsPage({super.key});@override State<ProductsPage> createState()=>_ProductsPageState();}
 class _ProductsPageState extends State<ProductsPage>{
  Future<void> edit(Map<String,Object?>? product) async {
