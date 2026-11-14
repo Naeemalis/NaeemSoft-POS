@@ -9,8 +9,12 @@ String _inventoryText(BuildContext context, String ar, String en, String fr) {
   }
 }
 
-String _inventoryMoney(num value) => '${value.round()} DJF';
-String _inventoryKg(num grams) => '${(grams / 1000).toStringAsFixed(3)} كجم';
+String _inventoryMoney(BuildContext context, num value) => Localizations.localeOf(context).languageCode == 'fr' || Localizations.localeOf(context).languageCode == 'en' ? '${value.round()} DJF' : '${value.round()} ر.ي';
+String _inventoryKg(BuildContext context, num grams) {
+  final language = Localizations.localeOf(context).languageCode;
+  final amount = (grams / 1000).toStringAsFixed(3);
+  return language == 'ar' ? '$amount كجم' : language == 'fr' ? '$amount kg' : '$amount kg';
+}
 
 class InventoryCenterPage extends StatefulWidget {
   final VoidCallback onManageProducts;
@@ -33,9 +37,9 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('جرد ${product['name']}'),
+        title: Text('${_inventoryText(context, 'جرد', 'Stocktake', 'Inventaire')} ${product['name']}'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('الرصيد المسجل: ${_inventoryKg(current)}'),
+          Text('${_inventoryText(context, 'الرصيد المسجل:', 'Recorded balance:', 'Solde enregistré :')} ${_inventoryKg(context, current)}'),
           const SizedBox(height: 10),
           TextField(
             controller: quantity,
@@ -76,7 +80,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
       }
     } catch (error) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تعذر اعتماد الجرد: $error')),
+        SnackBar(content: Text('${_inventoryText(context, 'تعذر اعتماد الجرد:', 'Could not confirm stocktake:', 'Impossible de valider l’inventaire :')} $error')),
       );
     }
   }
@@ -113,7 +117,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                           grams >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
                           color: grams >= 0 ? Colors.green : Colors.orange,
                         ),
-                        title: Text('${grams >= 0 ? '+' : ''}${_inventoryKg(grams.abs())}'),
+                        title: Text('${grams >= 0 ? '+' : ''}${_inventoryKg(sheetContext, grams.abs())}'),
                         subtitle: Text('${movement['note'] ?? movement['movement_type']}\n$date'),
                         isThreeLine: true,
                         trailing: Text('${(movement['value_delta_djf'] as num?)?.toInt() ?? 0} DJF'),
@@ -148,9 +152,9 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
             child: Row(children: [
               Expanded(child: _summaryCard(_inventoryText(context, 'عدد الأصناف', 'Products', 'Articles'), '${products.length}', Icons.category_outlined)),
               const SizedBox(width: 6),
-              Expanded(child: _summaryCard(_inventoryText(context, 'إجمالي الكمية', 'Total quantity', 'Quantité totale'), _inventoryKg(totalGrams), Icons.scale_outlined)),
+              Expanded(child: _summaryCard(_inventoryText(context, 'إجمالي الكمية', 'Total quantity', 'Quantité totale'), _inventoryKg(context, totalGrams), Icons.scale_outlined)),
               const SizedBox(width: 6),
-              Expanded(child: _summaryCard(_inventoryText(context, 'قيمة المخزون', 'Stock value', 'Valeur du stock'), _inventoryMoney(totalValue), Icons.account_balance_wallet_outlined)),
+              Expanded(child: _summaryCard(_inventoryText(context, 'قيمة المخزون', 'Stock value', 'Valeur du stock'), _inventoryMoney(context, totalValue), Icons.account_balance_wallet_outlined)),
             ]),
           ),
           Padding(
@@ -178,14 +182,14 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                     return ListTile(
                       leading: CircleAvatar(child: Text('${index + 1}')),
                       title: Text(product['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text('سعر البيع: ${_inventoryMoney((product['sale_price'] as num?) ?? 0)} / كجم'
-                        '\nقيمة المخزون: ${_inventoryMoney(value)}'),
+                      subtitle: Text('${_inventoryText(context, 'سعر البيع:', 'Sale price:', 'Prix de vente :')} ${_inventoryMoney(context, (product['sale_price'] as num?) ?? 0)} / kg'
+                        '\nقيمة المخزون: ${_inventoryMoney(context, value)}'),
                       isThreeLine: true,
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(_inventoryKg(grams), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text(_inventoryKg(context, grams), style: const TextStyle(fontWeight: FontWeight.bold)),
                           Text(_inventoryText(context, 'الرصيد الحالي', 'Current balance', 'Solde actuel'), style: TextStyle(fontSize: 10)),
                         ],
                       ),
