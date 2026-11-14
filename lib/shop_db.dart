@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 12,
+      version: 13,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -92,6 +92,11 @@ class ShopDb {
         }
         if (oldVersion < 11) await _createRelationalLinks(d);
         if (oldVersion < 12) await _createPartyPaymentLinks(d);
+        if (oldVersion < 13) {
+          if (!await _hasColumn(d, 'products', 'requires_expiry')) await d.execute('ALTER TABLE products ADD COLUMN requires_expiry INTEGER NOT NULL DEFAULT 0');
+          if (!await _hasColumn(d, 'products', 'expiry_warning_days')) await d.execute('ALTER TABLE products ADD COLUMN expiry_warning_days INTEGER NOT NULL DEFAULT 7');
+          await d.execute('CREATE INDEX IF NOT EXISTS idx_purchase_batches_expiry ON purchase_batches(product_id, expiry_date, remaining_grams)');
+        }
       },
     );
   }
@@ -109,7 +114,7 @@ class ShopDb {
       purchase_unit TEXT NOT NULL DEFAULT 'جوان', base_unit TEXT NOT NULL DEFAULT 'كجم',
       default_weight REAL NOT NULL DEFAULT 1, cost REAL NOT NULL DEFAULT 0,
       sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
-      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER, category_id INTEGER)''');
+      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER, category_id INTEGER, requires_expiry INTEGER NOT NULL DEFAULT 0, expiry_warning_days INTEGER NOT NULL DEFAULT 7)''');
     await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('''CREATE TABLE purchases(
@@ -554,11 +559,11 @@ class ShopDb {
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
       db.query(table, orderBy: orderBy ?? 'id DESC');
 
-  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId, int? categoryId}) async {
+  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId, int? categoryId, bool requiresExpiry = false, int expiryWarningDays = 7}) async {
     return db.transaction((tx) async {
       final id = await tx.insert('products', {
         'name': name.trim(), 'purchase_unit': unit, 'default_weight': defaultWeightGrams / 1000,
-        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId, 'category_id': categoryId,
+        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId, 'category_id': categoryId, 'requires_expiry': requiresExpiry ? 1 : 0, 'expiry_warning_days': expiryWarningDays,
       });
       await tx.insert('product_units', {
         'product_id': id, 'unit_name': unit, 'default_weight_grams': defaultWeightGrams,
@@ -632,6 +637,17 @@ class ShopDb {
           'stock_grams': newGrams, 'stock': newGrams / 1000,
           'inventory_value_djf': newValue, 'cost': averageCost,
         }, where: 'id = ?', whereArgs: [saleProductId]);
+        final expiryDate = (x['expiry_date'] ?? '').toString().trim();
+        if (expiryDate.isNotEmpty) {
+          await tx.insert('purchase_batches', {
+            'purchase_item_id': purchaseItemId, 'product_id': saleProductId,
+            'quantity_grams': grams, 'remaining_grams': grams,
+            'expiry_date': expiryDate, 'cost_per_kg': kgCost,
+          });
+        } else {
+          final expiryRequired = (saleProduct['requires_expiry'] as num?)?.toInt() == 1;
+          if (expiryRequired) throw Exception('الصنف ${saleProduct['name']} يتطلب تاريخ انتهاء الصلاحية');
+        }
         await tx.insert('stock_movements', {
           'product_id': saleProductId, 'movement_type': 'purchase',
           'source_type': 'purchase', 'source_id': purchaseId, 'purchase_item_id': purchaseItemId,
@@ -700,6 +716,20 @@ class ShopDb {
         final product = productRows.first;
         final availableGrams = (product['stock_grams'] as num).toInt();
         if (grams > availableGrams) throw Exception('المخزون غير كافٍ للصنف ' + product['name'].toString() + '؛ المتاح ' + (availableGrams / 1000).toString() + ' كجم');
+        final expiryRequired = (product['requires_expiry'] as num?)?.toInt() == 1;
+        final batches = await tx.query('purchase_batches', where:'product_id=? AND remaining_grams>0 AND expiry_date IS NOT NULL', whereArgs:[x['product_id']], orderBy:'expiry_date ASC,id ASC');
+        final today = DateTime.now().toIso8601String().substring(0,10);
+        final validBatches = batches.where((b)=>(b['expiry_date'] as String).compareTo(today)>=0).toList();
+        final validBatchGrams = validBatches.fold<int>(0,(sum,b)=>sum+(b['remaining_grams'] as num).toInt());
+        if (expiryRequired && validBatchGrams < grams) throw Exception('لا توجد كمية صالحة كافية للبيع من ${product['name']}؛ تحقق من الصلاحية والدفعات');
+        var batchToConsume = grams;
+        for (final batch in validBatches) {
+          if (batchToConsume <= 0) break;
+          final available = (batch['remaining_grams'] as num).toInt();
+          final take = available < batchToConsume ? available : batchToConsume;
+          await tx.update('purchase_batches', {'remaining_grams': available - take}, where:'id=?', whereArgs:[batch['id']]);
+          batchToConsume -= take;
+        }
         final inventoryValue = (product['inventory_value_djf'] as num).toInt();
         final averageCost = availableGrams == 0 ? 0 : (inventoryValue * 1000 / availableGrams).round();
         final costTotal = ((grams * averageCost) / 1000).round();
@@ -790,10 +820,10 @@ class ShopDb {
     });
   }
 
-  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId, int? categoryId}) async {
+  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId, int? categoryId, bool? requiresExpiry, int? expiryWarningDays}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
-      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId, 'category_id':categoryId}, where:'id=?', whereArgs:[id]);
+      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId, 'category_id':categoryId, if (requiresExpiry != null) 'requires_expiry':requiresExpiry ? 1 : 0, if (expiryWarningDays != null) 'expiry_warning_days':expiryWarningDays}, where:'id=?', whereArgs:[id]);
       if ((productType ?? (await tx.query('products', columns:['product_type'], where:'id=?', whereArgs:[id])).first['product_type']) == 'purchase' && pairedSaleProductId != null) {
         await tx.insert('product_stock_links', {'purchase_product_id':id, 'stock_product_id':pairedSaleProductId}, conflictAlgorithm:ConflictAlgorithm.replace);
       } else {
