@@ -9,7 +9,7 @@ String _inventoryText(BuildContext context, String ar, String en, String fr) {
   }
 }
 
-String _inventoryMoney(BuildContext context, num value) => Localizations.localeOf(context).languageCode == 'fr' || Localizations.localeOf(context).languageCode == 'en' ? '${value.round()} DJF' : '${value.round()} ر.ي';
+String _inventoryMoney(BuildContext context, num value) => Localizations.localeOf(context).languageCode == 'fr' || Localizations.localeOf(context).languageCode == 'en' ? '${value.round()} DJF' : '${value.round()} DJF';
 String _inventoryKg(BuildContext context, num grams) {
   final language = Localizations.localeOf(context).languageCode;
   final amount = (grams / 1000).toStringAsFixed(3);
@@ -100,7 +100,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
           child: Column(children: [
             Padding(
               padding: const EdgeInsets.all(14),
-              child: Text('حركة مخزون ${product['name']}', style: Theme.of(sheetContext).textTheme.titleLarge),
+              child: Text('${_inventoryText(sheetContext, 'حركة مخزون', 'Stock movements for', 'Mouvements de stock pour')} ${product['name']}', style: Theme.of(sheetContext).textTheme.titleLarge),
             ),
             const Divider(height: 1),
             Expanded(
@@ -182,7 +182,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                     return ListTile(
                       leading: CircleAvatar(child: Text('${index + 1}')),
                       title: Text(product['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
-                      subtitle: Text('${_inventoryText(context, 'سعر البيع:', 'Sale price:', 'Prix de vente :')} ${_inventoryMoney(context, (product['sale_price'] as num?) ?? 0)} / kg'
+                      subtitle: Text('${_inventoryText(context, 'سعر البيع:', 'Sale price:', 'Prix de vente :')} ${_inventoryMoney(context, (product['sale_price'] as num?) ?? 0 )} / ${_inventoryText(context, 'كجم', 'kg', 'kg')}'
                         '\nقيمة المخزون: ${_inventoryMoney(context, value)}'),
                       isThreeLine: true,
                       trailing: Column(
