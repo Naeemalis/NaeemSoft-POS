@@ -43,7 +43,7 @@ test/
 - It supports physical stock counts and a movement-history view.
 - Stock count changes are committed transactionally and recorded in `stock_movements`.
 - Existing product create/edit/archive remains in the product management screen, opened from the inventory center.
-- Automated tests have been added for positive and negative stock-count adjustments.
+- Automated tests cover positive and negative stock-count adjustments.\n- Schema version 14 records FEFO batch allocations per sale line and restores the original batch on customer returns; supplier returns reduce only the remaining quantity of the original purchase batch.\n- Localization foundations and a growing Arabic/English/French translation dictionary are wired into the main app; complete screen/report/PDF verification remains an acceptance requirement.
 
 ## Next implementation sequence
 1. Validate the inventory center with Flutter tests, static analysis, and Android APK build.
