@@ -28,6 +28,7 @@ String tr(String value) {
   final language = appLocale.value.languageCode;
   const translations = <String, Map<String, String>>{
     'en': {
+      'العربية • English • Français':'العربية • English • Français',
       'الرئيسية':'Home',
       'المبيعات':'Sales',
       'التوريد':'Purchases',
@@ -335,6 +336,8 @@ String tr(String value) {
       'لا توجد مسودات محفوظة':'No saved drafts',
     }    },
     'fr': {
+      'لغة التطبيق / Application language / Langue':'Langue de l’application',
+      'العربية • English • Français':'العربية • English • Français',
       'الرئيسية':'Accueil',
       'المبيعات':'Ventes',
       'التوريد':'Achats',
