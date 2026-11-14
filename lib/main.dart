@@ -1238,7 +1238,7 @@ class AdminPage extends StatelessWidget {
   _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage()),_link(c,'التقارير',Icons.analytics,const ReportsPage()),_link(c,'تنبيهات الصلاحية',Icons.warning_amber,const ExpiryAlertsPage())
  ]);
  Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(
-  leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),
+  leading:Icon(i),title:Text(tr(t)),trailing:const Icon(Icons.chevron_left),
   onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)),
  );
 }
