@@ -194,8 +194,11 @@ class _PurchasePageState extends State<PurchasePage>{
   }
   final count=packageCount;
   final weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
+  final stockLink=await ShopDb.instance.db.query('product_stock_links',where:'purchase_product_id=?',whereArgs:[p['id']],limit:1);
+  final stockProduct=stockLink.isEmpty?null:(await ShopDb.instance.db.query('products',where:'id=?',whereArgs:[stockLink.first['stock_product_id']],limit:1)).firstOrNull;
+  final needsExpiry=(p['requires_expiry'] as num?)?.toInt()==1 || (stockProduct?['requires_expiry'] as num?)?.toInt()==1;
   String? lineExpiry;
-  if ((p['requires_expiry'] as num?)?.toInt()==1) {
+  if (needsExpiry) {
    final picked=await showDatePicker(context:context,initialDate:DateTime.now().add(const Duration(days:30)),firstDate:DateTime.now(),lastDate:DateTime(2100));
    if(picked==null)return;
    lineExpiry=DateFormat('yyyy-MM-dd').format(picked);
