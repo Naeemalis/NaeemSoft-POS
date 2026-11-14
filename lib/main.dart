@@ -256,7 +256,7 @@ String tr(String value) {
       'الكمية المرتجعة بالكيلو':'Returned quantity (kg)',
       'مثال: 1 أو 0.5':'Example: 1 or 0.5',
       'لا توجد مسودات محفوظة':'No saved drafts',
-    }    },
+    },
     'fr': {
       'الرئيسية':'Accueil',
       'المبيعات':'Ventes',
@@ -722,7 +722,7 @@ class _SalePageState extends State<SalePage>{
     ])
    )),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
-    Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text(tr('وزن'))),ButtonSegment(value:'cash',label:Text(tr('نقد')))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),SizedBox(width:6),Text((keypadValue.isEmpty?'أدخل الرقم':keypadValue)+(saleMode=='cash'?' DJF':' × ${selectedSaleUnitName}'),style:TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
+    Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:[ButtonSegment(value:'weight',label:Text(tr('وزن'))),ButtonSegment(value:'cash',label:Text(tr('نقد')))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),SizedBox(width:6),Text((keypadValue.isEmpty?'أدخل الرقم':keypadValue)+(saleMode=='cash'?' DJF':' × ${selectedSaleUnitName}'),style:TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
     cashierNumberPad(keys:['7','8','9','⌫','4','5','6','مسح','1','2','3',if(saleMode=='weight')'½' else '.','0','.',if(saleMode=='weight')'¼' else '00',if(saleMode=='weight')'1 كجم' else 'مسح'],onKey:key),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:Text(tr('مسودة')))),SizedBox(width:5),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:Text(tr('المسودات'))))]),
     SizedBox(width:double.infinity,height:42,child:FilledButton(onPressed:posting?null:checkout,child:Text(posting?tr('جارٍ الترحيل...'):tr('إتمام البيع'))))
