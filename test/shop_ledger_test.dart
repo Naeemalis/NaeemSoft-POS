@@ -126,4 +126,36 @@ void main() {
     expect(await shop.db.query('stock_movements'), isEmpty);
   });
 
+
+  test('product categories and supplier-specific package weights are stored independently', () async {
+    final categoryId = await shop.addCategory('خضروات');
+    final productId = await shop.addProduct(
+      'بطاطس', 'جوان', 30000, 250,
+      categoryId: categoryId,
+    );
+    final supplierA = await shop.db.insert('suppliers', {'name': 'مورد أ'});
+    final supplierB = await shop.db.insert('suppliers', {'name': 'مورد ب'});
+
+    await shop.saveSupplierProductUnit(
+      supplierId: supplierA, productId: productId,
+      unitName: 'جوان', weightGrams: 30000,
+    );
+    await shop.saveSupplierProductUnit(
+      supplierId: supplierB, productId: productId,
+      unitName: 'جوان', weightGrams: 45000,
+    );
+
+    final product = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
+    expect(product['category_id'], categoryId);
+
+    final units = await shop.getSupplierProductUnits(productId);
+    expect(units, hasLength(2));
+    expect(units.map((x) => x['weight_grams']).toSet(), {30000, 45000});
+
+    await shop.deleteCategory(categoryId);
+    final updatedProduct = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
+    expect(updatedProduct['category_id'], isNull);
+    expect(await shop.getSupplierProductUnits(productId), hasLength(2));
+  });
+
 }
