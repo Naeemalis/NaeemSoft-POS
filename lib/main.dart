@@ -2151,8 +2151,8 @@ class _ReportsPageState extends State<ReportsPage> {
     : <String>['sales_total','customer_returns','gross_profit','expenses','net_profit'];
    final labels={
     'sales_total':'إجمالي المبيعات','customer_returns':'مرتجعات الزبائن',
-    'net_sales':'صافي المبيعات','sales_paid':'المقبوض من المبيعات',
-    'sales_due':'المتبقي على الزبائن','purchase_total':'إجمالي التوريد',
+    'net_sales':'صافي المبيعات','sales_paid':'المقبوض الصافي من المبيعات',
+    'sales_due':'المتبقي على الزبائن بعد المرتجعات','purchase_total':'إجمالي التوريد',
     'supplier_returns':'مرتجعات الموردين','purchase_due':'المتبقي للموردين بعد المرتجعات','gross_profit':'مجمل الربح بعد المرتجعات',
     'expenses':'المصروفات','net_profit':'صافي الربح التقديري',
    };
