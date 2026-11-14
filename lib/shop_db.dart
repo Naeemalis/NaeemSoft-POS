@@ -589,6 +589,53 @@ class ShopDb {
     });
   }
 
+  Future<void> setCountedStock({
+    required int productId,
+    required int countedGrams,
+    String? note,
+  }) async {
+    if (countedGrams < 0) throw Exception('كمية الجرد لا يمكن أن تكون سالبة');
+    await db.transaction((tx) async {
+      final rows = await tx.query(
+        'products',
+        where: "id = ? AND product_type = 'sale' AND active = 1",
+        whereArgs: [productId],
+        limit: 1,
+      );
+      if (rows.isEmpty) throw Exception('صنف المبيعات غير موجود أو غير نشط');
+      final product = rows.first;
+      final oldGrams = (product['stock_grams'] as num).toInt();
+      final oldValue = (product['inventory_value_djf'] as num?)?.toInt() ?? 0;
+      final deltaGrams = countedGrams - oldGrams;
+      if (deltaGrams == 0) return;
+
+      final averageCost = oldGrams > 0
+          ? (oldValue * 1000 / oldGrams).round()
+          : ((product['cost'] as num?)?.round() ?? 0);
+      final valueDelta = deltaGrams > 0
+          ? ((deltaGrams * averageCost) / 1000).round()
+          : -(((-deltaGrams * averageCost) / 1000).round()).clamp(0, oldValue);
+      final newValue = (oldValue + valueDelta).clamp(0, 0x7fffffff);
+      await tx.update('products', {
+        'stock_grams': countedGrams,
+        'stock': countedGrams / 1000,
+        'inventory_value_djf': newValue,
+        'cost': countedGrams == 0 ? 0 : (newValue * 1000 / countedGrams).round(),
+      }, where: 'id = ?', whereArgs: [productId]);
+      await tx.insert('stock_movements', {
+        'product_id': productId,
+        'movement_type': 'adjustment',
+        'source_type': 'stock_count',
+        'source_id': null,
+        'quantity_grams': deltaGrams,
+        'unit_cost_per_kg': averageCost,
+        'value_delta_djf': newValue - oldValue,
+        'created_at': DateTime.now().toIso8601String(),
+        'note': note?.trim().isNotEmpty == true ? note!.trim() : 'تسوية جرد الكمية الفعلية',
+      });
+    });
+  }
+
   Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
