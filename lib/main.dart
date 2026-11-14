@@ -712,8 +712,9 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   if(ok!=true||value<=0)return;
   setState(()=>saving=true);
   try{
+   int savedPaymentId=0;
    await ShopDb.instance.db.transaction((tx) async {
-    final paymentId=final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
+    final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
     savedPaymentId=paymentId;
     if(widget.type=='customer') await tx.insert('customer_payment_links',{'payment_id':paymentId,'customer_id':widget.partyId});
     else await tx.insert('supplier_payment_links',{'payment_id':paymentId,'supplier_id':widget.partyId});
