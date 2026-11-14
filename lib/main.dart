@@ -58,7 +58,7 @@ String tr(String value) {
       'تعديل بيانات الزبون':'Edit customer details','تعديل بيانات المورد':'Edit supplier details',
       'الاسم':'Name','الهاتف':'Phone','حفظ':'Save','بحث':'Search','التاريخ':'Date','السعر':'Price',
       'الإجمالي':'Total','التفاصيل':'Details','طباعة':'Print','مشاركة':'Share','حفظ PDF':'Save PDF',
-      'كشف الحساب':'Account statement','سداد المورد':'Supplier settlement','تحصيل من الزبون':'Customer collection',
+      'كشف الحساب':'Account statement','سداد المورد':'Supplier settlement','تحصيل من الزبون':'Customer collection','فاتورة بيع':'Sales invoice','فاتورة توريد':'Purchase invoice','رقم الفاتورة: ':'Invoice number: ','التاريخ: ':'Date: ','الزبون: ':'Customer: ','المورد: ':'Supplier: ','تفاصيل الأصناف':'Item details','الكمية: ':'Quantity: ','كيلو':'kg','عبوة، وزن العبوة':'packages, package weight','إجمالي الصنف: ':'Item total: ','ملخص الحساب':'Account summary','الإجمالي: ':'Total: ','المدفوع: ':'Paid: ','المتبقي: ':'Remaining: ','شكراً لتعاملكم معنا':'Thank you for your business','سند قبض من زبون':'Customer receipt','سند سداد مورد':'Supplier payment voucher','سند قبض':'Receipt voucher','سند سداد':'Payment voucher','البيان: ':'Description: ','سداد حساب':'Account payment','تم تسجيل العملية بنجاح.':'Transaction recorded successfully.','معاينة فاتورة بيع':'Sales invoice preview','نقدي / غير مسجل':'Cash / walk-in','غير محدد':'Unspecified',
       'أدخل كمية أو مبلغاً وسعراً صحيحاً':'Enter a valid quantity or amount and price','اختر وحدة الكمية':'Choose quantity unit',
       'المبلغ المدفوع':'Amount paid','موعد السداد YYYY-MM-DD':'Payment due date YYYY-MM-DD','بيع نقدي / بدون زبون':'Cash sale / no customer',
       'بيع مباشر':'Direct sale','قراءة الكاشير • العمليات المختارة':'Cashier • selected items','عند اختيار أي صنف ستظهر عمليته هنا مباشرة':'Selected items will appear here',
@@ -120,7 +120,7 @@ String tr(String value) {
       'تعديل بيانات الزبون':'Modifier les données du client','تعديل بيانات المورد':'Modifier les données du fournisseur',
       'الاسم':'Nom','الهاتف':'Téléphone','حفظ':'Enregistrer','بحث':'Rechercher','التاريخ':'Date','السعر':'Prix',
       'الإجمالي':'Total','التفاصيل':'Détails','طباعة':'Imprimer','مشاركة':'Partager','حفظ PDF':'Enregistrer PDF',
-      'كشف الحساب':'Relevé de compte','سداد المورد':'Règlement fournisseur','تحصيل من الزبون':'Encaissement client',
+      'كشف الحساب':'Relevé de compte','سداد المورد':'Règlement fournisseur','تحصيل من الزبون':'Encaissement client','فاتورة بيع':'Facture de vente','فاتورة توريد':'Facture d’achat','رقم الفاتورة: ':'N° de facture : ','التاريخ: ':'Date : ','الزبون: ':'Client : ','المورد: ':'Fournisseur : ','تفاصيل الأصناف':'Détails des articles','الكمية: ':'Quantité : ','كيلو':'kg','عبوة، وزن العبوة':'colis, poids du colis','إجمالي الصنف: ':'Total de l’article : ','ملخص الحساب':'Résumé du compte','الإجمالي: ':'Total : ','المدفوع: ':'Payé : ','المتبقي: ':'Reste à payer : ','شكراً لتعاملكم معنا':'Merci de votre confiance','سند قبض من زبون':'Reçu client','سند سداد مورد':'Bon de règlement fournisseur','سند قبض':'Reçu','سند سداد':'Bon de règlement','البيان: ':'Description : ','سداد حساب':'Règlement du compte','تم تسجيل العملية بنجاح.':'Opération enregistrée avec succès.','معاينة فاتورة بيع':'Aperçu de la facture de vente','نقدي / غير مسجل':'Comptant / passage','غير محدد':'Non spécifié',
       'أدخل كمية أو مبلغاً وسعراً صحيحاً':'Saisissez une quantité ou un montant et un prix valides','المبلغ المدفوع':'Montant payé',
       'موعد السداد YYYY-MM-DD':'Date d’échéance YYYY-MM-DD','بيع نقدي / بدون زبون':'Vente comptant / sans client',
       'بيع مباشر':'Vente directe','قراءة الكاشير • العمليات المختارة':'Caisse • articles sélectionnés','عند اختيار أي صنف ستظهر عمليته هنا مباشرة':'Les articles sélectionnés apparaîtront ici',
@@ -963,8 +963,8 @@ class _PartiesPageState extends State<PartiesPage>{
 }
 Future<void> _showPaymentReceipt(BuildContext context,{required String type,required int paymentId,required String partyName,required int amount,required String note}) async {
  final customer=type=='customer';
- final md='''# NaeemSoft POS\n\n## ${customer?'سند قبض من زبون':'سند سداد مورد'}\n\n- رقم السند: $paymentId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- المبلغ: ${money(amount)}\n- البيان: ${note.isEmpty?'سداد حساب':note}\n\nتم تسجيل العملية بنجاح.''';
- final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'سند قبض':'سند سداد'} $paymentId',author:'NaeemSoft POS',markdown:md));
+ final md='''# NaeemSoft POS\n\n## ${tr(customer?'سند قبض من زبون':'سند سداد مورد')}\n\n- ${tr('رقم السند: ')}$paymentId\n- ${tr('التاريخ: ')}${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${tr(customer?'الزبون: ':'المورد: ')}$partyName\n- ${tr('المبلغ: ')}${money(amount)}\n- ${tr('البيان: ')}${note.isEmpty?tr('سداد حساب'):note}\n\n${tr('تم تسجيل العملية بنجاح.')}''';
+ final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${tr(customer?'سند قبض':'سند سداد')} $paymentId',author:'NaeemSoft POS',markdown:md));
  if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
 }
 
@@ -1189,12 +1189,12 @@ class ReceiptShareCard extends StatelessWidget {
  final List<Map<String,dynamic>> items;final int total,paid;final String party;
  const ReceiptShareCard({super.key,required this.items,required this.total,required this.paid,required this.party});
  @override Widget build(BuildContext c)=>Container(width:360,padding:const EdgeInsets.all(18),color:Colors.white,child:DefaultTextStyle(style:const TextStyle(color:Colors.black,fontSize:13),child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,mainAxisSize:MainAxisSize.min,children:[
-  const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),const Text('فاتورة بيع',textAlign:TextAlign.center,style:TextStyle(fontSize:16,fontWeight:FontWeight.bold)),const Divider(thickness:2),
-  Text(tr('الزبون: $party')),Text('التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),Divider(),Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold)),
-  const Row(children:[Expanded(child:Text('اسم الصنف',style:TextStyle(fontWeight:FontWeight.bold))),Text('الكمية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:12),Text('إجمالي الصنف',style:TextStyle(fontWeight:FontWeight.bold))]),
+  const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontSize:21,fontWeight:FontWeight.bold)),Text(tr('فاتورة بيع'),textAlign:TextAlign.center,style:TextStyle(fontSize:16,fontWeight:FontWeight.bold)),const Divider(thickness:2),
+  Text(tr('الزبون: ')+party),Text(tr('التاريخ: ')+DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())),Divider(),Text(tr('تفاصيل الأصناف'),style:TextStyle(fontWeight:FontWeight.bold)),
+  Row(children:[Expanded(child:Text(tr('اسم الصنف'),style:TextStyle(fontWeight:FontWeight.bold))),Text(tr('الكمية'),style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:12),Text(tr('إجمالي الصنف'),style:TextStyle(fontWeight:FontWeight.bold))]),
   const Divider(),
-  ...items.map((x){final g=x['grams'] as int,p=x['price_per_kg'] as int;return Padding(padding:EdgeInsets.symmetric(vertical:6),child:Row(children:[Expanded(child:Text(x['name'].toString(),style:TextStyle(fontWeight:FontWeight.bold))),Text(tr('${(g/1000).toStringAsFixed(3)} كجم')),SizedBox(width:12),Text(money((g*p/1000).round()),style:TextStyle(fontWeight:FontWeight.bold))]));}),
-  _receiptRow('الإجمالي',money(total),strong:true),_receiptRow('المدفوع',money(paid)),_receiptRow('المتبقي',money(total-paid),strong:true),const SizedBox(height:8),const Text('شكراً لتعاملكم معنا',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold))
+  ...items.map((x){final g=x['grams'] as int,p=x['price_per_kg'] as int;return Padding(padding:EdgeInsets.symmetric(vertical:6),child:Row(children:[Expanded(child:Text(x['name'].toString(),style:TextStyle(fontWeight:FontWeight.bold))),Text('${(g/1000).toStringAsFixed(3)} ${tr('كيلو')}'),SizedBox(width:12),Text(money((g*p/1000).round()),style:TextStyle(fontWeight:FontWeight.bold))]));}),
+  _receiptRow(tr('الإجمالي'),money(total),strong:true),_receiptRow(tr('المدفوع'),money(paid)),_receiptRow(tr('المتبقي'),money(total-paid),strong:true),const SizedBox(height:8),Text(tr('شكراً لتعاملكم معنا'),textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold))
  ])));
 }
 Widget _receiptRow(String label,String value,{bool strong=false})=>Padding(padding:const EdgeInsets.symmetric(vertical:3),child:Row(children:[Expanded(child:Text(label,style:TextStyle(fontWeight:strong?FontWeight.bold:FontWeight.normal))),Text(value,style:TextStyle(fontWeight:strong?FontWeight.bold:FontWeight.normal))]));
@@ -1226,33 +1226,33 @@ Future<File> _buildInvoicePdf({
  final receiptHeight=(112 + lines.length*24).clamp(150, 500).toDouble();
  final sections=<PdfSection>[
   PdfSection.h1('NaeemSoft POS'),
-  PdfSection.h2(sale?'فاتورة بيع':'فاتورة توريد'),
-  PdfSection.paragraph('رقم الفاتورة: $invoiceId'),
-  PdfSection.paragraph('التاريخ: $invoiceDate'),
-  PdfSection.paragraph('${sale?'الزبون':'المورد'}: $party'),
+  PdfSection.h2(tr(sale?'فاتورة بيع':'فاتورة توريد')),
+  PdfSection.paragraph(tr('رقم الفاتورة: ') + invoiceId.toString()),
+  PdfSection.paragraph(tr('التاريخ: ') + invoiceDate),
+  PdfSection.paragraph(tr(sale?'الزبون: ':'المورد: ') + party),
   PdfSection.divider(),
-  PdfSection.h2('تفاصيل الأصناف'),
+  PdfSection.h2(tr('تفاصيل الأصناف')),
  ];
  for(var i=0;i<lines.length;i++){
   final x=lines[i];
   final name=(x['product_name']??'صنف محذوف').toString();
   final quantity=sale
-    ? 'الكمية: ${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كيلو'
-    : 'الكمية: ${x['packages']} عبوة، وزن العبوة ${x['weight_each']} كيلو';
+    ? '${tr('الكمية: ')}${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كيلو')}'
+    : '${tr('الكمية: ')}${x['packages']} ${tr('عبوة، وزن العبوة')} ${x['weight_each']} ${tr('كيلو')}';
   sections.add(PdfSection.paragraph(
-    '$name\n$quantity\nإجمالي الصنف: ${money(x['line_total'] as num)}'
+    '$name\n$quantity\n${tr('إجمالي الصنف: ')}${money(x['line_total'] as num)}'
   ));
   sections.add(PdfSection.divider());
  }
  sections.addAll([
-  PdfSection.h2('ملخص الحساب'),
-  PdfSection.paragraph('الإجمالي: ${money(total)}'),
-  PdfSection.paragraph('المدفوع: ${money(paid)}'),
-  PdfSection.paragraph('المتبقي: ${money(total-paid)}'),
-  PdfSection.paragraph('شكراً لتعاملكم معنا'),
+  PdfSection.h2(tr('ملخص الحساب')),
+  PdfSection.paragraph(tr('الإجمالي: ') + money(total)),
+  PdfSection.paragraph(tr('المدفوع: ') + money(paid)),
+  PdfSection.paragraph(tr('المتبقي: ') + money(total-paid)),
+  PdfSection.paragraph(tr('شكراً لتعاملكم معنا')),
  ]);
  return PdfBuilder.generate(PdfDocumentData(
-  title:'${sale?'فاتورة بيع':'فاتورة توريد'} $invoiceId',
+  title:'${tr(sale?'فاتورة بيع':'فاتورة توريد')} $invoiceId',
   author:'NaeemSoft POS',
   style:PdfStyle.minimal.copyWith(
    pageFormat:PdfPageFormat(80 * PdfPageFormat.mm, receiptHeight * PdfPageFormat.mm),
