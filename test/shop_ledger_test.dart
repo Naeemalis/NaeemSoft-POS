@@ -260,13 +260,15 @@ void main() {
     await shop.saveSale(customerId: null, paid: 3000, items: [
       {'product_id': saleProduct, 'grams': 3000, 'price_per_kg': 1000},
     ]);
+    await shop.saveReturn(type: 'supplier', invoiceId: purchaseId,
+      items: [{'source_item_id': purchaseItem['id'], 'grams': 2000}]);
+    expect((await shop.db.query('purchase_batches')).single['remaining_grams'], 0);
+    expect((await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct])).single['stock_grams'], 0);
     await expectLater(
       shop.saveReturn(type: 'supplier', invoiceId: purchaseId,
         items: [{'source_item_id': purchaseItem['id'], 'grams': 1000}]),
       throwsException,
     );
-    expect((await shop.db.query('purchase_batches')).single['remaining_grams'], 2000);
-    expect((await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct])).single['stock_grams'], 2000);
   });
 
 }
