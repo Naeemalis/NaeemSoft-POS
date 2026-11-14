@@ -145,7 +145,7 @@ String tr(String value) {
       'المدفوع: ':'Paid: ',
       'المتبقي: ':'Remaining: ',
       'شكراً لتعاملكم معنا':'Thank you for your business',
-      'سند قبض من زبون':'Customer receipt',
+      'سند قبض من زبون':'Customer receipt','سند مرتجع زبون':'Customer return voucher','سند إرجاع إلى المورد':'Supplier return voucher','قيمة المرتجع: ':'Return amount: ','تم تسجيل المرتجع وتحديث الحساب والمخزون.':'Return recorded; account and stock updated.','مرتجع مورد':'Supplier return',
       'سند سداد مورد':'Supplier payment voucher',
       'سند قبض':'Receipt voucher',
       'سند سداد':'Payment voucher',
@@ -452,7 +452,7 @@ String tr(String value) {
       'المدفوع: ':'Payé : ',
       'المتبقي: ':'Reste à payer : ',
       'شكراً لتعاملكم معنا':'Merci de votre confiance',
-      'سند قبض من زبون':'Reçu client',
+      'سند قبض من زبون':'Reçu client','سند مرتجع زبون':'Bon de retour client','سند إرجاع إلى المورد':'Bon de retour fournisseur','قيمة المرتجع: ':'Montant du retour : ','تم تسجيل المرتجع وتحديث الحساب والمخزون.':'Retour enregistré ; compte et stock mis à jour.','مرتجع مورد':'Retour fournisseur',
       'سند سداد مورد':'Bon de règlement fournisseur',
       'سند قبض':'Reçu',
       'سند سداد':'Bon de règlement',
@@ -1877,8 +1877,8 @@ Widget _invoiceAmount(String label,num amount)=>Padding(
 
 Future<void> _showReturnReceipt(BuildContext context,{required String type,required int returnId,required String partyName,required int amount}) async {
  final customer=type=='customer';
- final md='''# NaeemSoft POS\n\n## ${customer?'سند مرتجع زبون':'سند إرجاع إلى المورد'}\n\n- رقم السند: $returnId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- قيمة المرتجع: ${money(amount)}\n\nتم تسجيل المرتجع وتحديث الحساب والمخزون.''';
- final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'مرتجع زبون':'مرتجع مورد'} $returnId',author:'NaeemSoft POS',markdown:md));
+ final md='''# NaeemSoft POS\n\n## ${tr(customer?'سند مرتجع زبون':'سند إرجاع إلى المورد')}\n\n- ${tr('رقم السند: ')}$returnId\n- ${tr('التاريخ: ')}${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${tr(customer?'الزبون: ':'المورد: ')}$partyName\n- ${tr('قيمة المرتجع: ')}${money(amount)}\n\n${tr('تم تسجيل المرتجع وتحديث الحساب والمخزون.')}''';
+ final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${tr(customer?'مرتجع زبون':'مرتجع مورد')} $returnId',author:'NaeemSoft POS',markdown:md));
  if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
 }
 
