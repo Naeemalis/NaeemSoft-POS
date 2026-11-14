@@ -16,12 +16,14 @@ void main() {
     expect(app.tr('الرئيسية'), 'Home');
     expect(app.tr('المبيعات'), 'Sales');
     expect(app.tr('التوريد'), 'Purchases');
+    expect(app.tr('مستحق للمورد • على المحل'), 'Due to supplier • payable by shop');
     expect(app.kg(1000), '1.000 kg');
 
     app.appLocale.value = const Locale('fr');
     expect(app.tr('الرئيسية'), 'Accueil');
     expect(app.tr('المبيعات'), 'Ventes');
     expect(app.tr('التوريد'), 'Achats');
+    expect(app.tr('مستحق للمورد • على المحل'), 'Dû au fournisseur • payable par le magasin');
     expect(app.kg(1000), '1.000 kg');
   });
 }
