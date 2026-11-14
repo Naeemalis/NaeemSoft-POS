@@ -385,6 +385,8 @@ String tr(String value) {
       'قيمة المخزون: ':'Stock value: ',
     
       'إجمالي الكمية':'Total quantity',
+    
+      'تنبيهات الصلاحية':'Expiry alerts',
     },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
@@ -745,6 +747,8 @@ String tr(String value) {
       'قيمة المخزون: ':'Valeur du stock : ',
     
       'إجمالي الكمية':'Quantité totale',
+    
+      'تنبيهات الصلاحية':'Alertes d’expiration',
     }
   };
   return translations[language]?[value] ?? value;
