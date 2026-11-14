@@ -84,6 +84,19 @@ class _SalePageState extends State<SalePage>{
  bool posting=false;
  String keypadValue=''; String saleMode='weight';
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(k=='½')keypadValue='0.5';else if(k=='¼')keypadValue='0.25';else if(k=='1 كجم')keypadValue='1';else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
+ Future<void> changeCustomer(int? customerId) async {
+  final updated=<int,Map<String,dynamic>>{};
+  for(final entry in cart.entries){
+   final product=await ShopDb.instance.db.query('products',columns:['sale_price'],where:'id=?',whereArgs:[entry.key],limit:1);
+   var price=product.isEmpty?((entry.value['price_per_kg'] as num).round()):(product.first['sale_price'] as num).round();
+   if(customerId!=null){
+    final custom=await ShopDb.instance.db.query('customer_product_prices',where:'customer_id=? AND product_id=? AND active=1',whereArgs:[customerId,entry.key],limit:1);
+    if(custom.isNotEmpty)price=(custom.first['price_per_kg'] as num).round();
+   }
+   updated[entry.key]={...entry.value,'price_per_kg':price};
+  }
+  if(mounted)setState((){selectedCustomerId=customerId;cart..clear()..addAll(updated);});
+ }
  Future<void> add(Map<String,Object?> p) async {
   var price=(p['sale_price'] as num).round();
   if(selectedCustomerId!=null){
@@ -117,8 +130,7 @@ class _SalePageState extends State<SalePage>{
    title:const Text('بيانات فاتورة البيع'),
    content:Column(mainAxisSize:MainAxisSize.min,children:[
     Text('الإجمالي: '+money(total)),
-    DropdownButtonFormField<int?>(value:customer,decoration:const InputDecoration(labelText:'الزبون (اختياري)'),
-     items:[const DropdownMenuItem<int?>(value:null,child:Text('نقدي / غير مسجل')),...customers.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:(v)=>customer=v),
+    Text('الزبون: '+(customer==null?'نقدي / غير مسجل':customers.firstWhere((x)=>x['id']==customer)['name'].toString())),
     field(paid,'المبلغ المدفوع',number:true),field(due,'موعد السداد YYYY-MM-DD')
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('معاينة الفاتورة'))]));
@@ -145,7 +157,7 @@ class _SalePageState extends State<SalePage>{
   return Column(children:[
    Padding(padding:const EdgeInsets.fromLTRB(8,6,8,2),child:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const LinearProgressIndicator();
-    return DropdownButtonFormField<int?>(value:selectedCustomerId,decoration:const InputDecoration(labelText:'الزبون (اختياري) • السعر الخاص إن وجد',border:OutlineInputBorder(),isDense:true),items:[const DropdownMenuItem<int?>(value:null,child:Text('بيع نقدي / بدون زبون')),...s.data!.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:posting?null:(v)=>setState(()=>selectedCustomerId=v));
+    return DropdownButtonFormField<int?>(value:selectedCustomerId,decoration:const InputDecoration(labelText:'الزبون (اختياري) • السعر الخاص إن وجد',border:OutlineInputBorder(),isDense:true),items:[const DropdownMenuItem<int?>(value:null,child:Text('بيع نقدي / بدون زبون')),...s.data!.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:posting?null:(v)=>changeCustomer(v));
    })),
    FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
