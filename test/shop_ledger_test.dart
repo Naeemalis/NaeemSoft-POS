@@ -33,6 +33,8 @@ void main() {
     final purchaseLine = (await shop.db.query('purchase_items')).single;
     expect(movements.single['purchase_item_id'], purchaseLine['id']);
     expect(movements.single['product_id'], saleProduct);
+    expect(await shop.db.query('supplier_payment_links'), hasLength(1));
+    expect(await shop.db.query('purchase_payment_allocations'), hasLength(1));
     expect(await shop.db.query('product_stock_links', where:'purchase_product_id=?', whereArgs:[purchaseProduct]), hasLength(1));
     final invoice = await shop.db.query('purchases', where: 'id=?', whereArgs: [id]);
     expect(invoice.single['total'], 50000);
@@ -65,6 +67,8 @@ void main() {
     expect(invoice.single['total'], 1000);
     expect(invoice.single['paid'], 500);
     expect((await shop.db.query('sale_items')).single['cost_total_djf'], 1000);
+    expect(await shop.db.query('customer_payment_links'), hasLength(1));
+    expect(await shop.db.query('sale_payment_allocations'), hasLength(1));
   });
 
   test('supplier and customer balances remain separate while stock is shared', () async {
