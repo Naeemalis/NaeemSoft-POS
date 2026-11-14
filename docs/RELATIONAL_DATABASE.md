@@ -13,7 +13,7 @@
 
 ## Product units and supplier packaging
 
-`product_units` defines the units and package conversion factors for each product. The product center manages these rows (add, edit, delete); the default purchase unit cannot be deleted, and editing its conversion updates the product default weight. The purchase cashier selects from the configured units. `supplier_product_units` may override the conversion weight for a specific supplier, product, and unit. This preserves the distinction between the product's standard package definition and the supplier's actual package weight.
+`product_units` defines the units and package conversion factors for each product. The product center manages these rows (add, edit, delete); the default purchase unit cannot be deleted, and editing its conversion updates the product default weight. The purchase cashier selects from the configured units. In the sales cashier, selecting a product uses its configured sale unit; the entered count is converted to grams before it enters the cart and stock deduction. Cash-amount mode remains price-per-kilogram based and converts the entered money amount to grams independently of the selected unit. `supplier_product_units` may override the conversion weight for a specific supplier, product, and unit. This preserves the distinction between the product's standard package definition and the supplier's actual package weight.
 
 ## Single-stock-location model
 
