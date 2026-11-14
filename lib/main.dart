@@ -395,9 +395,10 @@ class _ProductsPageState extends State<ProductsPage>{
     leading:const Icon(Icons.category_outlined),
     title:Text(p['name'] as String),
     subtitle:Text(p['product_type']=='purchase'?'${p['purchase_unit']} • تكلفة الوحدة الافتراضية: ${money(p['cost'] as num)}':'${p['purchase_unit']} • ${money(p['sale_price'] as num)} / كجم'),
-    trailing:PopupMenuButton<String>(onSelected:(v)=>v=='edit'?edit(p):archive(p),itemBuilder:(_)=>const[
-     PopupMenuItem(value:'edit',child:Text('تعديل الاسم والوزن والسعر')),
-     PopupMenuItem(value:'delete',child:Text('حذف الصنف')),
+    trailing:PopupMenuButton<String>(onSelected:(v){if(v=='edit')edit(p);else if(v=='supplier')Navigator.push(context,MaterialPageRoute(builder:(_)=>SupplierPackageWeightsPage(product:p)));else archive(p);},itemBuilder:(_)=>[
+     const PopupMenuItem(value:'edit',child:Text('تعديل الاسم والوزن والسعر')),
+     if(p['product_type']=='purchase')const PopupMenuItem(value:'supplier',child:Text('أوزان العبوات حسب المورد')),
+     const PopupMenuItem(value:'delete',child:Text('حذف الصنف')),
     ]),
     onTap:()=>edit(p),
    )).toList());
@@ -439,6 +440,71 @@ class _CategoriesPageState extends State<CategoriesPage>{
    )).toList());
   }),
   floatingActionButton:FloatingActionButton.extended(onPressed:add,icon:const Icon(Icons.add),label:const Text('إضافة تصنيف')));
+}
+
+class SupplierPackageWeightsPage extends StatefulWidget {
+ final Map<String,Object?> product;
+ const SupplierPackageWeightsPage({super.key,required this.product});
+ @override State<SupplierPackageWeightsPage> createState()=>_SupplierPackageWeightsPageState();
+}
+class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>{
+ int? supplierId;
+ String unitName='جوان';
+ final weight=TextEditingController();
+ Future<List<Map<String,Object?>>> get suppliers=>ShopDb.instance.db.query('suppliers',where:'active=1',orderBy:'name');
+ Future<List<Map<String,Object?>>> get units=>ShopDb.instance.getSupplierProductUnits((widget.product['id'] as num).toInt());
+ Future<void> save() async {
+  final grams=((double.tryParse(weight.text.trim().replaceAll(',','.'))??0)*1000).round();
+  if(supplierId==null||grams<=0){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اختر المورد وأدخل وزناً صحيحاً')));return;}
+  try{
+   await ShopDb.instance.saveSupplierProductUnit(
+    supplierId:supplierId!,productId:(widget.product['id'] as num).toInt(),
+    unitName:unitName,weightGrams:grams,
+   );
+   weight.clear();
+   if(mounted)setState((){});
+   if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ وزن العبوة لهذا المورد')));
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحفظ: $e')));}
+ }
+ @override Widget build(BuildContext c)=>Scaffold(
+  appBar:AppBar(title:Text('أوزان الموردين • ${widget.product['name']}')),
+  body:ListView(padding:const EdgeInsets.all(12),children:[
+   Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
+    const Align(alignment:Alignment.centerRight,child:Text('إضافة وزن عبوة خاص بمورد',style:TextStyle(fontWeight:FontWeight.bold))),
+    const SizedBox(height:10),
+    FutureBuilder<List<Map<String,Object?>>>(future:suppliers,builder:(c,s){
+     if(!s.hasData)return const LinearProgressIndicator();
+     return DropdownButtonFormField<int>(
+      value:supplierId,decoration:const InputDecoration(labelText:'المورد'),
+      items:s.data!.map((x)=>DropdownMenuItem<int>(value:(x['id'] as num).toInt(),child:Text(x['name'] as String))).toList(),
+      onChanged:(v)=>setState(()=>supplierId=v),
+     );
+    }),
+    const SizedBox(height:8),
+    DropdownButtonFormField<String>(
+     value:unitName,decoration:const InputDecoration(labelText:'نوع العبوة'),
+     items:const ['جوان','كيس','سحارة','حزمة','صندوق','كرتون','كيلو']
+      .map((x)=>DropdownMenuItem(value:x,child:Text(x))).toList(),
+     onChanged:(v){if(v!=null)setState(()=>unitName=v);},
+    ),
+    const SizedBox(height:8),
+    field(weight,'وزن العبوة بالكيلو',number:true),
+    const SizedBox(height:8),
+    SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:save,icon:const Icon(Icons.save),label:const Text('حفظ وزن المورد'))),
+   ]))),
+   const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('الأوزان المسجلة حسب المورد',style:TextStyle(fontWeight:FontWeight.bold))),
+   FutureBuilder<List<Map<String,Object?>>>(future:units,builder:(c,s){
+    if(s.hasError)return Text('تعذر تحميل الأوزان: ${s.error}');
+    if(!s.hasData)return const Center(child:CircularProgressIndicator());
+    if(s.data!.isEmpty)return const Text('لا توجد أوزان خاصة مسجلة بعد.');
+    return Card(child:Column(children:s.data!.map((x)=>ListTile(
+     leading:const Icon(Icons.scale_outlined),
+     title:Text('${x['supplier_name']} • ${x['unit_name']}'),
+     subtitle:Text('وزن العبوة: ${((x['weight_grams'] as num).toDouble()/1000).toStringAsFixed(3)} كجم'),
+    )).toList()));
+   }),
+  ]),
+ );
 }
 
 class PartiesPage extends StatefulWidget {final String type;const PartiesPage({super.key,required this.type});@override State<PartiesPage> createState()=>_PartiesPageState();}
