@@ -511,7 +511,7 @@ Future<List<Map<String,Object?>>> rows(String t) => ShopDb.instance.query(t);
 Widget field(TextEditingController c, String label, {bool number=false}) => Padding(
   padding: const EdgeInsets.only(bottom: 8),
   child: TextField(controller:c, keyboardType:number ? const TextInputType.numberWithOptions(decimal:true) : TextInputType.text,
-    decoration:InputDecoration(labelText:label,border:const OutlineInputBorder(),isDense:true)));
+    decoration:InputDecoration(labelText:tr(label),border:const OutlineInputBorder(),isDense:true)));
 
 class NaeemSoftApp extends StatelessWidget {
  const NaeemSoftApp({super.key});
@@ -564,9 +564,9 @@ class DashboardPage extends StatelessWidget {
   return ListView(padding:const EdgeInsets.all(10),children:[
    Card(color:Theme.of(c).colorScheme.primaryContainer,child:Padding(padding:EdgeInsets.all(16),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(tr('ملخص اليوم')),Text(money(x[0]),style:Theme.of(c).textTheme.headlineMedium?.copyWith(fontWeight:FontWeight.bold)),Text(tr('إجمالي فواتير البيع المسجلة اليوم'))]))),
    GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:2,childAspectRatio:2.2,children:[metric('مشتريات اليوم',money(x[1]),Icons.local_shipping_outlined),metric('عدد الأصناف',x[2].toString(),Icons.category_outlined),metric('المخزون الحالي',kg(x[3]),Icons.inventory_2_outlined),metric('النظام','محلي • محل واحد',Icons.storefront_outlined)]),
-   const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('الوصول السريع',style:TextStyle(fontWeight:FontWeight.bold,fontSize:15))),
+   Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text(tr('الوصول السريع'),style:TextStyle(fontWeight:FontWeight.bold,fontSize:15))),
    GridView.count(shrinkWrap:true,physics:const NeverScrollableScrollPhysics(),crossAxisCount:4,childAspectRatio:.9,children:[action('الأصناف',Icons.category,const ProductsPage()),action('الفواتير',Icons.receipt_long,const InvoicesPage()),action('الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),action('الزبائن',Icons.people,const PartiesPage(type:'customer')),action('الحسابات',Icons.account_balance,const AccountsPage()),action('المرتجعات',Icons.assignment_return,const ReturnsPage()),action('المسودات',Icons.drafts,const DraftsPage()),action('الإدارة',Icons.settings,const AdminPage())]),
-   const Padding(padding:EdgeInsets.all(8),child:Text('فواتير الموردين وفواتير العملاء مستقلة. الكاشير لا يرتبط بالمخزون ولا يخصم منه.',style:TextStyle(height:1.5)))
+   Padding(padding:EdgeInsets.all(8),child:Text(tr('ترحّل فواتير التوريد إلى المخزون، وتخصم فواتير البيع الكميات من الرصيد.'),style:TextStyle(height:1.5)))
   ]);
  });
 }
@@ -613,11 +613,11 @@ class _SalePageState extends State<SalePage>{
     final chosen=units.length==1?initial:await showDialog<Map<String,Object?>>(context:context,builder:(c){
      var selected=(initial['id'] as num).toInt();
      return StatefulBuilder(builder:(c,setChoice)=>AlertDialog(
-      title:Text('وحدة بيع ${p['name']}'),
+      title:Text(tr('وحدة بيع')+' ${p['name']}'),
       content:DropdownButtonFormField<int>(
        value:selected,
        decoration:InputDecoration(labelText: tr('اختر وحدة الكمية')),
-       items:units.map((x)=>DropdownMenuItem<int>(value:(x['id'] as num).toInt(),child:Text('${x['unit_name']} • ${((x['default_weight_grams'] as num)/1000).toStringAsFixed(3)} كجم'))).toList(),
+       items:units.map((x)=>DropdownMenuItem<int>(value:(x['id'] as num).toInt(),child:Text('${x['unit_name']} • ${((x['default_weight_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كيلو')}'))).toList(),
        onChanged:(v){if(v!=null)setChoice(()=>selected=v);},
       ),
       actions:[TextButton(onPressed:()=>Navigator.pop(c),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,units.firstWhere((x)=>(x['id'] as num).toInt()==selected)),child:Text(tr('اختيار')))],
@@ -640,7 +640,7 @@ class _SalePageState extends State<SalePage>{
  int get total=>cart.values.fold(0,(v,x)=>v+(((x['grams'] as int)*(x['price_per_kg'] as int))/1000).round());
  Future<void> saveDraft() async {
   if(cart.isEmpty){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('السلة فارغة'))));return;}
-  try{final id=await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),total:total,draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة البيع رقم '+id.toString())));}}
+  try{final id=await ShopDb.instance.saveDraft(type:'sale',items:cart.values.toList(),total:total,draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('حُفظت مسودة فاتورة البيع رقم ')+id.toString())));}}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Future<void> openDrafts() async {
@@ -657,8 +657,8 @@ class _SalePageState extends State<SalePage>{
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(tr('بيانات فاتورة البيع')),
    content:Column(mainAxisSize:MainAxisSize.min,children:[
-    Text('الإجمالي: '+money(total)),
-    Text('الزبون: '+(customer==null?'نقدي / غير مسجل':customers.firstWhere((x)=>x['id']==customer)['name'].toString())),
+    Text(tr('الإجمالي: ')+money(total)),
+    Text(tr('الزبون: ')+(customer==null?tr('نقدي / غير مسجل'):customers.firstWhere((x)=>x['id']==customer)['name'].toString())),
     field(paid,'المبلغ المدفوع',number:true),field(due,'موعد السداد YYYY-MM-DD')
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('رجوع'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('معاينة الفاتورة')))]));
@@ -694,7 +694,7 @@ class _SalePageState extends State<SalePage>{
      final p=ps[i];return Card(margin:EdgeInsets.zero,child:InkWell(onTap:posting?null:()=>add(p),child:Padding(padding:const EdgeInsets.all(2),child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
       Text(p['name'] as String,maxLines:2,textAlign:TextAlign.center,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:10)),
       Text(money(p['sale_price'] as num),maxLines:1,style:const TextStyle(fontSize:9)),
-      const Text('بيع مباشر',maxLines:1,style:TextStyle(fontSize:8))
+      Text(tr('بيع مباشر'),maxLines:1,style:TextStyle(fontSize:8))
      ]))));
     }));
    }),
@@ -703,29 +703,29 @@ class _SalePageState extends State<SalePage>{
     margin:const EdgeInsets.symmetric(horizontal:7,vertical:3),padding:const EdgeInsets.all(8),
     decoration:BoxDecoration(border:Border.all(color:Theme.of(c).colorScheme.outlineVariant),borderRadius:BorderRadius.circular(10),color:Theme.of(c).colorScheme.surfaceContainerLowest),
     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('قراءة الكاشير • العمليات المختارة',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد العمليات: ${cart.length}',style:const TextStyle(fontSize:11))]),
+     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),Text(tr('قراءة الكاشير • العمليات المختارة'),style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(tr('عدد العمليات: ')+cart.length.toString(),style:const TextStyle(fontSize:11))]),
      const Divider(height:8),
-     Expanded(child:cart.isEmpty?const Center(child:Text('عند اختيار أي صنف ستظهر عمليته هنا مباشرة',style:TextStyle(color:Colors.grey))):ListView(children:cart.values.toList().asMap().entries.map((entry){
+     Expanded(child:cart.isEmpty?Center(child:Text(tr('عند اختيار أي صنف ستظهر عمليته هنا مباشرة'),style:TextStyle(color:Colors.grey))):ListView(children:cart.values.toList().asMap().entries.map((entry){
       final x=entry.value,grams=x['grams'] as int,price=x['price_per_kg'] as int;
       return Container(margin:const EdgeInsets.only(bottom:5),padding:const EdgeInsets.symmetric(horizontal:6,vertical:5),decoration:BoxDecoration(border:Border(bottom:BorderSide(color:Theme.of(c).colorScheme.outlineVariant))),child:Row(children:[
        SizedBox(width:22,child:Text('${entry.key+1}.',style:const TextStyle(fontSize:11,color:Colors.grey))),
        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:13)),
-        Text('الكمية: ${kg(grams)} كيلو • الوحدة: ${x['unit_name']??'كيلو'} • سعر الكيلو: ${money(price)}',style:const TextStyle(fontSize:11,color:Colors.grey))
+        Text('${tr('الكمية: ')}${kg(grams)} • ${tr('الوحدة: ')}${x['unit_name']??tr('كيلو')} • ${tr('سعر الكيلو: ')}${money(price)}',style:const TextStyle(fontSize:11,color:Colors.grey))
        ])),
-       Column(crossAxisAlignment:CrossAxisAlignment.end,children:[const Text('إجمالي الصنف',style:TextStyle(fontSize:9,color:Colors.grey)),Text(money((grams*price/1000).round()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12))]),
+       Column(crossAxisAlignment:CrossAxisAlignment.end,children:[Text(tr('إجمالي الصنف'),style:TextStyle(fontSize:9,color:Colors.grey)),Text(money((grams*price/1000).round()),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12))]),
        IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:28,height:28),iconSize:15,onPressed:posting?null:()=>setState(()=>cart.remove(x['product_id'])),icon:const Icon(Icons.close))
       ]));
      }).toList())),
      const Divider(height:8),
-     Row(children:[const Text('الإجمالي',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(money(total),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17))])
+     Row(children:[Text(tr('الإجمالي'),style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(money(total),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17))])
     ])
    )),
    Container(padding:const EdgeInsets.fromLTRB(7,4,7,5),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Row(children:[Expanded(child:SegmentedButton<String>(showSelectedIcon:false,segments:const[ButtonSegment(value:'weight',label:Text(tr('وزن'))),ButtonSegment(value:'cash',label:Text(tr('نقد')))],selected:{saleMode},onSelectionChanged:(v)=>setState(()=>saleMode=v.first))),SizedBox(width:6),Text((keypadValue.isEmpty?'أدخل الرقم':keypadValue)+(saleMode=='cash'?' DJF':' × ${selectedSaleUnitName}'),style:TextStyle(fontWeight:FontWeight.bold,fontSize:13))]),
     cashierNumberPad(keys:['7','8','9','⌫','4','5','6','مسح','1','2','3',if(saleMode=='weight')'½' else '.','0','.',if(saleMode=='weight')'¼' else '00',if(saleMode=='weight')'1 كجم' else 'مسح'],onKey:key),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:Text(tr('مسودة')))),SizedBox(width:5),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:Text(tr('المسودات'))))]),
-    SizedBox(width:double.infinity,height:42,child:FilledButton(onPressed:posting?null:checkout,child:Text(posting?'جارٍ الترحيل...':'إتمام البيع')))
+    SizedBox(width:double.infinity,height:42,child:FilledButton(onPressed:posting?null:checkout,child:Text(posting?tr('جارٍ الترحيل...'):tr('إتمام البيع'))))
    ]))
   ]);
  }
@@ -750,7 +750,7 @@ class _PurchasePageState extends State<PurchasePage>{
    final selected=await showDialog<String>(context:context,builder:(c){
     var choice=selectedUnit;
     return StatefulBuilder(builder:(c,setChoice)=>AlertDialog(
-     title:Text('اختر عبوة ${p['name']}'),
+     title:Text(tr('اختر عبوة')+' ${p['name']}'),
      content:DropdownButtonFormField<String>(
       value:productUnits.any((x)=>x['unit_name']==choice)?choice:productUnits.first['unit_name'] as String,
       decoration:InputDecoration(labelText: tr('وحدة التوريد')),
@@ -806,7 +806,7 @@ class _PurchasePageState extends State<PurchasePage>{
  int get total=>cart.fold(0,(v,x)=>v+(x['packages'] as int)*(x['package_cost'] as int));
  Future<void> saveDraft() async {
   if(cart.isEmpty){ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('الفاتورة فارغة'))));return;}
-  try{final id=await ShopDb.instance.saveDraft(type:'purchase',items:cart,total:total,draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('حُفظت مسودة فاتورة التوريد رقم '+id.toString())));}}
+  try{final id=await ShopDb.instance.saveDraft(type:'purchase',items:cart,total:total,draftId:activeDraftId);activeDraftId=null;cart.clear();if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('حُفظت مسودة فاتورة التوريد رقم ')+id.toString())));}}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  Future<void> openDrafts() async {
@@ -855,30 +855,30 @@ class _PurchasePageState extends State<PurchasePage>{
     margin:const EdgeInsets.symmetric(horizontal:7,vertical:3),padding:const EdgeInsets.all(8),
     decoration:BoxDecoration(border:Border.all(color:Theme.of(c).colorScheme.outlineVariant),borderRadius:BorderRadius.circular(10),color:Theme.of(c).colorScheme.surfaceContainerLowest),
     child:Column(crossAxisAlignment:CrossAxisAlignment.stretch,children:[
-     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),const Text('قراءة كاشير التوريد • العمليات المختارة',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text('عدد العمليات: ${cart.length}',style:const TextStyle(fontSize:11))]),
+     Row(children:[const Icon(Icons.calculate_outlined,size:18),const SizedBox(width:5),Text(tr('قراءة كاشير التوريد • العمليات المختارة'),style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(tr('عدد العمليات: ')+cart.length.toString(),style:const TextStyle(fontSize:11))]),
      const Divider(height:8),
-     Expanded(child:cart.isEmpty?const Center(child:Text('الأصناف والعمليات التي تختارها ستظهر هنا',style:TextStyle(color:Colors.grey))):ListView(children:cart.asMap().entries.map((e){
+     Expanded(child:cart.isEmpty?Center(child:Text(tr('الأصناف والعمليات التي تختارها ستظهر هنا'),style:TextStyle(color:Colors.grey))):ListView(children:cart.asMap().entries.map((e){
       final x=e.value,line=(x['packages'] as int)*(x['package_cost'] as int);
       return Padding(padding:const EdgeInsets.symmetric(vertical:4),child:InkWell(onTap:()=>editLineWeight(e.key),child:Row(children:[
        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
         Text(x['name'] as String,style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
-        Text('الكمية ${x['packages']} ${x['unit']}، وزن الوحدة ${((x['weight_grams'] as int)/1000).toStringAsFixed(2)} كيلو • اضغط لتعديل الوزن',style:const TextStyle(fontSize:10,color:Colors.grey)),
-        Text('تكلفة العبوة ${money(x['package_cost'] as num)}',style:const TextStyle(fontSize:10,color:Colors.grey))
+        Text('${tr('الكمية')} ${x['packages']} ${x['unit']}، ${tr('وزن الوحدة')} ${((x['weight_grams'] as int)/1000).toStringAsFixed(2)} ${tr('كيلو')} • ${tr('اضغط لتعديل الوزن')}',style:const TextStyle(fontSize:10,color:Colors.grey)),
+        Text('${tr('تكلفة العبوة')} ${money(x['package_cost'] as num)}',style:const TextStyle(fontSize:10,color:Colors.grey))
        ])),
        Text(money(line),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:12)),
        IconButton(visualDensity:VisualDensity.compact,constraints:const BoxConstraints.tightFor(width:28,height:28),iconSize:15,onPressed:posting?null:()=>setState(()=>cart.removeAt(e.key)),icon:const Icon(Icons.close))
       ])));
      }).toList())),
      const Divider(height:8),
-     Row(children:[const Text('إجمالي التوريد',style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(money(total),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17))])
+     Row(children:[Text(tr('إجمالي التوريد'),style:TextStyle(fontWeight:FontWeight.bold)),const Spacer(),Text(money(total),style:const TextStyle(fontWeight:FontWeight.bold,fontSize:17))])
     ])
    )),
    Container(padding:const EdgeInsets.fromLTRB(7,3,7,4),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
     Row(children:[ChoiceChip(label:Text(tr('عدد العبوات')),selected:true,onSelected:null),Spacer(),Text('سعر الشراء من مركز الأصناف',style:TextStyle(fontSize:11,color:Colors.grey))]),
-    Text('أدخل عدد العبوات فقط: ${keypadValue.isEmpty?'—':keypadValue} • العدد المعتمد: ${packageCount==0?'—':packageCount} • السعر والوزن يُقرآن تلقائياً من إعدادات الصنف والمورد',style:const TextStyle(fontSize:10)), 
+    Text('${tr('أدخل عدد العبوات فقط: ')}${keypadValue.isEmpty?'—':keypadValue} • ${tr('العدد المعتمد: ')}${packageCount==0?'—':packageCount} • ${tr('السعر والوزن يُقرآن تلقائياً من إعدادات الصنف والمورد')}',style:const TextStyle(fontSize:10)), 
     cashierNumberPad(keys:['7','8','9','⌫','4','5','6','مسح','1','2','3','.','0','00','اعتماد'],onKey:(k)=>k=='اعتماد'?applyKeypad():key(k)),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:Text(tr('حفظ مسودة')))),SizedBox(width:4),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:Text(tr('المسودات'))))]),
-    SizedBox(width:double.infinity,height:40,child:FilledButton(onPressed:posting?null:save,child:Text(posting?'جارٍ الحفظ...':'ترحيل فاتورة التوريد')))
+    SizedBox(width:double.infinity,height:40,child:FilledButton(onPressed:posting?null:save,child:Text(posting?tr('جارٍ الحفظ...'):tr('ترحيل فاتورة التوريد'))))
    ]))
   ]);
  }
@@ -893,16 +893,16 @@ class PurchaseInvoiceReviewPage extends StatelessWidget {
   body:ListView(padding:const EdgeInsets.all(12),children:[
    Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
     const Text('NaeemSoft POS',textAlign:TextAlign.center,style:TextStyle(fontWeight:FontWeight.bold,fontSize:20)),
-    const Center(child:Text('فاتورة توريد',style:TextStyle(fontWeight:FontWeight.bold,fontSize:16))),
+    Center(child:Text(tr('فاتورة توريد'),style:TextStyle(fontWeight:FontWeight.bold,fontSize:16))),
     const Divider(),
     Text(tr('المورد: $party')),
-    Text('التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}'),
+    Text(tr('التاريخ: ')+DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())),
     const Divider(),
-    const Row(children:[Expanded(child:Text('اسم الصنف',style:TextStyle(fontWeight:FontWeight.bold))),Text('الكمية',style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:10),Text('إجمالي الصنف',style:TextStyle(fontWeight:FontWeight.bold))]),
+    Row(children:[Expanded(child:Text(tr('اسم الصنف'),style:TextStyle(fontWeight:FontWeight.bold))),Text(tr('الكمية'),style:TextStyle(fontWeight:FontWeight.bold)),SizedBox(width:10),Text(tr('إجمالي الصنف'),style:TextStyle(fontWeight:FontWeight.bold))]),
     const Divider(),
     ...items.map((x)=>Padding(padding:const EdgeInsets.symmetric(vertical:6),child:Row(children:[
      Expanded(child:Text(x['name'].toString(),style:const TextStyle(fontWeight:FontWeight.bold))),
-     Text('${x['packages']} ${x['unit']} • ${((x['weight_grams'] as num)/1000).toStringAsFixed(2)} كجم/وحدة'),
+     Text('${x['packages']} ${x['unit']} • ${((x['weight_grams'] as num)/1000).toStringAsFixed(2)} kg/${tr('الوحدة')}'),
      const SizedBox(width:10),
      Text(money((x['packages'] as num)*(x['package_cost'] as num)),style:const TextStyle(fontWeight:FontWeight.bold)),
     ]))),
@@ -949,8 +949,8 @@ class ExpiryAlertsPage extends StatelessWidget {
     return ListTile(
      leading:Icon(expired?Icons.warning_amber_rounded:Icons.schedule,color:expired?Colors.red:Colors.orange),
      title:Text(x['product_name'].toString()),
-     subtitle:Text('الانتهاء: ${x['expiry_date']} • المتبقي: ${kg(x['remaining_grams'] as num)}'),
-     trailing:Text(expired?'منتهي':'قريب',style:TextStyle(color:expired?Colors.red:Colors.orange,fontWeight:FontWeight.bold)),
+     subtitle:Text('${tr('الانتهاء: ')}${x['expiry_date']} • ${tr('المتبقي: ')}${kg(x['remaining_grams'] as num)}'),
+     trailing:Text(tr(expired?'منتهي':'قريب'),style:TextStyle(color:expired?Colors.red:Colors.orange,fontWeight:FontWeight.bold)),
     );
    }).toList());
   }),
@@ -999,7 +999,7 @@ class _ProductsPageState extends State<ProductsPage>{
   String productType=(product?['product_type']??'sale').toString();
   int? pairedSaleProductId=product?['paired_sale_product_id'] as int?;
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
-   title:Text(product==null?'إضافة صنف':'تعديل الصنف والسعر'),
+   title:Text(tr(product==null?'إضافة صنف':'تعديل الصنف والسعر')),
    content:StatefulBuilder(builder:(c,setDialogState)=>SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
     field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:InputDecoration(labelText: tr('نوع الصنف')),items:[DropdownMenuItem(value:'sale',child:Text(tr('أصناف المبيعات'))),DropdownMenuItem(value:'purchase',child:Text(tr('أصناف التوريد')))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),DropdownButtonFormField<int?>(value:categories.any((x)=>(x['id'] as num).toInt()==categoryId)?categoryId:null,decoration:InputDecoration(labelText: tr('التصنيف')),items:[DropdownMenuItem<int?>(value:null,child:Text(tr('بدون تصنيف'))),...categories.map((x)=>DropdownMenuItem<int?>(value:(x['id'] as num).toInt(),child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>categoryId=v)),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),
     CheckboxListTile(contentPadding:EdgeInsets.zero,value:requiresExpiry,title:Text(tr('يتطلب تاريخ انتهاء الصلاحية')),onChanged:(v)=>setDialogState(()=>requiresExpiry=v??false)),
@@ -1022,7 +1022,7 @@ class _ProductsPageState extends State<ProductsPage>{
  Future<void> archive(Map<String,Object?> product) async {
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(tr('حذف الصنف من القائمة؟')),
-   content:Text('سيختفي «${product['name']}» من البيع والتوريد، مع الاحتفاظ به في الفواتير السابقة.'),
+   content:Text('${tr('سيختفي الصنف')} «${product['name']}» ${tr('من البيع والتوريد، مع الاحتفاظ به في الفواتير السابقة.')}'),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('حذف')))]));
   if(ok==true){await ShopDb.instance.deactivateProduct(product['id'] as int);if(mounted)setState((){});}
  }
@@ -1065,7 +1065,7 @@ class _CategoriesPageState extends State<CategoriesPage>{
  Future<void> remove(Map<String,Object?> row) async {
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(tr('حذف التصنيف؟')),
-   content:Text('سيتم إلغاء ربط التصنيف بالصنف «${row['name']}» إن وجد، دون حذف الصنف أو فواتيره.'),
+   content:Text('${tr('سيتم إلغاء ربط التصنيف بالصنف')} «${row['name']}» ${tr('إن وجد، دون حذف الصنف أو فواتيره.')}'),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('حذف التصنيف')))]));
   if(ok==true){await ShopDb.instance.deleteCategory((row['id'] as num).toInt());if(mounted)setState((){});}
  }
@@ -1101,7 +1101,7 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
   name.text=(unit?['unit_name']??'').toString();
   weight.text=unit==null?'':(((unit['default_weight_grams'] as num).toDouble())/1000).toStringAsFixed(3);
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
-   title:Text(unit==null?'إضافة وحدة أو عبوة':'تعديل الوحدة'),
+   title:Text(tr(unit==null?'إضافة وحدة أو عبوة':'تعديل الوحدة')),
    content:Column(mainAxisSize:MainAxisSize.min,children:[
     field(name,'اسم الوحدة (كيس، جوان، حزمة، كرتون...)'),
     field(weight,'الوزن أو معامل التحويل بالكيلو',number:true),
@@ -1123,28 +1123,28 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
  Future<void> remove(Map<String,Object?> unit) async {
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(tr('حذف الوحدة؟')),
-   content:Text('سيتم حذف وحدة «${unit['unit_name']}» من إعدادات الصنف.'),
+   content:Text('${tr('سيتم حذف وحدة')} «${unit['unit_name']}» ${tr('من إعدادات الصنف.')}'),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('حذف')))]));
   if(ok!=true)return;
   try{await ShopDb.instance.deleteProductUnit((unit['id'] as num).toInt(),productId:(widget.product['id'] as num).toInt());if(mounted)setState((){});}
   catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
  }
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:Text('وحدات وعبوات • ${widget.product['name']}')),
+  appBar:AppBar(title:Text('${tr('وحدات وعبوات')} • ${widget.product['name']}')),
   floatingActionButton:FloatingActionButton.extended(onPressed:()=>editUnit(),icon:Icon(Icons.add),label:Text(tr('إضافة وحدة'))),
   body:FutureBuilder<List<Map<String,Object?>>>(future:units,builder:(c,s){
    if(s.hasError)return Center(child:Text(tr('تعذر تحميل الوحدات: ${s.error}')));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    if(s.data!.isEmpty)return Center(child:Text(tr('لا توجد وحدات معرفة لهذا الصنف')));
    return ListView(padding:const EdgeInsets.all(12),children:[
-    Card(child:Padding(padding:const EdgeInsets.all(12),child:Text('الصنف: ${widget.product['name']}\nكل وحدة تسجل بمعامل تحويل إلى الكيلوغرام، ويُستخدم وزن المورد إذا كان له وزن خاص لهذه العبوة.'))),
+    Card(child:Padding(padding:const EdgeInsets.all(12),child:Text('${tr('الصنف: ')}${widget.product['name']}\n${tr('كل وحدة تسجل بمعامل تحويل إلى الكيلوغرام، ويُستخدم وزن المورد إذا كان له وزن خاص لهذه العبوة.')}'))),
     ...s.data!.map((x){
      final isBase=x['unit_name']==defaultUnit;
      final kg=((x['default_weight_grams'] as num).toDouble()/1000);
      return Card(child:ListTile(
       leading:const Icon(Icons.inventory_2_outlined),
       title:Text(x['unit_name'].toString()),
-      subtitle:Text('${kg.toStringAsFixed(3)} كجم • ${isBase?'الوحدة الافتراضية':''}'),
+      subtitle:Text('${kg.toStringAsFixed(3)} ${tr('كيلو')} • ${isBase?tr('الوحدة الافتراضية'):''}'),
       trailing:Wrap(spacing:0,children:[
        IconButton(tooltip: tr('تعديل'),onPressed:()=>editUnit(x),icon:Icon(Icons.edit_outlined)),
        if(!isBase)IconButton(tooltip: tr('حذف'),onPressed:()=>remove(x),icon:Icon(Icons.delete_outline)),
@@ -1181,10 +1181,10 @@ class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر الحفظ: $e'))));}
  }
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:Text('أوزان الموردين • ${widget.product['name']}')),
+  appBar:AppBar(title:Text('${tr('أوزان الموردين')} • ${widget.product['name']}')),
   body:ListView(padding:const EdgeInsets.all(12),children:[
    Card(child:Padding(padding:const EdgeInsets.all(12),child:Column(children:[
-    const Align(alignment:Alignment.centerRight,child:Text('إضافة وزن عبوة خاص بمورد',style:TextStyle(fontWeight:FontWeight.bold))),
+    Align(alignment:Alignment.centerRight,child:Text(tr('إضافة وزن عبوة خاص بمورد'),style:TextStyle(fontWeight:FontWeight.bold))),
     const SizedBox(height:10),
     FutureBuilder<List<Map<String,Object?>>>(future:suppliers,builder:(c,s){
      if(!s.hasData)return const LinearProgressIndicator();
@@ -1210,7 +1210,7 @@ class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>
     const SizedBox(height:8),
     SizedBox(width:double.infinity,child:FilledButton.icon(onPressed:save,icon:Icon(Icons.save),label:Text(tr('حفظ وزن المورد')))),
    ]))),
-   const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('الأوزان المسجلة حسب المورد',style:TextStyle(fontWeight:FontWeight.bold))),
+   Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text(tr('الأوزان المسجلة حسب المورد'),style:TextStyle(fontWeight:FontWeight.bold))),
    FutureBuilder<List<Map<String,Object?>>>(future:units,builder:(c,s){
     if(s.hasError)return Text(tr('تعذر تحميل الأوزان: ${s.error}'));
     if(!s.hasData)return const Center(child:CircularProgressIndicator());
@@ -1218,7 +1218,7 @@ class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>
     return Card(child:Column(children:s.data!.map((x)=>ListTile(
      leading:const Icon(Icons.scale_outlined),
      title:Text('${x['supplier_name']} • ${x['unit_name']}'),
-     subtitle:Text('وزن العبوة: ${((x['weight_grams'] as num).toDouble()/1000).toStringAsFixed(3)} كجم'),
+     subtitle:Text('${tr('وزن العبوة: ')}${((x['weight_grams'] as num).toDouble()/1000).toStringAsFixed(3)} ${tr('كيلو')}'),
     )).toList()));
    }),
   ]),
@@ -1253,7 +1253,7 @@ class _PartiesPageState extends State<PartiesPage>{
   final n=TextEditingController(text:(party?['name']??'').toString()),phone=TextEditingController(text:(party?['phone']??'').toString());
   final customer=widget.type=='customer';
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
-   title:Text(party==null?(customer?'إضافة زبون':'إضافة مورد'):(customer?'تعديل بيانات الزبون':'تعديل بيانات المورد')),
+   title:Text(tr(party==null?(customer?'إضافة زبون':'إضافة مورد'):(customer?'تعديل بيانات الزبون':'تعديل بيانات المورد'))),
    content:Column(mainAxisSize:MainAxisSize.min,children:[field(n,'الاسم'),field(phone,'الهاتف')]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('حفظ')))]));
   if(ok!=true)return;
@@ -1267,30 +1267,30 @@ class _PartiesPageState extends State<PartiesPage>{
  Future<void> archive(Map<String,Object?> party)async{
   final customer=widget.type=='customer';
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
-   title:Text(customer?'حذف الزبون؟':'حذف المورد؟'),
-   content:Text('سيختفي «${party['name']}» من قوائم الاختيار، مع الاحتفاظ بفواتيره وكشف حسابه.'),
+   title:Text(tr(customer?'حذف الزبون؟':'حذف المورد؟')),
+   content:Text('${tr('سيختفي')} «${party['name']}» ${tr('من قوائم الاختيار، مع الاحتفاظ بفواتيره وكشف حسابه.')}'),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('حذف')))]));
   if(ok==true){await ShopDb.instance.deactivateParty(widget.type,party['id'] as int);if(mounted)setState((){});}
  }
  @override Widget build(BuildContext c){
   final table=widget.type=='supplier'?'suppliers':'customers';
   final customer=widget.type=='customer';
-  return Scaffold(appBar:AppBar(title:Text(customer?'إدارة الزبائن':'إدارة الموردين')),
+  return Scaffold(appBar:AppBar(title:Text(tr(customer?'إدارة الزبائن':'إدارة الموردين'))),
    body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query(table,where:'active=1',orderBy:'name'),builder:(c,s){
     if(s.hasError)return Center(child:Text(tr('تعذر تحميل القائمة: ${s.error}')));
     if(!s.hasData)return const Center(child:CircularProgressIndicator());
-    if(s.data!.isEmpty)return Center(child:Text(customer?'لا يوجد زبائن مسجلون':'لا يوجد موردون مسجلون'));
+    if(s.data!.isEmpty)return Center(child:Text(tr(customer?'لا يوجد زبائن مسجلون':'لا يوجد موردون مسجلون')));
     return ListView(children:s.data!.map((x)=>ListTile(
      leading:const Icon(Icons.person_outline),
      title:Text(x['name'] as String),
      subtitle:customer
       ? Column(crossAxisAlignment:CrossAxisAlignment.start,mainAxisSize:MainAxisSize.min,children:[
          FutureBuilder<num>(future:customerBalance(x['id'] as int),builder:(context,balanceSnap){
-          if(!balanceSnap.hasData)return const Text('حالة الحساب: جارٍ الحساب…',style:TextStyle(fontSize:12));
+          if(!balanceSnap.hasData)return Text(tr('حالة الحساب: جارٍ الحساب…'),style:TextStyle(fontSize:12));
           final balance=balanceSnap.data!;
           final label=balance>0?'مدين • عليه للمحل':balance<0?'دائن • للمحل عليه':'صفر • الحساب مسدد';
           final color=balance>0?Colors.red:balance<0?Colors.green:Colors.grey;
-          return Text('حالة الحساب: $label  |  الرصيد: ${money(balance.abs())}',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:color));
+          return Text('${tr('حالة الحساب: ')}$label  |  ${tr('الرصيد: ')}${money(balance.abs())}',style:TextStyle(fontSize:12,fontWeight:FontWeight.w600,color:color));
          }),
          if((x['phone']??'').toString().isNotEmpty)Text(x['phone'].toString()),
         ])
@@ -1302,7 +1302,7 @@ class _PartiesPageState extends State<PartiesPage>{
      onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>PartyStatementPage(type:widget.type,partyId:x['id'] as int))).then((_) {if(mounted)setState((){});}),
     )).toList());
    }),
-   floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:Text(customer?'إضافة زبون':'إضافة مورد')));
+   floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:Text(tr(customer?'إضافة زبون':'إضافة مورد'))));
  }
 }
 Future<void> _showPaymentReceipt(BuildContext context,{required String type,required int paymentId,required String partyName,required int amount,required String note}) async {
@@ -1380,7 +1380,7 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
  Future<void> addPayment() async {
   final amount=TextEditingController(),note=TextEditingController();
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
-   title:Text(widget.type=='customer'?'تسجيل دفعة من الزبون':'تسجيل دفعة للمورد'),
+   title:Text(tr(widget.type=='customer'?'تسجيل دفعة من الزبون':'تسجيل دفعة للمورد')),
    content:Column(mainAxisSize:MainAxisSize.min,children:[field(amount,'المبلغ',number:true),field(note,'ملاحظة')]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('تسجيل')))],
   ));
@@ -1431,7 +1431,7 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   appBar:AppBar(title:Text(tr(widget.type=='customer'?'كشف حساب زبون':'كشف حساب مورد'))),
   floatingActionButton:FloatingActionButton.extended(onPressed:saving?null:addPayment,icon:Icon(Icons.payments),label:Text(tr('تسجيل دفعة'))),
   body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
-   if(s.hasError)return Center(child:Padding(padding:const EdgeInsets.all(16),child:Text('تعذر تحميل الكشف: '+s.error.toString())));
+   if(s.hasError)return Center(child:Padding(padding:const EdgeInsets.all(16),child:Text(tr('تعذر تحميل الكشف: ')+s.error.toString())));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    final data=s.data!,party=data['party'] as Map<String,Object?>;
    final tx=data['transactions'] as List<Map<String,Object?>>,balance=data['balance'] as num,opening=data['opening'] as num;
@@ -1498,8 +1498,8 @@ class InvoicesPage extends StatelessWidget {
       final x=all[i],sale=x['kind']=='بيع';
       return ListTile(
        leading:CircleAvatar(child:Icon(sale?Icons.point_of_sale:Icons.local_shipping_outlined)),
-       title:Text((sale?'فاتورة بيع رقم ':'فاتورة مورد رقم ')+x['id'].toString()),
-       subtitle:Text(x['date'].toString()+' • '+money(x['paid'] as num)+' مدفوع • '+money((x['total'] as num)-(x['paid'] as num))+' متبقٍ'),
+       title:Text(tr(sale?'فاتورة بيع رقم ':'فاتورة مورد رقم ')+x['id'].toString()),
+       subtitle:Text(x['date'].toString()+' • '+money(x['paid'] as num)+' '+tr('مدفوع')+' • '+money((x['total'] as num)-(x['paid'] as num))+' '+tr('متبقٍ')),
        trailing:Text(money(x['total'] as num),style:const TextStyle(fontWeight:FontWeight.bold)),
        onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>InvoiceDetailPage(type:sale?'sale':'purchase',invoiceId:x['id'] as int))),
       );
@@ -1659,7 +1659,7 @@ class InvoiceDetailPage extends StatelessWidget {
   return {'header':header,'lines':lines,'return_credit':returnCredit,'party':party??(sale?'نقدي / غير مسجل':'غير محدد')};
  }
  @override Widget build(BuildContext c)=>Scaffold(
-  appBar:AppBar(title:Text((type=='sale'?'فاتورة بيع #':'فاتورة مورد #')+invoiceId.toString())),
+  appBar:AppBar(title:Text(tr(type=='sale'?'فاتورة بيع #':'فاتورة مورد #')+invoiceId.toString())),
   body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
    if(s.hasError)return Center(child:Text(tr('تعذر فتح الفاتورة: ${s.error}')));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
@@ -1680,12 +1680,12 @@ class InvoiceDetailPage extends StatelessWidget {
       },
      )),
     Card(child:Padding(padding:const EdgeInsets.all(14),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-     Text(sale?'فاتورة مبيعات':'فاتورة توريد',style:Theme.of(c).textTheme.titleLarge),
+     Text(tr(sale?'فاتورة مبيعات':'فاتورة توريد'),style:Theme.of(c).textTheme.titleLarge),
      Text(tr('رقم الفاتورة: $invoiceId')),
-     Text('التاريخ: ${h['date']}'),
-     Text((sale?'الزبون: ':'المورد: ')+s.data!['party'].toString()),
+     Text(tr('التاريخ: ')+h['date'].toString()),
+     Text(tr(sale?'الزبون: ':'المورد: ')+s.data!['party'].toString()),
     ]))),
-    const Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text('تفاصيل الأصناف',style:TextStyle(fontWeight:FontWeight.bold))),
+    Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text(tr('تفاصيل الأصناف'),style:TextStyle(fontWeight:FontWeight.bold))),
     if(lines.isNotEmpty)SingleChildScrollView(scrollDirection:Axis.horizontal,child:DataTable(
      columns:const [
       DataColumn(label:Text(tr('اسم الصنف'))),
@@ -1697,7 +1697,7 @@ class InvoiceDetailPage extends StatelessWidget {
        ? '${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كجم'
        : '${x['packages']} ${x['unit']} • ${x['weight_each']} كجم/وحدة';
       return DataRow(cells:[
-       DataCell(Text((x['product_name']??'صنف محذوف').toString())),
+       DataCell(Text((x['product_name']??tr('صنف محذوف')).toString())),
        DataCell(Text(quantity)),
        DataCell(Text(money(x['line_total'] as num),style:const TextStyle(fontWeight:FontWeight.bold))),
       ]);
@@ -1710,7 +1710,7 @@ class InvoiceDetailPage extends StatelessWidget {
      const Divider(),
      _invoiceAmount('المتبقي بعد المرتجعات',remaining),
     ]))),
-    Text(sale?'تم خصم الكمية من مخزون الصنف.':'تمت إضافة الكمية إلى مخزون صنف المبيعات المرتبط.'),
+    Text(tr(sale?'تم خصم الكمية من مخزون الصنف.':'تمت إضافة الكمية إلى مخزون صنف المبيعات المرتبط.')),
    ]);
   }));
 }
@@ -1798,14 +1798,14 @@ class _ReturnsPageState extends State<ReturnsPage>{
     final id=x['source_item_id'] as int;
     return Card(child:Padding(padding:const EdgeInsets.all(10),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
      Text(x['product_name'] as String,style:const TextStyle(fontWeight:FontWeight.bold)),
-     Text('المتاح للإرجاع: '+kg(x['remaining_grams'] as num)+' • سعر الوحدة: '+money(x['unit_price'] as num)),
+     Text(tr('المتاح للإرجاع: ')+kg(x['remaining_grams'] as num)+' • '+tr('سعر الوحدة: ')+money(x['unit_price'] as num)),
      TextField(controller:quantities[id],keyboardType:TextInputType.numberWithOptions(decimal:true),decoration:InputDecoration(labelText: tr('الكمية المرتجعة بالكيلو'),hintText: tr('مثال: 1 أو 0.5'),border:OutlineInputBorder(),isDense:true)),
     ])));
    }),
    if(type=='customer')field(cash,'المبلغ الذي أُعيد نقداً للزبون',number:true),
    const SizedBox(height:8),
-   FilledButton.icon(onPressed:saving?null:submit,icon:const Icon(Icons.save),label:Text(saving?'جارٍ الحفظ...':'حفظ المرتجع وتحديث الحساب')),
-   const Padding(padding:EdgeInsets.only(top:12),child:Text('يجب اختيار الفاتورة الأصلية. لا يسمح النظام بإرجاع كمية أكبر من المتبقي من الصنف. يُخصم صافي المرتجع من حساب الزبون أو المورد المرتبط بالفاتورة.',style:TextStyle(height:1.5))),
+   FilledButton.icon(onPressed:saving?null:submit,icon:const Icon(Icons.save),label:Text(saving?tr('جارٍ الحفظ...'):tr('حفظ المرتجع وتحديث الحساب'))),
+   Padding(padding:EdgeInsets.only(top:12),child:Text(tr('يجب اختيار الفاتورة الأصلية. لا يسمح النظام بإرجاع كمية أكبر من المتبقي من الصنف. يُخصم صافي المرتجع من حساب الزبون أو المورد المرتبط بالفاتورة.'),style:TextStyle(height:1.5))),
   ]),
  );
 }
@@ -1834,7 +1834,7 @@ class AccountsPage extends StatelessWidget {
     item('مستحقات الموردين بعد المرتجعات',v[1],Icons.local_shipping_outlined),
     item('إجمالي فواتير البيع',v[2],Icons.point_of_sale),
     item('إجمالي فواتير التوريد',v[3],Icons.shopping_basket_outlined),
-    const Text('هذا ملخص للأرصدة والفواتير، وليس تقرير صافي ربح. حساب الربح يتطلب تكلفة فعلية ومصروفات مسجلة.',style:TextStyle(height:1.5)),
+    Text(tr('هذا ملخص للأرصدة والفواتير، وليس تقرير صافي ربح. حساب الربح يتطلب تكلفة فعلية ومصروفات مسجلة.'),style:TextStyle(height:1.5)),
    ]);
   }),
 );
@@ -1848,7 +1848,7 @@ class DraftsPage extends StatefulWidget {
 class _DraftsPageState extends State<DraftsPage>{
  Future<void> remove(int id) async {await ShopDb.instance.deleteDraft(id);if(mounted)setState((){});}
  @override Widget build(BuildContext context)=>Scaffold(
-  appBar:AppBar(title:Text(widget.type=='sale'?'مسودات البيع':widget.type=='purchase'?'مسودات التوريد':'مسودات الفواتير')),
+  appBar:AppBar(title:Text(tr(widget.type=='sale'?'مسودات البيع':widget.type=='purchase'?'مسودات التوريد':'مسودات الفواتير'))),
   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.getDrafts(type:widget.type),builder:(c,s){
    if(s.hasError)return Center(child:Text(tr('تعذر تحميل المسودات: ${s.error}')));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
@@ -1858,7 +1858,7 @@ class _DraftsPageState extends State<DraftsPage>{
     final dt=DateTime.tryParse(d['updated_at'] as String);
     return Card(child:ListTile(
      leading:Icon(isSale?Icons.point_of_sale:Icons.local_shipping),
-     title:Text((isSale?'مسودة بيع #':'مسودة توريد #')+d['id'].toString()),
+     title:Text(tr(isSale?'مسودة بيع #':'مسودة توريد #')+d['id'].toString()),
      subtitle:Text((dt?.toLocal().toString().substring(0,16)??'')+' • '+money(d['total'] as num)),
      trailing:PopupMenuButton<String>(onSelected:(v)async{
       if(v=='delete'){await remove(d['id'] as int);}
