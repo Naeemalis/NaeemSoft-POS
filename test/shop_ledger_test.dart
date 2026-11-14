@@ -16,6 +16,14 @@ void main() {
   });
 
 
+
+  test('sale quantity converts configured units and cash amounts to stock grams', () {
+    expect(ShopDb.calculateSaleGrams(enteredValue:2,mode:'weight',unitWeightGrams:250,pricePerKg:200),500);
+    expect(ShopDb.calculateSaleGrams(enteredValue:0.5,mode:'weight',unitWeightGrams:1000,pricePerKg:200),500);
+    expect(ShopDb.calculateSaleGrams(enteredValue:40,mode:'cash',unitWeightGrams:250,pricePerKg:200),200);
+    expect(ShopDb.calculateSaleGrams(enteredValue:40,mode:'cash',unitWeightGrams:1000,pricePerKg:0),0);
+  });
+
   test('product units are configurable and preserve the default purchase unit', () async {
     final product = await shop.addProduct('بطاطس', 'جوان', 30000, 180);
     await shop.saveProductUnit(productId:product, unitName:'كيس', weightGrams:25000);
