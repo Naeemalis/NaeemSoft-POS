@@ -195,8 +195,8 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                   },
                 ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(10, 4, 10, 10),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
             child: Text(
               _inventoryText(context, 'اضغط على الصنف لاعتماد الجرد الفعلي، واضغط مطولاً لعرض سجل حركات المخزون.', 'Tap an item to confirm its physical stocktake; long-press to view its stock movement history.', 'Touchez un article pour valider son inventaire physique ; maintenez appuyé pour consulter son historique de stock.'),
               textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey),
