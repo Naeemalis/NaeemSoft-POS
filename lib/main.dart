@@ -2159,7 +2159,7 @@ class _ReportsPageState extends State<ReportsPage> {
    out.writeln('| ${tr('المؤشر')} | ${tr('القيمة')} |');
    out.writeln('|---|---:|');
    final keys=sales
-    ? <String>['sales_total','customer_returns','net_sales','sales_paid','sales_due','purchase_total','supplier_returns','purchase_due']
+    ? <String>['sales_total','customer_returns','net_sales','sales_paid','sales_due']
     : <String>['sales_total','customer_returns','gross_profit','expenses','net_profit'];
    final labels={
     'sales_total':'إجمالي المبيعات','customer_returns':'مرتجعات الزبائن',
