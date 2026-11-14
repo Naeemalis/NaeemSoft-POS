@@ -140,7 +140,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
     body: FutureBuilder<List<Map<String, Object?>>>(
       future: _loadProducts(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) return Center(child: Text('تعذر تحميل المخزون: ${snapshot.error}'));
+        if (snapshot.hasError) return Center(child: Text('${_inventoryText(context, 'تعذر تحميل المخزون:', 'Could not load stock:', 'Impossible de charger le stock :')} ${snapshot.error}'));
         if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
         final products = snapshot.data!;
         final totalGrams = products.fold<int>(0, (sum, p) => sum + (p['stock_grams'] as num).toInt());
