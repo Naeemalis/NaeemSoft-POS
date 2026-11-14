@@ -184,7 +184,7 @@ class _PurchasePageState extends State<PurchasePage>{
  final List<Map<String,dynamic>> cart=[];
  int? activeDraftId;
  bool posting=false;
- String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=0,packageWeight=0,packageCost=0; int? selectedSupplierId;
+ String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=0,packageWeight=0,packageCost=0; String? expiryDate; int? selectedSupplierId;
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
  void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else packageCost=v.toInt();keypadValue='';});}
  Future<void> add(Map<String,Object?> p) async {
@@ -194,6 +194,12 @@ class _PurchasePageState extends State<PurchasePage>{
   }
   final count=packageCount;
   final weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
+  String? lineExpiry;
+  if ((p['requires_expiry'] as num?)?.toInt()==1) {
+   final picked=await showDatePicker(context:context,initialDate:DateTime.now().add(const Duration(days:30)),firstDate:DateTime.now(),lastDate:DateTime(2100));
+   if(picked==null)return;
+   lineExpiry=DateFormat('yyyy-MM-dd').format(picked);
+  }
   final enteredCost=packageCost>0?packageCost:(p['cost'] as num).round();
   final effectiveMode=packageCost>0?purchaseCostMode:'package';
   final price=effectiveMode=='package'?enteredCost:((enteredCost*weight)/1000).round();
@@ -202,8 +208,8 @@ class _PurchasePageState extends State<PurchasePage>{
    return;
   }
   setState((){
-   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':effectiveMode,'entered_cost':enteredCost});
-   packageCount=0;packageWeight=0;packageCost=0;keypadValue='';
+   cart.add({'product_id':p['id'],'name':p['name'],'unit':p['purchase_unit'],'packages':count,'weight_grams':weight,'package_cost':price,'cost_mode':effectiveMode,'entered_cost':enteredCost,'expiry_date':lineExpiry});
+   packageCount=0;packageWeight=0;packageCost=0;keypadValue='';expiryDate=null;
   });
  }
  Future<void> editLineWeight(int index) async {
@@ -354,6 +360,8 @@ class _ProductsPageState extends State<ProductsPage>{
   final u=TextEditingController(text:(product?['purchase_unit']??'جوان').toString());
   final w=TextEditingController(text:((product?['default_weight'] as num?)??30).toString());
   final price=TextEditingController(text:((product?['sale_price'] as num?)??0).round().toString());
+  final expiryDays=TextEditingController(text:((product?['expiry_warning_days'] as num?)??7).toString());
+  bool requiresExpiry=(product?['requires_expiry'] as num?)?.toInt()==1;
   final cost=TextEditingController(text:((product?['cost'] as num?)??0).round().toString());
   final saleProducts=await ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale' AND id != ?",whereArgs:[product?['id']??-1],orderBy:'name');
   final categories=await ShopDb.instance.db.query('categories',orderBy:'name');
@@ -363,7 +371,10 @@ class _ProductsPageState extends State<ProductsPage>{
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:Text(product==null?'إضافة صنف':'تعديل الصنف والسعر'),
    content:StatefulBuilder(builder:(c,setDialogState)=>SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[
-    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),DropdownButtonFormField<int?>(value:categories.any((x)=>(x['id'] as num).toInt()==categoryId)?categoryId:null,decoration:const InputDecoration(labelText:'التصنيف'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون تصنيف')),...categories.map((x)=>DropdownMenuItem<int?>(value:(x['id'] as num).toInt(),child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>categoryId=v)),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),if(productType=='purchase')...[
+    field(n,'اسم الصنف'),DropdownButtonFormField<String>(value:productType,decoration:const InputDecoration(labelText:'نوع الصنف'),items:const [DropdownMenuItem(value:'sale',child:Text('أصناف المبيعات')),DropdownMenuItem(value:'purchase',child:Text('أصناف التوريد'))],onChanged:(v){if(v!=null)setDialogState(()=>productType=v);}),DropdownButtonFormField<int?>(value:categories.any((x)=>(x['id'] as num).toInt()==categoryId)?categoryId:null,decoration:const InputDecoration(labelText:'التصنيف'),items:[const DropdownMenuItem<int?>(value:null,child:Text('بدون تصنيف')),...categories.map((x)=>DropdownMenuItem<int?>(value:(x['id'] as num).toInt(),child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>categoryId=v)),field(u,'وحدة الشراء الافتراضية'),field(w,'وزن الوحدة بالكيلو',number:true),if(productType=='sale')field(price,'سعر بيع الكيلو',number:true),
+    CheckboxListTile(contentPadding:EdgeInsets.zero,value:requiresExpiry,title:const Text('يتطلب تاريخ انتهاء الصلاحية'),onChanged:(v)=>setDialogState(()=>requiresExpiry=v??false)),
+    if(requiresExpiry)field(expiryDays,'التنبيه قبل الانتهاء بعدد الأيام',number:true),
+    if(productType=='purchase')...[
      field(cost,'سعر التكلفة الافتراضي للوحدة',number:true),
      DropdownButtonFormField<int?>(value:saleProducts.any((x)=>x['id']==pairedSaleProductId)?pairedSaleProductId:null,decoration:const InputDecoration(labelText:'صنف المبيعات المقابل للمخزون',border:OutlineInputBorder(),isDense:true),items:[const DropdownMenuItem<int?>(value:null,child:Text('اختر صنف المبيعات')),...saleProducts.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:(v)=>setDialogState(()=>pairedSaleProductId=v))
     ]
@@ -373,8 +384,8 @@ class _ProductsPageState extends State<ProductsPage>{
   final weight=double.tryParse(w.text)??0,p=int.tryParse(price.text)??-1, purchaseCost=int.tryParse(cost.text)??-1;
   if(n.text.trim().isEmpty||u.text.trim().isEmpty||weight<=0||p<0||(productType=='purchase'&&(purchaseCost<0||pairedSaleProductId==null))){if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تحقق من الاسم والوزن والسعر')));return;}
   try{
-   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId);}
-   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId);}
+   if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId,requiresExpiry:requiresExpiry,expiryWarningDays:int.tryParse(expiryDays.text)??7);}
+   else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId,requiresExpiry:requiresExpiry,expiryWarningDays:int.tryParse(expiryDays.text)??7);}
    if(mounted)setState((){});
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر حفظ الصنف: $e')));}
  }
@@ -587,6 +598,13 @@ class _PartiesPageState extends State<PartiesPage>{
    floatingActionButton:FloatingActionButton.extended(onPressed:()=>edit(null),icon:const Icon(Icons.add),label:Text(customer?'إضافة زبون':'إضافة مورد')));
  }
 }
+Future<void> _showPaymentReceipt(BuildContext context,{required String type,required int paymentId,required String partyName,required int amount,required String note}) async {
+ final customer=type=='customer';
+ final md='# NaeemSoft POS\n\n## ${customer?'سند قبض من زبون':'سند سداد مورد'}\n\n- رقم السند: $paymentId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- المبلغ: ${money(amount)}\n- البيان: ${note.isEmpty?'سداد حساب':note}\n\nتم تسجيل العملية بنجاح.';
+ final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'سند قبض':'سند سداد'} $paymentId',author:'NaeemSoft POS',markdown:md));
+ if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
+}
+
 class PartyStatementPage extends StatefulWidget {
  final String type;
  final int partyId;
@@ -664,7 +682,10 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
   setState(()=>saving=true);
   try{
    await ShopDb.instance.db.transaction((tx) async {
-    final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
+    final paymentId=final paymentId=await tx.insert('payments',{'party_type':widget.type,'party_id':widget.partyId,'date':DateTime.now().toIso8601String(),'amount':value,'note':note.text.trim().isEmpty?'دفعة حساب':note.text.trim()});
+    savedPaymentId=paymentId;
+    if(widget.type=='customer') await tx.insert('customer_payment_links',{'payment_id':paymentId,'customer_id':widget.partyId});
+    else await tx.insert('supplier_payment_links',{'payment_id':paymentId,'supplier_id':widget.partyId});
     final customer=widget.type=='customer',invoiceType=customer?'sale':'purchase';
     final invoiceTable=customer?'sales':'purchases',partyColumn=customer?'customer_id':'supplier_id';
     final invoices=await tx.query(invoiceTable,where:'$partyColumn=? AND status=?',whereArgs:[widget.partyId,'posted'],orderBy:'date ASC,id ASC');
@@ -676,10 +697,12 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
      final allocated=remaining<due?remaining:due;
      await tx.update(invoiceTable,{'paid':(invoice['paid'] as num).toInt()+allocated},where:'id=?',whereArgs:[invoice['id']]);
      await tx.insert('payment_allocations',{'payment_id':paymentId,'invoice_type':invoiceType,'invoice_id':invoice['id'],'amount':allocated});
+     if(customer) await tx.insert('sale_payment_allocations',{'payment_id':paymentId,'sale_id':invoice['id'],'amount':allocated});
+     else await tx.insert('purchase_payment_allocations',{'payment_id':paymentId,'purchase_id':invoice['id'],'amount':allocated});
      remaining-=allocated;
     }
    });
-   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تسجيل الدفعة وتوزيعها على أقدم الفواتير المستحقة')));}
+   if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم تسجيل السداد وتوزيعه على أقدم الفواتير المستحقة'))); await _showPaymentReceipt(context,type:widget.type,paymentId:savedPaymentId,partyName:(await ShopDb.instance.db.query(widget.type=='customer'?'customers':'suppliers',where:'id=?',whereArgs:[widget.partyId],limit:1)).first['name'].toString(),amount:value,note:note.text.trim());}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر تسجيل الدفعة: $e')));}
   finally{if(mounted)setState(()=>saving=false);}
  }
