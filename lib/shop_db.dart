@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 9,
+      version: 10,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -83,6 +83,12 @@ class ShopDb {
             await d.execute('ALTER TABLE products ADD COLUMN paired_sale_product_id INTEGER');
           }
         }
+        if (oldVersion < 10) {
+          if (!await _hasColumn(d, 'products', 'category_id')) {
+            await d.execute('ALTER TABLE products ADD COLUMN category_id INTEGER');
+          }
+          await _createProductSupplierUnits(d);
+        }
       },
     );
   }
@@ -100,7 +106,7 @@ class ShopDb {
       purchase_unit TEXT NOT NULL DEFAULT 'جوان', base_unit TEXT NOT NULL DEFAULT 'كجم',
       default_weight REAL NOT NULL DEFAULT 1, cost REAL NOT NULL DEFAULT 0,
       sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
-      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER)''');
+      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER, category_id INTEGER)''');
     await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('''CREATE TABLE purchases(
@@ -136,6 +142,7 @@ class ShopDb {
       id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL,
       unit_name TEXT NOT NULL, default_weight_grams INTEGER NOT NULL DEFAULT 1000,
       UNIQUE(product_id, unit_name), FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE)''');
+    await _createProductSupplierUnits(d);
     await d.execute('''CREATE TABLE IF NOT EXISTS customer_product_prices(
       id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
       price_per_kg INTEGER NOT NULL CHECK(price_per_kg >= 0), active INTEGER NOT NULL DEFAULT 1,
@@ -176,6 +183,62 @@ class ShopDb {
     await d.execute('CREATE INDEX IF NOT EXISTS idx_payments_party_date ON payments(party_type, party_id, date)');
   }
 
+
+  Future<void> _createProductSupplierUnits(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS supplier_product_units(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      supplier_id INTEGER NOT NULL,
+      product_id INTEGER NOT NULL,
+      unit_name TEXT NOT NULL,
+      weight_grams INTEGER NOT NULL CHECK(weight_grams > 0),
+      UNIQUE(supplier_id, product_id, unit_name),
+      FOREIGN KEY(supplier_id) REFERENCES suppliers(id),
+      FOREIGN KEY(product_id) REFERENCES products(id)
+    )''');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_supplier_product_units_lookup ON supplier_product_units(supplier_id, product_id)');
+  }
+
+  Future<int> addCategory(String name) async {
+    final value = name.trim();
+    if (value.isEmpty) throw Exception('اسم التصنيف مطلوب');
+    return db.insert('categories', {'name': value});
+  }
+
+  Future<void> renameCategory(int id, String name) async {
+    final value = name.trim();
+    if (value.isEmpty) throw Exception('اسم التصنيف مطلوب');
+    await db.update('categories', {'name': value}, where: 'id=?', whereArgs: [id]);
+  }
+
+  Future<void> deleteCategory(int id) async {
+    await db.transaction((tx) async {
+      await tx.update('products', {'category_id': null}, where: 'category_id=?', whereArgs: [id]);
+      await tx.delete('categories', where: 'id=?', whereArgs: [id]);
+    });
+  }
+
+  Future<void> saveSupplierProductUnit({
+    required int supplierId,
+    required int productId,
+    required String unitName,
+    required int weightGrams,
+  }) async {
+    final name = unitName.trim();
+    if (name.isEmpty || weightGrams <= 0) throw Exception('اسم الوحدة والوزن مطلوبان');
+    await db.insert('supplier_product_units', {
+      'supplier_id': supplierId,
+      'product_id': productId,
+      'unit_name': name,
+      'weight_grams': weightGrams,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<List<Map<String, Object?>>> getSupplierProductUnits(int productId) =>
+      db.rawQuery('''SELECT spu.*, s.name AS supplier_name
+        FROM supplier_product_units spu
+        JOIN suppliers s ON s.id=spu.supplier_id
+        WHERE spu.product_id=? AND s.active=1
+        ORDER BY s.name, spu.unit_name''', [productId]);
 
   Future<void> _createIdempotency(DatabaseExecutor d) async {
     await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_purchases_source_draft ON purchases(source_draft_id) WHERE source_draft_id IS NOT NULL');
@@ -412,11 +475,11 @@ class ShopDb {
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
       db.query(table, orderBy: orderBy ?? 'id DESC');
 
-  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId}) async {
+  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId, int? categoryId}) async {
     return db.transaction((tx) async {
       final id = await tx.insert('products', {
         'name': name.trim(), 'purchase_unit': unit, 'default_weight': defaultWeightGrams / 1000,
-        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId,
+        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId, 'category_id': categoryId,
       });
       await tx.insert('product_units', {
         'product_id': id, 'unit_name': unit, 'default_weight_grams': defaultWeightGrams,
@@ -636,10 +699,10 @@ class ShopDb {
     });
   }
 
-  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId}) async {
+  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId, int? categoryId}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
-      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId}, where:'id=?', whereArgs:[id]);
+      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId, 'category_id':categoryId}, where:'id=?', whereArgs:[id]);
       final units=await tx.query('product_units',where:'product_id=?',whereArgs:[id],limit:1);
       if(units.isEmpty){
         await tx.insert('product_units',{'product_id':id,'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams});
