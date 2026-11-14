@@ -237,7 +237,7 @@ class _PurchasePageState extends State<PurchasePage>{
  bool posting=false;
  String keypadValue=''; String purchaseField='packages'; String purchaseCostMode='package'; int packageCount=0,packageWeight=0,packageCost=0; String? expiryDate; int? selectedSupplierId;
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
- void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){if(purchaseField=='packages')packageCount=v.toInt();else packageCost=v.toInt();keypadValue='';});}
+ void applyKeypad(){final v=double.tryParse(keypadValue.replaceAll(',', '.'));if(v==null)return;setState((){packageCount=v.toInt();keypadValue='';});}
  Future<void> add(Map<String,Object?> p) async {
   if(p['paired_sale_product_id']==null){
    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('اربط صنف التوريد بصنف المبيعات من إدارة الأصناف أولاً')));
@@ -277,9 +277,11 @@ class _PurchasePageState extends State<PurchasePage>{
    if(picked==null)return;
    lineExpiry=DateFormat('yyyy-MM-dd').format(picked);
   }
-  final enteredCost=packageCost>0?packageCost:(p['cost'] as num).round();
-  final effectiveMode=packageCost>0?purchaseCostMode:'package';
-  final price=effectiveMode=='package'?enteredCost:((enteredCost*weight)/1000).round();
+  // Purchase cost is centrally defined on the purchase product and is uniform across suppliers.
+  // Supplier-specific settings may change package weight, never the product's purchase price.
+  final enteredCost=(p['cost'] as num?)?.round() ?? 0;
+  const effectiveMode='package';
+  final price=enteredCost;
   if(count<=0||weight<=0||price<=0){
    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل العدد وتكلفة الشراء، وسيُؤخذ الوزن تلقائياً من معرض الأصناف')));
    return;
@@ -372,9 +374,8 @@ class _PurchasePageState extends State<PurchasePage>{
     ])
    )),
    Container(padding:const EdgeInsets.fromLTRB(7,3,7,4),color:Theme.of(c).colorScheme.surface,child:Column(mainAxisSize:MainAxisSize.min,children:[
-    Wrap(spacing:3,runSpacing:2,children:[ChoiceChip(label:const Text('عدد الوحدات'),selected:purchaseField=='packages',onSelected:(_)=>setState(()=>purchaseField='packages')),ChoiceChip(label:const Text('تكلفة الشراء'),selected:purchaseField=='cost',onSelected:(_)=>setState(()=>purchaseField='cost'))]),
-    if(purchaseField=='cost')Row(children:[const Text('إدخال التكلفة:'),ChoiceChip(label:const Text('للوحدة'),selected:purchaseCostMode=='package',onSelected:(_)=>setState(()=>purchaseCostMode='package')),ChoiceChip(label:const Text('للكيلو'),selected:purchaseCostMode=='kg',onSelected:(_)=>setState(()=>purchaseCostMode='kg'))]),
-    Text('القيمة: ${keypadValue.isEmpty?'أدخل الرقم':keypadValue} • العدد: ${packageCount==0?'—':packageCount} • تكلفة الشراء: ${packageCost==0?'—':packageCost} • الوزن يُقرأ تلقائياً من معرض الأصناف',style:const TextStyle(fontSize:10)),
+    Row(children:[ChoiceChip(label:const Text('عدد العبوات'),selected:true,onSelected:null),const Spacer(),const Text('سعر الشراء من مركز الأصناف',style:TextStyle(fontSize:11,color:Colors.grey))]),
+    Text('أدخل عدد العبوات فقط: ${keypadValue.isEmpty?'—':keypadValue} • العدد المعتمد: ${packageCount==0?'—':packageCount} • السعر والوزن يُقرآن تلقائياً من إعدادات الصنف والمورد',style:const TextStyle(fontSize:10)), 
     cashierNumberPad(keys:['7','8','9','⌫','4','5','6','مسح','1','2','3','.','0','00','اعتماد'],onKey:(k)=>k=='اعتماد'?applyKeypad():key(k)),
     Row(children:[Expanded(child:OutlinedButton(onPressed:posting?null:saveDraft,child:const Text('حفظ مسودة'))),const SizedBox(width:4),Expanded(child:OutlinedButton(onPressed:posting?null:openDrafts,child:const Text('المسودات')))]),
     SizedBox(width:double.infinity,height:40,child:FilledButton(onPressed:posting?null:save,child:Text(posting?'جارٍ الحفظ...':'ترحيل فاتورة التوريد')))
