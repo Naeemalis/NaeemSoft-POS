@@ -201,7 +201,8 @@ class ShopDb {
     )''');
     await d.execute('''INSERT OR IGNORE INTO product_stock_links(purchase_product_id, stock_product_id)
       SELECT id, paired_sale_product_id FROM products
-      WHERE product_type='purchase' AND paired_sale_product_id IS NOT NULL''');
+      WHERE product_type='purchase' AND paired_sale_product_id IS NOT NULL
+      AND EXISTS(SELECT 1 FROM products s WHERE s.id=products.paired_sale_product_id AND s.product_type='sale')''');
     if (!await _hasColumn(d, 'stock_movements', 'purchase_item_id')) {
       await d.execute('ALTER TABLE stock_movements ADD COLUMN purchase_item_id INTEGER REFERENCES purchase_items(id)');
     }
