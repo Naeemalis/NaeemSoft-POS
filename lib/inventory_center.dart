@@ -40,17 +40,17 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
           TextField(
             controller: quantity,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: _inventoryText(context, 'الكمية الفعلية بالكيلو', 'Actual quantity (kg)', 'Quantité réelle (kg)'), border: OutlineInputBorder()),
+            decoration: InputDecoration(labelText: _inventoryText(context, 'الكمية الفعلية بالكيلو', 'Actual quantity (kg)', 'Quantité réelle (kg)'), border: OutlineInputBorder()),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: note,
-            decoration: const InputDecoration(labelText: _inventoryText(context, 'ملاحظة الجرد (اختياري)', 'Stocktake note (optional)', 'Note d’inventaire (facultatif)'), border: OutlineInputBorder()),
+            decoration: InputDecoration(labelText: _inventoryText(context, 'ملاحظة الجرد (اختياري)', 'Stocktake note (optional)', 'Note d’inventaire (facultatif)'), border: OutlineInputBorder()),
           ),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(_inventoryText(context, 'إلغاء', 'Cancel', 'Annuler'))),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text(_inventoryText(context, 'اعتماد الجرد', 'Confirm stocktake', 'Valider l’inventaire'))),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(_inventoryText(context, 'اعتماد الجرد', 'Confirm stocktake', 'Valider l’inventaire'))),
         ],
       ),
     );
@@ -58,7 +58,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
     final parsed = double.tryParse(quantity.text.trim().replaceAll(',', '.'));
     if (parsed == null || parsed < 0) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(_inventoryText(context, 'أدخل كمية صحيحة لا تقل عن صفر', 'Enter a valid quantity of zero or more', 'Saisissez une quantité valide supérieure ou égale à zéro'))),
+        SnackBar(content: Text(_inventoryText(context, 'أدخل كمية صحيحة لا تقل عن صفر', 'Enter a valid quantity of zero or more', 'Saisissez une quantité valide supérieure ou égale à zéro'))),
       );
       return;
     }
@@ -71,7 +71,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
       if (mounted) {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text(_inventoryText(context, 'تم اعتماد الجرد وتسجيل حركة التسوية', 'Stocktake confirmed and adjustment movement recorded', 'Inventaire validé et mouvement d’ajustement enregistré'))),
+          SnackBar(content: Text(_inventoryText(context, 'تم اعتماد الجرد وتسجيل حركة التسوية', 'Stocktake confirmed and adjustment movement recorded', 'Inventaire validé et mouvement d’ajustement enregistré'))),
         );
       }
     } catch (error) {
@@ -130,7 +130,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text(_inventoryText(context, 'مركز إدارة الأصناف والكميات', 'Product & Stock Management Center', 'Centre de gestion des produits et des stocks')),
+      title: Text(_inventoryText(context, 'مركز إدارة الأصناف والكميات', 'Product & Stock Management Center', 'Centre de gestion des produits et des stocks')),
       actions: [IconButton(tooltip: _inventoryText(context, 'تحديث', 'Refresh', 'Actualiser'), onPressed: () => setState(() {}), icon: const Icon(Icons.refresh))],
     ),
     body: FutureBuilder<List<Map<String, Object?>>>(
@@ -160,14 +160,14 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
               FilledButton.tonalIcon(
                 onPressed: widget.onManageProducts,
                 icon: const Icon(Icons.tune),
-                label: const Text(_inventoryText(context, 'إدارة بيانات الأصناف', 'Manage product data', 'Gérer les données des articles')),
+                label: Text(_inventoryText(context, 'إدارة بيانات الأصناف', 'Manage product data', 'Gérer les données des articles')),
               ),
             ]),
           ),
           const Divider(),
           Expanded(
             child: products.isEmpty
-              ? const Center(child: Text(_inventoryText(context, 'لا توجد أصناف مبيعات. أضف الأصناف أولاً.', 'No sales products. Add products first.', 'Aucun article de vente. Ajoutez d’abord des articles.')))
+              ? Center(child: Text(_inventoryText(context, 'لا توجد أصناف مبيعات. أضف الأصناف أولاً.', 'No sales products. Add products first.', 'Aucun article de vente. Ajoutez d’abord des articles.')))
               : ListView.separated(
                   itemCount: products.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
@@ -186,7 +186,7 @@ class _InventoryCenterPageState extends State<InventoryCenterPage> {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(_inventoryKg(grams), style: const TextStyle(fontWeight: FontWeight.bold)),
-                          const Text(_inventoryText(context, 'الرصيد الحالي', 'Current balance', 'Solde actuel'), style: TextStyle(fontSize: 10)),
+                          Text(_inventoryText(context, 'الرصيد الحالي', 'Current balance', 'Solde actuel'), style: TextStyle(fontSize: 10)),
                         ],
                       ),
                       onTap: () => _setCount(product),
