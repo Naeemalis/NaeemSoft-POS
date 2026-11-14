@@ -545,8 +545,7 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
  late String defaultUnit;
  @override void initState(){super.initState();defaultUnit=(widget.product['purchase_unit']??'').toString();}
  final weight=TextEditingController();
- int? editingId;
- String? editingName;
+ @override void dispose(){name.dispose();weight.dispose();super.dispose();}
  Future<List<Map<String,Object?>>> get units=>ShopDb.instance.getProductUnits((widget.product['id'] as num).toInt());
  Future<void> editUnit([Map<String,Object?>? unit]) async {
   name.text=(unit?['unit_name']??'').toString();
