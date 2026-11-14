@@ -173,7 +173,7 @@ String tr(String value) {
       'لا توجد حركات في الفترة المحددة':'No transactions in the selected period',
       'الرصيد ':'Balance ',
       'الدائن':'Credit balance',
-      'المستحق':'Due',
+      'المستحق':'Due','ترحّل فواتير التوريد إلى المخزون، وتخصم فواتير البيع الكميات من الرصيد.':'Purchase invoices add stock; sales invoices deduct quantities.','وحدة بيع':'Sales unit','حُفظت مسودة فاتورة البيع رقم ':'Sales draft saved #','الزبون (اختياري) • السعر الخاص إن وجد':'Customer (optional) • agreed price if available','عدد العمليات: ':'Items: ','الوحدة: ':'Unit: ','سعر الكيلو: ':'Price per kg: ','مسودة':'Draft','اربط صنف التوريد بصنف المبيعات من إدارة الأصناف أولاً':'Link the purchase product to its sales stock item in Product Management first','اختر عبوة':'Choose package','حُفظت مسودة فاتورة التوريد رقم ':'Purchase draft saved #','وزن الوحدة':'Unit weight','اضغط لتعديل الوزن':'Tap to edit weight','تكلفة العبوة':'Package cost','أدخل عدد العبوات فقط: ':'Enter package count only: ','العدد المعتمد: ':'Confirmed count: ','الوحدة':'Unit','الانتهاء: ':'Expiry: ','الوحدة الافتراضية':'Default unit','اختر المورد وأدخل وزناً صحيحاً':'Select a supplier and enter a valid weight','تم حفظ وزن العبوة لهذا المورد':'Supplier package weight saved','أوزان الموردين':'Supplier package weights','إضافة وزن عبوة خاص بمورد':'Add supplier-specific package weight','نوع العبوة':'Package type','وزن العبوة: ':'Package weight: ','تعديل الاسم والهاتف':'Edit name and phone','كشف حساب ':'Account statement ','تسجيل دفعة':'Record payment','مدفوع':'Paid','متبقٍ':'Remaining','طباعة / مشاركة / حفظ PDF':'Print / share / save PDF','مرتجعات الزبائن والموردين':'Customer and supplier returns','مرتجع للمورد':'Supplier return','لا توجد كميات متبقية للإرجاع في هذه الفاتورة':'No remaining quantities to return on this invoice','المتاح للإرجاع: ':'Available to return: ','سعر الوحدة: ':'Unit price: ','حفظ المرتجع وتحديث الحساب':'Save return and update account','يجب اختيار الفاتورة الأصلية. لا يسمح النظام بإرجاع كمية أكبر من المتبقي من الصنف. يُخصم صافي المرتجع من حساب الزبون أو المورد المرتبط بالفاتورة.':'Select the original invoice. Returns cannot exceed the remaining item quantity. The net return is deducted from the linked customer or supplier account.','استعادة المسودة':'Restore draft','حذف المسودة':'Delete draft',
       'تسجيل دفعة من الزبون':'Record customer payment',
       'تسجيل دفعة للمورد':'Record supplier payment',
       'ملاحظة':'Note',
@@ -403,7 +403,7 @@ String tr(String value) {
       'لا توجد حركات في الفترة المحددة':'Aucune opération pour la période sélectionnée',
       'الرصيد ':'Solde ',
       'الدائن':'Créditeur',
-      'المستحق':'Dû',
+      'المستحق':'Dû','ترحّل فواتير التوريد إلى المخزون، وتخصم فواتير البيع الكميات من الرصيد.':'Les achats alimentent le stock ; les ventes déduisent les quantités.','وحدة بيع':'Unité de vente','حُفظت مسودة فاتورة البيع رقم ':'Brouillon de vente enregistré n° ','الزبون (اختياري) • السعر الخاص إن وجد':'Client (facultatif) • prix convenu si disponible','عدد العمليات: ':'Articles : ','الوحدة: ':'Unité : ','سعر الكيلو: ':'Prix au kg : ','مسودة':'Brouillon','اربط صنف التوريد بصنف المبيعات من إدارة الأصناف أولاً':'Liez d’abord l’article d’achat à son article de stock de vente dans la gestion des articles','اختر عبوة':'Choisir un emballage','حُفظت مسودة فاتورة التوريد رقم ':'Brouillon d’achat enregistré n° ','وزن الوحدة':'Poids unitaire','اضغط لتعديل الوزن':'Touchez pour modifier le poids','تكلفة العبوة':'Coût du colis','أدخل عدد العبوات فقط: ':'Saisissez uniquement le nombre de colis : ','العدد المعتمد: ':'Quantité validée : ','الوحدة':'Unité','الانتهاء: ':'Expiration : ','الوحدة الافتراضية':'Unité par défaut','اختر المورد وأدخل وزناً صحيحاً':'Sélectionnez un fournisseur et saisissez un poids valide','تم حفظ وزن العبوة لهذا المورد':'Poids du colis fournisseur enregistré','أوزان الموردين':'Poids par fournisseur','إضافة وزن عبوة خاص بمورد':'Ajouter un poids spécifique au fournisseur','نوع العبوة':'Type d’emballage','وزن العبوة: ':'Poids du colis : ','تعديل الاسم والهاتف':'Modifier le nom et le téléphone','كشف حساب ':'Relevé de compte ','تسجيل دفعة':'Enregistrer un paiement','مدفوع':'Payé','متبقٍ':'Restant','طباعة / مشاركة / حفظ PDF':'Imprimer / partager / enregistrer PDF','مرتجعات الزبائن والموردين':'Retours clients et fournisseurs','مرتجع للمورد':'Retour fournisseur','لا توجد كميات متبقية للإرجاع في هذه الفاتورة':'Aucune quantité restante à retourner sur cette facture','المتاح للإرجاع: ':'Disponible au retour : ','سعر الوحدة: ':'Prix unitaire : ','حفظ المرتجع وتحديث الحساب':'Enregistrer le retour et mettre à jour le compte','يجب اختيار الفاتورة الأصلية. لا يسمح النظام بإرجاع كمية أكبر من المتبقي من الصنف. يُخصم صافي المرتجع من حساب الزبون أو المورد المرتبط بالفاتورة.':'Sélectionnez la facture d’origine. Les retours ne peuvent pas dépasser la quantité restante. Le retour net est déduit du compte client ou fournisseur lié.','استعادة المسودة':'Restaurer le brouillon','حذف المسودة':'Supprimer le brouillon',
       'تسجيل دفعة من الزبون':'Enregistrer un paiement client',
       'تسجيل دفعة للمورد':'Enregistrer un règlement fournisseur',
       'ملاحظة':'Note',
@@ -940,7 +940,7 @@ class ExpiryAlertsPage extends StatelessWidget {
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(tr('تنبيهات صلاحية الأصناف'))),
   body:FutureBuilder<List<Map<String,Object?>>>(future:load(),builder:(c,s){
-   if(s.hasError)return Center(child:Text(tr('تعذر تحميل التنبيهات: ${s.error}')));
+   if(s.hasError)return Center(child:Text(tr('تعذر تحميل التنبيهات: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    if(s.data!.isEmpty)return Center(child:Text(tr('لا توجد دفعات منتهية أو قريبة من الانتهاء')));
    return ListView(children:s.data!.map((x){
@@ -1017,7 +1017,7 @@ class _ProductsPageState extends State<ProductsPage>{
    if(product==null){await ShopDb.instance.addProduct(n.text,u.text,(weight*1000).round(),p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId,requiresExpiry:requiresExpiry,expiryWarningDays:int.tryParse(expiryDays.text)??7);}
    else{await ShopDb.instance.updateProduct(id:product['id'] as int,name:n.text,unit:u.text,defaultWeightGrams:(weight*1000).round(),salePrice:p,productType:productType,cost:productType=='purchase'?purchaseCost:0,pairedSaleProductId:productType=='purchase'?pairedSaleProductId:null,categoryId:categoryId,requiresExpiry:requiresExpiry,expiryWarningDays:int.tryParse(expiryDays.text)??7);}
    if(mounted)setState((){});
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر حفظ الصنف: $e'))));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر حفظ الصنف: ')+e.toString())));}
  }
  Future<void> archive(Map<String,Object?> product) async {
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
@@ -1029,7 +1029,7 @@ class _ProductsPageState extends State<ProductsPage>{
  @override Widget build(BuildContext c)=>Scaffold(
   appBar:AppBar(title:Text(tr('مركز إدارة الأصناف')),actions:[IconButton(tooltip: tr('إدارة التصنيفات'),onPressed:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>CategoriesPage())).then((_) {if(mounted)setState((){});}),icon:Icon(Icons.category_outlined))]),
   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:'active=1',orderBy:'name'),builder:(c,s){
-   if(s.hasError)return Center(child:Text(tr('تعذر تحميل الأصناف: ${s.error}')));
+   if(s.hasError)return Center(child:Text(tr('تعذر تحميل الأصناف: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    if(s.data!.isEmpty)return Center(child:Text(tr('لا توجد أصناف نشطة')));
    return ListView(children:s.data!.map((p)=>ListTile(
@@ -1060,7 +1060,7 @@ class _CategoriesPageState extends State<CategoriesPage>{
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:Text(tr('إلغاء'))),FilledButton(onPressed:()=>Navigator.pop(c,true),child:Text(tr('حفظ')))]));
   if(ok!=true)return;
   try{await ShopDb.instance.addCategory(name.text);if(mounted)setState((){});}
-  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر إضافة التصنيف: $e'))));}
+  catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر إضافة التصنيف: ')+e.toString())));}
  }
  Future<void> remove(Map<String,Object?> row) async {
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
@@ -1072,7 +1072,7 @@ class _CategoriesPageState extends State<CategoriesPage>{
  @override Widget build(BuildContext c)=>Scaffold(
   appBar:AppBar(title:Text(tr('تصنيفات الأصناف'))),
   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('categories',orderBy:'name'),builder:(c,s){
-   if(s.hasError)return Center(child:Text(tr('تعذر تحميل التصنيفات: ${s.error}')));
+   if(s.hasError)return Center(child:Text(tr('تعذر تحميل التصنيفات: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    if(s.data!.isEmpty)return Center(child:Text(tr('لا توجد تصنيفات. أضف تصنيفاً جديداً.')));
    return ListView(children:s.data!.map((x)=>ListTile(
@@ -1118,7 +1118,7 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
     if(unit['unit_name']==defaultUnit)defaultUnit=name.text.trim();
    }
    if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم حفظ الوحدة ومعامل تحويلها'))));}
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر الحفظ: $e'))));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر الحفظ: ')+e.toString())));}
  }
  Future<void> remove(Map<String,Object?> unit) async {
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
@@ -1133,7 +1133,7 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
   appBar:AppBar(title:Text('${tr('وحدات وعبوات')} • ${widget.product['name']}')),
   floatingActionButton:FloatingActionButton.extended(onPressed:()=>editUnit(),icon:Icon(Icons.add),label:Text(tr('إضافة وحدة'))),
   body:FutureBuilder<List<Map<String,Object?>>>(future:units,builder:(c,s){
-   if(s.hasError)return Center(child:Text(tr('تعذر تحميل الوحدات: ${s.error}')));
+   if(s.hasError)return Center(child:Text(tr('تعذر تحميل الوحدات: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    if(s.data!.isEmpty)return Center(child:Text(tr('لا توجد وحدات معرفة لهذا الصنف')));
    return ListView(padding:const EdgeInsets.all(12),children:[
@@ -1178,7 +1178,7 @@ class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>
    weight.clear();
    if(mounted)setState((){});
    if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم حفظ وزن العبوة لهذا المورد'))));
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر الحفظ: $e'))));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر الحفظ: ')+e.toString())));}
  }
  @override Widget build(BuildContext c)=>Scaffold(
   appBar:AppBar(title:Text('${tr('أوزان الموردين')} • ${widget.product['name']}')),
@@ -1212,7 +1212,7 @@ class _SupplierPackageWeightsPageState extends State<SupplierPackageWeightsPage>
    ]))),
    Padding(padding:EdgeInsets.symmetric(vertical:8),child:Text(tr('الأوزان المسجلة حسب المورد'),style:TextStyle(fontWeight:FontWeight.bold))),
    FutureBuilder<List<Map<String,Object?>>>(future:units,builder:(c,s){
-    if(s.hasError)return Text(tr('تعذر تحميل الأوزان: ${s.error}'));
+    if(s.hasError)return Text(tr('تعذر تحميل الأوزان: ')+s.error.toString());
     if(!s.hasData)return const Center(child:CircularProgressIndicator());
     if(s.data!.isEmpty)return Text(tr('لا توجد أوزان خاصة مسجلة بعد.'));
     return Card(child:Column(children:s.data!.map((x)=>ListTile(
@@ -1262,7 +1262,7 @@ class _PartiesPageState extends State<PartiesPage>{
    if(party==null)await ShopDb.instance.addParty(widget.type,n.text,phone.text);
    else await ShopDb.instance.updateParty(widget.type,party['id'] as int,n.text,phone.text);
    if(mounted)setState((){});
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر حفظ البيانات: $e'))));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر حفظ البيانات: ')+e.toString())));}
  }
  Future<void> archive(Map<String,Object?> party)async{
   final customer=widget.type=='customer';
@@ -1277,7 +1277,7 @@ class _PartiesPageState extends State<PartiesPage>{
   final customer=widget.type=='customer';
   return Scaffold(appBar:AppBar(title:Text(tr(customer?'إدارة الزبائن':'إدارة الموردين'))),
    body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query(table,where:'active=1',orderBy:'name'),builder:(c,s){
-    if(s.hasError)return Center(child:Text(tr('تعذر تحميل القائمة: ${s.error}')));
+    if(s.hasError)return Center(child:Text(tr('تعذر تحميل القائمة: ')+s.error.toString()));
     if(!s.hasData)return const Center(child:CircularProgressIndicator());
     if(s.data!.isEmpty)return Center(child:Text(tr(customer?'لا يوجد زبائن مسجلون':'لا يوجد موردون مسجلون')));
     return ListView(children:s.data!.map((x)=>ListTile(
@@ -1411,7 +1411,7 @@ class _PartyStatementPageState extends State<PartyStatementPage>{
     }
    });
    if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تم تسجيل السداد وتوزيعه على أقدم الفواتير المستحقة')))); await _showPaymentReceipt(context,type:widget.type,paymentId:savedPaymentId,partyName:(await ShopDb.instance.db.query(widget.type=='customer'?'customers':'suppliers',where:'id=?',whereArgs:[widget.partyId],limit:1)).first['name'].toString(),amount:value,note:note.text.trim());}
-  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر تسجيل الدفعة: $e'))));}
+  }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(tr('تعذر تسجيل الدفعة: ')+e.toString())));}
   finally{if(mounted)setState(()=>saving=false);}
  }
  Future<void> export(Map<String,Object?> data) async {
@@ -1520,7 +1520,7 @@ class SaleInvoiceReviewPage extends StatelessWidget {
  Future<void> shareImage(BuildContext c) async {
   try{final bytes=await shot.captureFromWidget(Directionality(textDirection:ui.TextDirection.rtl,child:Material(color:Colors.white,child:Padding(padding:const EdgeInsets.all(20),child:ReceiptShareCard(items:items,total:total,paid:paid,party:party)))),context:c,pixelRatio:3);
    await Share.shareXFiles([XFile.fromData(bytes,mimeType:'image/png',name:'NaeemSoft-invoice.png')],text:'فاتورة بيع - NaeemSoft POS');
-  }catch(e){if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text(tr('تعذر تجهيز صورة الفاتورة: $e'))));}
+  }catch(e){if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text(tr('تعذر تجهيز صورة الفاتورة: ')+e.toString())));}
  }
  @override Widget build(BuildContext c)=>Scaffold(appBar:AppBar(title:Text(tr('مراجعة فاتورة البيع قبل الترحيل'))),body:ListView(padding:EdgeInsets.all(12),children:[
   ReceiptShareCard(items:items,total:total,paid:paid,party:party),const SizedBox(height:12),
@@ -1661,7 +1661,7 @@ class InvoiceDetailPage extends StatelessWidget {
  @override Widget build(BuildContext c)=>Scaffold(
   appBar:AppBar(title:Text(tr(type=='sale'?'فاتورة بيع #':'فاتورة مورد #')+invoiceId.toString())),
   body:FutureBuilder<Map<String,Object?>>(future:load(),builder:(c,s){
-   if(s.hasError)return Center(child:Text(tr('تعذر فتح الفاتورة: ${s.error}')));
+   if(s.hasError)return Center(child:Text(tr('تعذر فتح الفاتورة: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    final h=s.data!['header'] as Map<String,Object?>;
    final lines=s.data!['lines'] as List<Map<String,Object?>>;
@@ -1675,7 +1675,7 @@ class InvoiceDetailPage extends StatelessWidget {
         final file=await _buildInvoicePdf(type:type,invoiceId:invoiceId,header:h,lines:lines,party:s.data!['party'].toString());
         if(c.mounted)await Navigator.push(c,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
        }catch(e){
-        if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text(tr('تعذر إنشاء PDF: $e'))));
+        if(c.mounted)ScaffoldMessenger.of(c).showSnackBar(SnackBar(content:Text(tr('تعذر إنشاء PDF: ')+e.toString())));
        }
       },
      )),
@@ -1825,7 +1825,7 @@ class AccountsPage extends StatelessWidget {
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(tr('ملخص الحسابات'))),
   body:FutureBuilder<List<num>>(future:load(),builder:(context,s){
-   if(s.hasError)return Center(child:Text(tr('تعذر تحميل الحسابات: ${s.error}')));
+   if(s.hasError)return Center(child:Text(tr('تعذر تحميل الحسابات: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    final v=s.data!;
    Widget item(String title,num amount,IconData icon)=>Card(child:ListTile(leading:Icon(icon),title:Text(title),trailing:Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))));
@@ -1850,7 +1850,7 @@ class _DraftsPageState extends State<DraftsPage>{
  @override Widget build(BuildContext context)=>Scaffold(
   appBar:AppBar(title:Text(tr(widget.type=='sale'?'مسودات البيع':widget.type=='purchase'?'مسودات التوريد':'مسودات الفواتير'))),
   body:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.getDrafts(type:widget.type),builder:(c,s){
-   if(s.hasError)return Center(child:Text(tr('تعذر تحميل المسودات: ${s.error}')));
+   if(s.hasError)return Center(child:Text(tr('تعذر تحميل المسودات: ')+s.error.toString()));
    if(!s.hasData)return const Center(child:CircularProgressIndicator());
    if(s.data!.isEmpty)return Center(child:Text(tr('لا توجد مسودات محفوظة')));
    return ListView(children:s.data!.map<Widget>((d){
