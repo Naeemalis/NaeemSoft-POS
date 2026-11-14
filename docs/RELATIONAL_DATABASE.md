@@ -60,6 +60,8 @@ erDiagram
 | `purchases` / `purchase_items` | Purchase invoice header and product lines | supplier → invoice → lines |
 | `sales` / `sale_items` | Sales invoice header and product lines | optional customer → invoice → lines |
 | `stock_movements` | Immutable stock movement ledger | product + exact source invoice line |
+| `sale_batch_allocations` | Exact FEFO purchase batches consumed by each sale line | sale item ↔ purchase batch |
+| `return_batch_allocations` | Exact original batches restored by customer returns | return item ↔ sale item ↔ purchase batch |
 | `payments` | Payment event | parent of party and allocation junctions |\n| `customer_payment_links` / `supplier_payment_links` | Enforce payment-to-party foreign keys without polymorphic party references | payment ↔ one customer or supplier |\n| `sale_payment_allocations` / `purchase_payment_allocations` | Enforce payment-to-invoice foreign keys | payment ↔ sale or purchase invoice |
 | `waste_records` | Spoilage/damage records | product |
 | `returns` / `return_items` | Customer/supplier return documents | original invoice and product line |
