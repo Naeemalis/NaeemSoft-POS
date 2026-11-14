@@ -15,6 +15,27 @@ void main() {
     await shop.close();
   });
 
+
+  test('product units are configurable and preserve the default purchase unit', () async {
+    final product = await shop.addProduct('بطاطس', 'جوان', 30000, 180);
+    await shop.saveProductUnit(productId:product, unitName:'كيس', weightGrams:25000);
+    final units = await shop.getProductUnits(product);
+    expect(units.map((x)=>x['unit_name']), containsAll(['جوان','كيس']));
+    final bag = units.singleWhere((x)=>x['unit_name']=='كيس');
+    expect(bag['default_weight_grams'], 25000);
+    await shop.saveProductUnit(productId:product, unitName:'جوان', weightGrams:35000);
+    final row = (await shop.db.query('products',where:'id=?',whereArgs:[product])).single;
+    expect((row['default_weight'] as num).toDouble(), 35);
+    await expectLater(
+      shop.deleteProductUnit((await shop.getProductUnits(product)).singleWhere((x)=>x['unit_name']=='جوان')['id'] as int,productId:product),
+      throwsException,
+    );
+    final refreshed = await shop.getProductUnits(product);
+    final removable = refreshed.singleWhere((x)=>x['unit_name']=='كيس');
+    await shop.deleteProductUnit(removable['id'] as int,productId:product);
+    expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']), isNot(contains('كيس')));
+  });
+
   test('supplier invoice increases stock of its linked sales product', () async {
     final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
     final saleProduct = await shop.addProduct('بصل', 'كيلو', 1000, 250);
