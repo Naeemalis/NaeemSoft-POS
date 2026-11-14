@@ -28,7 +28,12 @@ void main() {
     final stock = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
     expect(stock.single['stock_grams'], 100000);
     expect(stock.single['inventory_value_djf'], 50000);
-    expect(await shop.db.query('stock_movements'), hasLength(1));
+    final movements = await shop.db.query('stock_movements');
+    expect(movements, hasLength(1));
+    final purchaseLine = (await shop.db.query('purchase_items')).single;
+    expect(movements.single['purchase_item_id'], purchaseLine['id']);
+    expect(movements.single['product_id'], saleProduct);
+    expect(await shop.db.query('product_stock_links', where:'purchase_product_id=?', whereArgs:[purchaseProduct]), hasLength(1));
     final invoice = await shop.db.query('purchases', where: 'id=?', whereArgs: [id]);
     expect(invoice.single['total'], 50000);
     expect(invoice.single['paid'], 10000);
@@ -50,7 +55,12 @@ void main() {
     final stock = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
     expect(stock.single['stock_grams'], 5000);
     expect(stock.single['inventory_value_djf'], 1000);
-    expect(await shop.db.query('stock_movements'), hasLength(2));
+    final movements = await shop.db.query('stock_movements', orderBy:'id');
+    expect(movements, hasLength(2));
+    final saleLine = (await shop.db.query('sale_items')).single;
+    expect(movements.last['sale_item_id'], saleLine['id']);
+    final purchaseLine = (await shop.db.query('purchase_items')).single;
+    expect(movements.first['purchase_item_id'], purchaseLine['id']);
     final invoice = await shop.db.query('sales', where: 'id=?', whereArgs: [id]);
     expect(invoice.single['total'], 1000);
     expect(invoice.single['paid'], 500);
