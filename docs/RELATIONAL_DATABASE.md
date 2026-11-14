@@ -13,7 +13,7 @@
 
 ## Product units and supplier packaging
 
-`product_units` defines the units and package conversion factors for each product. The product center manages these rows (add, edit, delete); the default purchase unit cannot be deleted, and editing its conversion updates the product default weight. The purchase cashier selects from the configured units. In the sales cashier, selecting a product uses its configured sale unit; the entered count is converted to grams before it enters the cart and stock deduction. Cash-amount mode remains price-per-kilogram based and converts the entered money amount to grams independently of the selected unit. `supplier_product_units` may override the conversion weight for a specific supplier, product, and unit. This preserves the distinction between the product's standard package definition and the supplier's actual package weight.
+`product_units` defines the units and package conversion factors for each product. The product center manages these rows (add, edit, delete); the default purchase unit cannot be deleted, and editing its conversion updates the product default weight. The purchase cashier selects from the configured units. In the sales cashier, selecting a product uses its configured sale unit; the entered count is converted to grams before it enters the cart and stock deduction. Cash-amount mode remains price-per-kilogram based and converts the entered money amount to grams independently of the selected unit. `supplier_product_units` may override the conversion weight for a specific supplier, product, and unit. This preserves the distinction between the product's standard package definition and the supplier's actual package weight. The purchase cost is a single product-level value stored in `products.cost`; it is uniform across all suppliers and is read automatically by the purchase cashier. Supplier-specific rows must not store or override purchase prices. The posted invoice line snapshots the package weight and package cost actually used, so historical invoices remain unchanged when the product's default cost is later edited.
 
 ## Single-stock-location model
 
@@ -52,7 +52,7 @@ erDiagram
 | `products` | Product master; saleable and purchase-side records | `category_id` |
 | `categories` | Product classification | one category to many products |
 | `product_units` | Default units for each product | product ↔ units |
-| `supplier_product_units` | Supplier-specific package name and weight | supplier ↔ product (junction) |
+| `supplier_product_units` | Supplier-specific package weight only; purchase price remains uniform in `products.cost` | supplier ↔ product (junction) |
 | `product_stock_links` | Explicit bridge from purchase product to saleable stock product | purchase product ↔ stock product |
 | `customers` | Customer accounts | one customer to many credit sales |
 | `customer_product_prices` | Customer-specific agreed price per product | customer ↔ product (junction) |
@@ -68,7 +68,7 @@ erDiagram
 
 ### Supplier purchase
 
-1. Select supplier; supplier-specific units and package weights are loaded.
+1. Select supplier; supplier-specific package weights are loaded, while the uniform product purchase cost is read from `products.cost`.
 2. Save one purchase header and its multiple purchase lines.
 3. For every line, resolve `purchase_product_id → product_stock_links → stock_product_id`.
 4. Increase the saleable product's grams and inventory value; recalculate weighted-average cost.
@@ -106,4 +106,4 @@ Database schema version 13 adds expiry policy fields to products and an expiry i
 
 Implemented in the current branch: supplier-specific package weights are loaded by the purchase cashier; customer-specific agreed prices are loaded by the sales cashier after selecting the customer; invoices, party statements, payment receipts and return vouchers have PDF preview/print/share paths; expiry alerts are available from administration.
 
-Remaining work: multi-warehouse stock balances and transfers (the current stock ledger still represents one shop-wide balance), full product multi-unit/packaging editor, full Arabic/English/French localization and RTL/LTR switching, complete return/overpayment accounting tests, and month/two-month end-to-end business-cycle scenarios. Do not merge until these are implemented and the Android build/test pipeline passes.
+Remaining work: complete and verify the purchase/sales unit-conversion bridge across all invoice and return flows, full Arabic/English/French localization and RTL/LTR switching, complete return/overpayment accounting tests, administrator and user-role management, and month/two-month end-to-end business-cycle scenarios. The application intentionally has one stock location only. Do not merge until these are implemented and the Android build/test pipeline passes.
