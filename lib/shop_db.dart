@@ -317,6 +317,22 @@ class ShopDb {
     });
   }
 
+
+  Future<void> updateProductUnit({required int unitId, required int productId, required String unitName, required int weightGrams}) async {
+    final name=unitName.trim();
+    if(name.isEmpty || weightGrams<=0) throw Exception('اسم الوحدة والوزن يجب أن يكونا صحيحين');
+    await db.transaction((tx) async {
+      final rows=await tx.query('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId],limit:1);
+      if(rows.isEmpty) throw Exception('الوحدة غير موجودة');
+      final oldName=rows.first['unit_name'].toString();
+      await tx.update('product_units',{'unit_name':name,'default_weight_grams':weightGrams},where:'id=? AND product_id=?',whereArgs:[unitId,productId]);
+      final product=(await tx.query('products',columns:['purchase_unit'],where:'id=?',whereArgs:[productId],limit:1));
+      if(product.isNotEmpty && product.first['purchase_unit']==oldName) {
+        await tx.update('products',{'purchase_unit':name,'default_weight':weightGrams/1000},where:'id=?',whereArgs:[productId]);
+      }
+    });
+  }
+
   Future<void> deleteProductUnit(int unitId,{required int productId}) async {
     final row=await db.query('product_units',where:'id=? AND product_id=?',whereArgs:[unitId,productId],limit:1);
     if(row.isEmpty) return;
