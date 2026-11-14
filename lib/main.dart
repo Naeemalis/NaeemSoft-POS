@@ -80,11 +80,16 @@ class SalePage extends StatefulWidget {const SalePage({super.key});@override Sta
 class _SalePageState extends State<SalePage>{
  final Map<int,Map<String,dynamic>> cart={};
  int? activeDraftId;
+ int? selectedCustomerId;
  bool posting=false;
  String keypadValue=''; String saleMode='weight';
  void key(String k){setState((){if(k=='مسح')keypadValue='';else if(k=='⌫'){if(keypadValue.isNotEmpty)keypadValue=keypadValue.substring(0,keypadValue.length-1);}else if(k=='½')keypadValue='0.5';else if(k=='¼')keypadValue='0.25';else if(k=='1 كجم')keypadValue='1';else if(keypadValue.isEmpty||keypadValue=='0')keypadValue=k;else keypadValue+=k;});}
  Future<void> add(Map<String,Object?> p) async {
-  final price=(p['sale_price'] as num).round();
+  var price=(p['sale_price'] as num).round();
+  if(selectedCustomerId!=null){
+   final custom=await ShopDb.instance.db.query('customer_product_prices',where:'customer_id=? AND product_id=? AND active=1',whereArgs:[selectedCustomerId,p['id']],limit:1);
+   if(custom.isNotEmpty) price=(custom.first['price_per_kg'] as num).round();
+  }
   final value=double.tryParse(keypadValue.replaceAll(',', '.'))??0;
   final grams=saleMode=='weight'?(value*1000).round():(price>0?(value*1000/price).round():0);
   final id=p['id'] as int, old=cart[id]?['grams'] as int? ?? 0;
@@ -107,16 +112,18 @@ class _SalePageState extends State<SalePage>{
   if(posting||cart.isEmpty)return;
   final customers=await ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name');int? customer;
   final paid=TextEditingController(text:total.toString()),due=TextEditingController();
+  int? customer=selectedCustomerId;
   final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(
    title:const Text('بيانات فاتورة البيع'),
    content:Column(mainAxisSize:MainAxisSize.min,children:[
     Text('الإجمالي: '+money(total)),
-    DropdownButtonFormField<int?>(value:null,decoration:const InputDecoration(labelText:'الزبون (اختياري)'),
+    DropdownButtonFormField<int?>(value:customer,decoration:const InputDecoration(labelText:'الزبون (اختياري)'),
      items:[const DropdownMenuItem<int?>(value:null,child:Text('نقدي / غير مسجل')),...customers.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:(v)=>customer=v),
     field(paid,'المبلغ المدفوع',number:true),field(due,'موعد السداد YYYY-MM-DD')
    ]),
    actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('رجوع')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('معاينة الفاتورة'))]));
   if(ok!=true)return;
+  selectedCustomerId=customer;
   final paidAmount=int.tryParse(paid.text)??0,dueDate=due.text.trim().isEmpty?null:due.text.trim();
   final snapshot=cart.values.map((x)=>Map<String,dynamic>.from(x)).toList(),invoiceTotal=total;
   final party=customer==null?'نقدي / غير مسجل':(customers.firstWhere((x)=>x['id']==customer)['name'] as String);
@@ -136,6 +143,10 @@ class _SalePageState extends State<SalePage>{
 
  @override Widget build(BuildContext c) {
   return Column(children:[
+   Padding(padding:const EdgeInsets.fromLTRB(8,6,8,2),child:FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('customers',where:'active=1',orderBy:'name'),builder:(c,s){
+    if(!s.hasData)return const LinearProgressIndicator();
+    return DropdownButtonFormField<int?>(value:selectedCustomerId,decoration:const InputDecoration(labelText:'الزبون (اختياري) • السعر الخاص إن وجد',border:OutlineInputBorder(),isDense:true),items:[const DropdownMenuItem<int?>(value:null,child:Text('بيع نقدي / بدون زبون')),...s.data!.map((x)=>DropdownMenuItem<int?>(value:x['id'] as int,child:Text(x['name'] as String)))],onChanged:posting?null:(v)=>setState(()=>selectedCustomerId=v));
+   })),
    FutureBuilder<List<Map<String,Object?>>>(future:ShopDb.instance.db.query('products',where:"active=1 AND product_type='sale'",orderBy:'name'),builder:(c,s){
     if(!s.hasData)return const SizedBox(height:120,child:Center(child:CircularProgressIndicator()));
     final ps=s.data!, n=((s.data!.length+6)~/7).clamp(1,1000);
@@ -193,7 +204,9 @@ class _PurchasePageState extends State<PurchasePage>{
    return;
   }
   final count=packageCount;
-  final weight=packageWeight>0?packageWeight:((p['default_weight'] as num)*1000).round();
+  final supplierUnit=await ShopDb.instance.db.query('supplier_product_units',where:'supplier_id=? AND product_id=? AND unit_name=?',whereArgs:[selectedSupplierId,p['id'],p['purchase_unit']],limit:1);
+  final supplierWeight=supplierUnit.isEmpty?null:(supplierUnit.first['weight_grams'] as num).toInt();
+  final weight=packageWeight>0?packageWeight:(supplierWeight??((p['default_weight'] as num)*1000).round());
   final stockLink=await ShopDb.instance.db.query('product_stock_links',where:'purchase_product_id=?',whereArgs:[p['id']],limit:1);
   final stockProduct=stockLink.isEmpty?null:(await ShopDb.instance.db.query('products',where:'id=?',whereArgs:[stockLink.first['stock_product_id']],limit:1)).firstOrNull;
   final needsExpiry=(p['requires_expiry'] as num?)?.toInt()==1 || (stockProduct?['requires_expiry'] as num?)?.toInt()==1;
