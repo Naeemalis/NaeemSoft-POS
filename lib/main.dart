@@ -542,6 +542,8 @@ class ProductUnitsPage extends StatefulWidget {
 }
 class _ProductUnitsPageState extends State<ProductUnitsPage>{
  final name=TextEditingController();
+ late String defaultUnit;
+ @override void initState(){super.initState();defaultUnit=(widget.product['purchase_unit']??'').toString();}
  final weight=TextEditingController();
  int? editingId;
  String? editingName;
@@ -564,6 +566,7 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
     await ShopDb.instance.saveProductUnit(productId:(widget.product['id'] as num).toInt(),unitName:name.text,weightGrams:grams);
    }else{
     await ShopDb.instance.updateProductUnit(unitId:(unit['id'] as num).toInt(),productId:(widget.product['id'] as num).toInt(),unitName:name.text,weightGrams:grams);
+    if(unit['unit_name']==defaultUnit)defaultUnit=name.text.trim();
    }
    if(mounted){setState((){});ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('تم حفظ الوحدة ومعامل تحويلها')));}
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تعذر الحفظ: $e')));}
@@ -587,7 +590,7 @@ class _ProductUnitsPageState extends State<ProductUnitsPage>{
    return ListView(padding:const EdgeInsets.all(12),children:[
     Card(child:Padding(padding:const EdgeInsets.all(12),child:Text('الصنف: ${widget.product['name']}\nكل وحدة تسجل بمعامل تحويل إلى الكيلوغرام، ويُستخدم وزن المورد إذا كان له وزن خاص لهذه العبوة.'))),
     ...s.data!.map((x){
-     final isBase=x['unit_name']==widget.product['purchase_unit'];
+     final isBase=x['unit_name']==defaultUnit;
      final kg=((x['default_weight_grams'] as num).toDouble()/1000);
      return Card(child:ListTile(
       leading:const Icon(Icons.inventory_2_outlined),
