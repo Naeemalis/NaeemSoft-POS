@@ -1,0 +1,225 @@
+import 'package:flutter/material.dart';
+import 'shop_db.dart';
+
+String _inventoryText(BuildContext context, String ar, String en, String fr) {
+  switch (Localizations.localeOf(context).languageCode) {
+    case 'en': return en;
+    case 'fr': return fr;
+    default: return ar;
+  }
+}
+
+String _inventoryMoney(BuildContext context, num value) => Localizations.localeOf(context).languageCode == 'fr' || Localizations.localeOf(context).languageCode == 'en' ? '${value.round()} DJF' : '${value.round()} DJF';
+String _inventoryKg(BuildContext context, num grams) {
+  final language = Localizations.localeOf(context).languageCode;
+  final amount = (grams / 1000).toStringAsFixed(3);
+  return language == 'ar' ? '$amount كجم' : language == 'fr' ? '$amount kg' : '$amount kg';
+}
+
+class InventoryCenterPage extends StatefulWidget {
+  final VoidCallback onManageProducts;
+  const InventoryCenterPage({super.key, required this.onManageProducts});
+  @override
+  State<InventoryCenterPage> createState() => _InventoryCenterPageState();
+}
+
+class _InventoryCenterPageState extends State<InventoryCenterPage> {
+  Future<List<Map<String, Object?>>> _loadProducts() => ShopDb.instance.db.query(
+    'products',
+    where: "active = 1 AND product_type = 'sale'",
+    orderBy: 'name',
+  );
+
+  Future<void> _setCount(Map<String, Object?> product) async {
+    final current = (product['stock_grams'] as num).toInt();
+    final quantity = TextEditingController(text: (current / 1000).toStringAsFixed(3));
+    final note = TextEditingController();
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('${_inventoryText(context, 'جرد', 'Stocktake', 'Inventaire')} ${product['name']}'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('${_inventoryText(context, 'الرصيد المسجل:', 'Recorded balance:', 'Solde enregistré :')} ${_inventoryKg(context, current)}'),
+          const SizedBox(height: 10),
+          TextField(
+            controller: quantity,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(labelText: _inventoryText(context, 'الكمية الفعلية بالكيلو', 'Actual quantity (kg)', 'Quantité réelle (kg)'), border: OutlineInputBorder()),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: note,
+            decoration: InputDecoration(labelText: _inventoryText(context, 'ملاحظة الجرد (اختياري)', 'Stocktake note (optional)', 'Note d’inventaire (facultatif)'), border: OutlineInputBorder()),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: Text(_inventoryText(context, 'إلغاء', 'Cancel', 'Annuler'))),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: Text(_inventoryText(context, 'اعتماد الجرد', 'Confirm stocktake', 'Valider l’inventaire'))),
+        ],
+      ),
+    );
+    if (accepted != true) return;
+    final parsed = double.tryParse(quantity.text.trim().replaceAll(',', '.'));
+    if (parsed == null || parsed < 0) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_inventoryText(context, 'أدخل كمية صحيحة لا تقل عن صفر', 'Enter a valid quantity of zero or more', 'Saisissez une quantité valide supérieure ou égale à zéro'))),
+      );
+      return;
+    }
+    try {
+      await ShopDb.instance.setCountedStock(
+        productId: (product['id'] as num).toInt(),
+        countedGrams: (parsed * 1000).round(),
+        note: note.text.trim().isEmpty ? null : note.text.trim(),
+      );
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_inventoryText(context, 'تم اعتماد الجرد وتسجيل حركة التسوية', 'Stocktake confirmed and adjustment movement recorded', 'Inventaire validé et mouvement d’ajustement enregistré'))),
+        );
+      }
+    } catch (error) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_inventoryText(context, 'تعذر اعتماد الجرد:', 'Could not confirm stocktake:', 'Impossible de valider l’inventaire :')} $error')),
+      );
+    }
+  }
+
+  Future<void> _showMovements(Map<String, Object?> product) async {
+    final id = (product['id'] as num).toInt();
+    final movements = await ShopDb.instance.db.query(
+      'stock_movements', where: 'product_id = ?', whereArgs: [id],
+      orderBy: 'created_at DESC, id DESC',
+    );
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context, isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * 0.72,
+          child: Column(children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text('${_inventoryText(sheetContext, 'حركة مخزون', 'Stock movements for', 'Mouvements de stock pour')} ${product['name']}', style: Theme.of(sheetContext).textTheme.titleLarge),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: movements.isEmpty
+                ? Center(child: Text(_inventoryText(sheetContext, 'لا توجد حركات مسجلة لهذا الصنف', 'No stock movements recorded for this item', 'Aucun mouvement de stock enregistré pour cet article')))
+                : ListView.builder(
+                    itemCount: movements.length,
+                    itemBuilder: (context, index) {
+                      final movement = movements[index];
+                      final grams = (movement['quantity_grams'] as num).toInt();
+                      final date = (movement['created_at'] ?? '').toString();
+                      return ListTile(
+                        leading: Icon(
+                          grams >= 0 ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                          color: grams >= 0 ? Colors.green : Colors.orange,
+                        ),
+                        title: Text('${grams >= 0 ? '+' : ''}${_inventoryKg(sheetContext, grams.abs())}'),
+                        subtitle: Text('${movement['note'] ?? movement['movement_type']}\n$date'),
+                        isThreeLine: true,
+                        trailing: Text('${(movement['value_delta_djf'] as num?)?.toInt() ?? 0} DJF'),
+                      );
+                    },
+                  ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: Text(_inventoryText(context, 'مركز إدارة الأصناف والكميات', 'Product & Stock Management Center', 'Centre de gestion des produits et des stocks')),
+      actions: [IconButton(tooltip: _inventoryText(context, 'تحديث', 'Refresh', 'Actualiser'), onPressed: () => setState(() {}), icon: const Icon(Icons.refresh))],
+    ),
+    body: FutureBuilder<List<Map<String, Object?>>>(
+      future: _loadProducts(),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) return Center(child: Text('${_inventoryText(context, 'تعذر تحميل المخزون:', 'Could not load stock:', 'Impossible de charger le stock :')} ${snapshot.error}'));
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        final products = snapshot.data!;
+        final totalGrams = products.fold<int>(0, (sum, p) => sum + (p['stock_grams'] as num).toInt());
+        final totalValue = products.fold<int>(0, (sum, p) => sum + ((p['inventory_value_djf'] as num?)?.toInt() ?? 0));
+        final noStock = products.where((p) => (p['stock_grams'] as num) <= 0).length;
+        return Column(children: [
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(children: [
+              Expanded(child: _summaryCard(_inventoryText(context, 'عدد الأصناف', 'Products', 'Articles'), '${products.length}', Icons.category_outlined)),
+              const SizedBox(width: 6),
+              Expanded(child: _summaryCard(_inventoryText(context, 'إجمالي الكمية', 'Total quantity', 'Quantité totale'), _inventoryKg(context, totalGrams), Icons.scale_outlined)),
+              const SizedBox(width: 6),
+              Expanded(child: _summaryCard(_inventoryText(context, 'قيمة المخزون', 'Stock value', 'Valeur du stock'), _inventoryMoney(context, totalValue), Icons.account_balance_wallet_outlined)),
+            ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(children: [
+              Expanded(child: Text('${_inventoryText(context, 'الأصناف المتاحة:', 'Available products:', 'Articles disponibles :')} ${products.length - noStock} • ${_inventoryText(context, 'بلا رصيد:', 'Out of stock:', 'En rupture :')} $noStock')),
+              FilledButton.tonalIcon(
+                onPressed: widget.onManageProducts,
+                icon: const Icon(Icons.tune),
+                label: Text(_inventoryText(context, 'إدارة بيانات الأصناف', 'Manage product data', 'Gérer les données des articles')),
+              ),
+            ]),
+          ),
+          const Divider(),
+          Expanded(
+            child: products.isEmpty
+              ? Center(child: Text(_inventoryText(context, 'لا توجد أصناف مبيعات. أضف الأصناف أولاً.', 'No sales products. Add products first.', 'Aucun article de vente. Ajoutez d’abord des articles.')))
+              : ListView.separated(
+                  itemCount: products.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final product = products[index];
+                    final grams = (product['stock_grams'] as num).toInt();
+                    final value = (product['inventory_value_djf'] as num?) ?? 0;
+                    return ListTile(
+                      leading: CircleAvatar(child: Text('${index + 1}')),
+                      title: Text(product['name'] as String, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      subtitle: Text('${_inventoryText(context, 'سعر البيع:', 'Sale price:', 'Prix de vente :')} ${_inventoryMoney(context, (product['sale_price'] as num?) ?? 0 )} / ${_inventoryText(context, 'كجم', 'kg', 'kg')}'
+                        '\n${_inventoryText(context, 'قيمة المخزون:', 'Stock value:', 'Valeur du stock :')} ${_inventoryMoney(context, value)}'),
+                      isThreeLine: true,
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(_inventoryKg(context, grams), style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text(_inventoryText(context, 'الرصيد الحالي', 'Current balance', 'Solde actuel'), style: TextStyle(fontSize: 10)),
+                        ],
+                      ),
+                      onTap: () => _setCount(product),
+                      onLongPress: () => _showMovements(product),
+                    );
+                  },
+                ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
+            child: Text(
+              _inventoryText(context, 'اضغط على الصنف لاعتماد الجرد الفعلي، واضغط مطولاً لعرض سجل حركات المخزون.', 'Tap an item to confirm its physical stocktake; long-press to view its stock movement history.', 'Touchez un article pour valider son inventaire physique ; maintenez appuyé pour consulter son historique de stock.'),
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+          ),
+        ]);
+      },
+    ),
+  );
+
+  Widget _summaryCard(String label, String value, IconData icon) => Card(
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 10),
+      child: Column(children: [
+        Icon(icon, size: 20),
+        const SizedBox(height: 5),
+        Text(value, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+        Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10)),
+      ]),
+    ),
+  );
+}

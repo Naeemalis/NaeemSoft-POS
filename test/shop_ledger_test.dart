@@ -15,6 +15,42 @@ void main() {
     await shop.close();
   });
 
+
+
+  test('sale quantity converts configured units and cash amounts to stock grams', () {
+    expect(ShopDb.calculateSaleGrams(enteredValue:2,mode:'weight',unitWeightGrams:250,pricePerKg:200),500);
+    expect(ShopDb.calculateSaleGrams(enteredValue:0.5,mode:'weight',unitWeightGrams:1000,pricePerKg:200),500);
+    expect(ShopDb.calculateSaleGrams(enteredValue:40,mode:'cash',unitWeightGrams:250,pricePerKg:200),200);
+    expect(ShopDb.calculateSaleGrams(enteredValue:40,mode:'cash',unitWeightGrams:1000,pricePerKg:0),0);
+  });
+
+  test('product units are configurable and preserve the default purchase unit', () async {
+    final product = await shop.addProduct('بطاطس', 'جوان', 30000, 180);
+    final supplier=await shop.db.insert('suppliers',{'name':'مورد اختبار'});
+    await shop.saveProductUnit(productId:product, unitName:'كيس', weightGrams:25000);
+    await shop.saveSupplierProductUnit(supplierId:supplier,productId:product,unitName:'كيس',weightGrams:24000);
+    final units = await shop.getProductUnits(product);
+    expect(units.map((x)=>x['unit_name']), containsAll(['جوان','كيس']));
+    final bag = units.singleWhere((x)=>x['unit_name']=='كيس');
+    expect(bag['default_weight_grams'], 25000);
+    await shop.updateProductUnit(unitId:bag['id'] as int,productId:product,unitName:'كيس كبير',weightGrams:27000);
+    expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']),contains('كيس كبير'));
+    final supplierUnit=await shop.db.query('supplier_product_units',where:'supplier_id=? AND product_id=?',whereArgs:[supplier,product]);
+    expect(supplierUnit.single['unit_name'],'كيس كبير');
+    await shop.saveProductUnit(productId:product, unitName:'جوان', weightGrams:35000);
+    final row = (await shop.db.query('products',where:'id=?',whereArgs:[product])).single;
+    expect((row['default_weight'] as num).toDouble(), 35);
+    await expectLater(
+      shop.deleteProductUnit((await shop.getProductUnits(product)).singleWhere((x)=>x['unit_name']=='جوان')['id'] as int,productId:product),
+      throwsException,
+    );
+    final refreshed = await shop.getProductUnits(product);
+    final removable = refreshed.singleWhere((x)=>x['unit_name']=='كيس كبير');
+    await shop.deleteProductUnit(removable['id'] as int,productId:product);
+    expect((await shop.getProductUnits(product)).map((x)=>x['unit_name']), isNot(contains('كيس كبير')));
+    expect(await shop.db.query('supplier_product_units',where:'product_id=? AND unit_name=?',whereArgs:[product,'كيس كبير']),isEmpty);
+  });
+
   test('supplier invoice increases stock of its linked sales product', () async {
     final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
     final saleProduct = await shop.addProduct('بصل', 'كيلو', 1000, 250);
@@ -28,7 +64,14 @@ void main() {
     final stock = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
     expect(stock.single['stock_grams'], 100000);
     expect(stock.single['inventory_value_djf'], 50000);
-    expect(await shop.db.query('stock_movements'), hasLength(1));
+    final movements = await shop.db.query('stock_movements');
+    expect(movements, hasLength(1));
+    final purchaseLine = (await shop.db.query('purchase_items')).single;
+    expect(movements.single['purchase_item_id'], purchaseLine['id']);
+    expect(movements.single['product_id'], saleProduct);
+    expect(await shop.db.query('supplier_payment_links'), hasLength(1));
+    expect(await shop.db.query('purchase_payment_allocations'), hasLength(1));
+    expect(await shop.db.query('product_stock_links', where:'purchase_product_id=?', whereArgs:[purchaseProduct]), hasLength(1));
     final invoice = await shop.db.query('purchases', where: 'id=?', whereArgs: [id]);
     expect(invoice.single['total'], 50000);
     expect(invoice.single['paid'], 10000);
@@ -50,11 +93,18 @@ void main() {
     final stock = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
     expect(stock.single['stock_grams'], 5000);
     expect(stock.single['inventory_value_djf'], 1000);
-    expect(await shop.db.query('stock_movements'), hasLength(2));
+    final movements = await shop.db.query('stock_movements', orderBy:'id');
+    expect(movements, hasLength(2));
+    final saleLine = (await shop.db.query('sale_items')).single;
+    expect(movements.last['sale_item_id'], saleLine['id']);
+    final purchaseLine = (await shop.db.query('purchase_items')).single;
+    expect(movements.first['purchase_item_id'], purchaseLine['id']);
     final invoice = await shop.db.query('sales', where: 'id=?', whereArgs: [id]);
     expect(invoice.single['total'], 1000);
     expect(invoice.single['paid'], 500);
     expect((await shop.db.query('sale_items')).single['cost_total_djf'], 1000);
+    expect(await shop.db.query('customer_payment_links'), hasLength(1));
+    expect(await shop.db.query('sale_payment_allocations'), hasLength(1));
   });
 
   test('supplier and customer balances remain separate while stock is shared', () async {
@@ -100,4 +150,159 @@ void main() {
     final stock = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
     expect(stock.single['stock_grams'], 9000);
   });
+
+  test('stock count adjustment records positive and negative movements', () async {
+    final product = await shop.addProduct('بطاطس', 'كيلو', 1000, 300, cost: 200);
+    await shop.setCountedStock(productId: product, countedGrams: 10000, note: 'جرد أولي');
+    var row = (await shop.db.query('products', where: 'id=?', whereArgs: [product])).single;
+    expect(row['stock_grams'], 10000);
+    expect(row['inventory_value_djf'], 2000);
+
+    await shop.setCountedStock(productId: product, countedGrams: 8500, note: 'نقص بالجرد');
+    row = (await shop.db.query('products', where: 'id=?', whereArgs: [product])).single;
+    expect(row['stock_grams'], 8500);
+    expect(row['inventory_value_djf'], 1700);
+
+    final movements = await shop.db.query('stock_movements', where: 'product_id=?', whereArgs: [product], orderBy: 'id');
+    expect(movements, hasLength(2));
+    expect(movements[0]['quantity_grams'], 10000);
+    expect(movements[1]['quantity_grams'], -1500);
+    expect(movements[1]['value_delta_djf'], -300);
+  });
+
+  test('stock count does not create a movement when quantity is unchanged', () async {
+    final product = await shop.addProduct('جزر', 'كيلو', 1000, 250);
+    await shop.setCountedStock(productId: product, countedGrams: 0);
+    expect(await shop.db.query('stock_movements'), isEmpty);
+  });
+
+
+  test('product categories and supplier-specific package weights are stored independently', () async {
+    final categoryId = await shop.addCategory('خضروات');
+    final productId = await shop.addProduct(
+      'بطاطس', 'جوان', 30000, 250,
+      categoryId: categoryId,
+    );
+    final supplierA = await shop.db.insert('suppliers', {'name': 'مورد أ'});
+    final supplierB = await shop.db.insert('suppliers', {'name': 'مورد ب'});
+
+    await shop.saveSupplierProductUnit(
+      supplierId: supplierA, productId: productId,
+      unitName: 'جوان', weightGrams: 30000,
+    );
+    await shop.saveSupplierProductUnit(
+      supplierId: supplierB, productId: productId,
+      unitName: 'جوان', weightGrams: 45000,
+    );
+
+    final product = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
+    expect(product['category_id'], categoryId);
+
+    final units = await shop.getSupplierProductUnits(productId);
+    expect(units, hasLength(2));
+    expect(units.map((x) => x['weight_grams']).toSet(), {30000, 45000});
+
+    await shop.deleteCategory(categoryId);
+    final updatedProduct = (await shop.db.query('products', where: 'id=?', whereArgs: [productId])).single;
+    expect(updatedProduct['category_id'], isNull);
+    expect(await shop.getSupplierProductUnits(productId), hasLength(2));
+  });
+
+  test('customer return restores the exact original expiry batch allocation', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final customer = await shop.db.insert('customers', {'name': 'زبون'});
+    final saleProduct = await shop.addProduct(
+      'فراولة', 'كيلو', 1000, 500, requiresExpiry: true,
+    );
+    final purchaseProduct = await shop.addProduct(
+      'فراولة توريد', 'صندوق', 5000, 0,
+      productType: 'purchase', pairedSaleProductId: saleProduct,
+    );
+    await shop.savePurchase(supplierId: supplier, paid: 0, items: [
+      {'product_id': purchaseProduct, 'unit': 'صندوق', 'packages': 1,
+       'weight_grams': 5000, 'package_cost': 1000, 'expiry_date': '2026-12-31'},
+    ]);
+    await shop.saveSale(customerId: customer, paid: 0, items: [
+      {'product_id': saleProduct, 'grams': 3000, 'price_per_kg': 500},
+    ]);
+    final saleItem = (await shop.db.query('sale_items')).single;
+    final batchBefore = (await shop.db.query('purchase_batches')).single;
+    expect(batchBefore['remaining_grams'], 2000);
+    expect(await shop.db.query('sale_batch_allocations'), hasLength(1));
+
+    await shop.saveReturn(type: 'customer', invoiceId: (saleItem['sale_id'] as num).toInt(),
+      items: [{'source_item_id': saleItem['id'], 'grams': 2000}]);
+    final batchAfter = (await shop.db.query('purchase_batches')).single;
+    expect(batchAfter['remaining_grams'], 4000);
+    expect(await shop.db.query('return_batch_allocations'), hasLength(1));
+
+    await shop.saveSale(customerId: customer, paid: 0, items: [
+      {'product_id': saleProduct, 'grams': 4000, 'price_per_kg': 500},
+    ]);
+    expect((await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct])).single['stock_grams'], 0);
+    expect((await shop.db.query('purchase_batches')).single['remaining_grams'], 0);
+  });
+
+  test('supplier return reduces the original purchase expiry batch and cannot return sold batch stock', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final saleProduct = await shop.addProduct(
+      'عنب', 'كيلو', 1000, 600, requiresExpiry: true,
+    );
+    final purchaseProduct = await shop.addProduct(
+      'عنب توريد', 'صندوق', 5000, 0,
+      productType: 'purchase', pairedSaleProductId: saleProduct,
+    );
+    final purchaseId = await shop.savePurchase(supplierId: supplier, paid: 0, items: [
+      {'product_id': purchaseProduct, 'unit': 'صندوق', 'packages': 1,
+       'weight_grams': 5000, 'package_cost': 1500, 'expiry_date': '2026-12-31'},
+    ]);
+    final purchaseItem = (await shop.db.query('purchase_items')).single;
+    await shop.saveSale(customerId: null, paid: 3000, items: [
+      {'product_id': saleProduct, 'grams': 3000, 'price_per_kg': 1000},
+    ]);
+    await shop.saveReturn(type: 'supplier', invoiceId: purchaseId,
+      items: [{'source_item_id': purchaseItem['id'], 'grams': 2000}]);
+    expect((await shop.db.query('purchase_batches')).single['remaining_grams'], 0);
+    expect((await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct])).single['stock_grams'], 0);
+    await expectLater(
+      shop.saveReturn(type: 'supplier', invoiceId: purchaseId,
+        items: [{'source_item_id': purchaseItem['id'], 'grams': 1000}]),
+      throwsException,
+    );
+  });
+
+  test('supplier settlements reduce supplier debt and retain overpayment as supplier credit', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final saleProduct = await shop.addProduct('بصل', 'كيلو', 1000, 300);
+    final purchaseProduct = await shop.addProduct(
+      'بصل توريد', 'جوان', 2000, 0,
+      productType: 'purchase', pairedSaleProductId: saleProduct,
+    );
+    final purchaseId = await shop.savePurchase(supplierId: supplier, paid: 0, items: [
+      {'product_id': purchaseProduct, 'unit': 'جوان', 'packages': 2,
+       'weight_grams': 1000, 'package_cost': 5000},
+    ]);
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), 10000);
+
+    await shop.recordPartyPayment(type: 'supplier', partyId: supplier, amount: 4000, note: 'سداد جزئي');
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), 6000);
+    var invoice = (await shop.db.query('purchases', where: 'id=?', whereArgs: [purchaseId])).single;
+    expect(invoice['paid'], 4000);
+
+    await shop.recordPartyPayment(type: 'supplier', partyId: supplier, amount: 6000, note: 'سداد كامل');
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), 0);
+    invoice = (await shop.db.query('purchases', where: 'id=?', whereArgs: [purchaseId])).single;
+    expect(invoice['paid'], 10000);
+
+    await shop.recordPartyPayment(type: 'supplier', partyId: supplier, amount: 1500, note: 'رصيد زائد');
+    expect(await shop.getPartyBalance(type: 'supplier', partyId: supplier), -1500);
+    expect(await shop.db.query('supplier_payment_links'), hasLength(3));
+    expect(await shop.db.query('purchase_payment_allocations'), hasLength(2));
+    final allocations = await shop.db.rawQuery(
+      'SELECT COALESCE(SUM(amount),0) total FROM payment_allocations WHERE invoice_type=? AND invoice_id=?',
+      ['purchase', purchaseId],
+    );
+    expect(allocations.single['total'], 10000);
+  });
+
 }

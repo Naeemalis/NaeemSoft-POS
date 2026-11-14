@@ -19,6 +19,7 @@ dependencies:
   printing: ^5.13.1
   share_plus: ^10.1.4
   screenshot: ^3.0.0
+  shared_preferences: ^2.3.2
 
 dev_dependencies:
   flutter_test:
