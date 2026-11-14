@@ -348,10 +348,41 @@ class StockPage extends StatelessWidget {
     ),
   );
 }
+class ExpiryAlertsPage extends StatelessWidget {
+ const ExpiryAlertsPage({super.key});
+ Future<List<Map<String,Object?>>> load() async {
+  return ShopDb.instance.db.rawQuery("""
+   SELECT b.id batch_id,b.expiry_date,b.remaining_grams,b.cost_per_kg,p.name product_name,p.expiry_warning_days
+   FROM purchase_batches b JOIN products p ON p.id=b.product_id
+   WHERE b.remaining_grams>0 AND b.expiry_date IS NOT NULL
+   AND date(b.expiry_date)<=date('now', '+' || p.expiry_warning_days || ' days')
+   ORDER BY date(b.expiry_date),p.name
+  """);
+ }
+ @override Widget build(BuildContext context)=>Scaffold(
+  appBar:AppBar(title:const Text('تنبيهات صلاحية الأصناف')),
+  body:FutureBuilder<List<Map<String,Object?>>>(future:load(),builder:(c,s){
+   if(s.hasError)return Center(child:Text('تعذر تحميل التنبيهات: ${s.error}'));
+   if(!s.hasData)return const Center(child:CircularProgressIndicator());
+   if(s.data!.isEmpty)return const Center(child:Text('لا توجد دفعات منتهية أو قريبة من الانتهاء'));
+   return ListView(children:s.data!.map((x){
+    final expiry=DateTime.tryParse(x['expiry_date'].toString());
+    final expired=expiry!=null&&expiry.isBefore(DateTime(DateTime.now().year,DateTime.now().month,DateTime.now().day));
+    return ListTile(
+     leading:Icon(expired?Icons.warning_amber_rounded:Icons.schedule,color:expired?Colors.red:Colors.orange),
+     title:Text(x['product_name'].toString()),
+     subtitle:Text('الانتهاء: ${x['expiry_date']} • المتبقي: ${kg(x['remaining_grams'] as num)}'),
+     trailing:Text(expired?'منتهي':'قريب',style:TextStyle(color:expired?Colors.red:Colors.orange,fontWeight:FontWeight.bold)),
+    );
+   }).toList());
+  }),
+ );
+}
+
 class AdminPage extends StatelessWidget {const AdminPage({super.key});@override Widget build(BuildContext c)=>ListView(children:[
  _link(c,'الأصناف',Icons.category,const ProductsPage()),_link(c,'الموردون',Icons.local_shipping,const PartiesPage(type:'supplier')),
  _link(c,'الزبائن',Icons.people,const PartiesPage(type:'customer')),_link(c,'الفواتير',Icons.receipt_long,const InvoicesPage()),_link(c,'المرتجعات',Icons.assignment_return,const ReturnsPage()),_link(c,'مسودات الفواتير',Icons.drafts,const DraftsPage()),
- _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage())
+ _link(c,'ملخص الحسابات',Icons.account_balance,const AccountsPage()),_link(c,'تنبيهات الصلاحية',Icons.warning_amber,const ExpiryAlertsPage())
 ]);Widget _link(BuildContext c,String t,IconData i,Widget p)=>ListTile(leading:Icon(i),title:Text(t),trailing:const Icon(Icons.chevron_left),onTap:()=>Navigator.push(c,MaterialPageRoute(builder:(_)=>p)));}
 class ProductsPage extends StatefulWidget {const ProductsPage({super.key});@override State<ProductsPage> createState()=>_ProductsPageState();}
 class _ProductsPageState extends State<ProductsPage>{
@@ -1013,6 +1044,13 @@ Widget _invoiceAmount(String label,num amount)=>Padding(
 
 
 
+Future<void> _showReturnReceipt(BuildContext context,{required String type,required int returnId,required String partyName,required int amount}) async {
+ final customer=type=='customer';
+ final md='# NaeemSoft POS\n\n## ${customer?'سند مرتجع زبون':'سند إرجاع إلى المورد'}\n\n- رقم السند: $returnId\n- التاريخ: ${DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now())}\n- ${customer?'الزبون':'المورد'}: $partyName\n- قيمة المرتجع: ${money(amount)}\n\nتم تسجيل المرتجع وتحديث الحساب والمخزون.';
+ final file=await PdfBuilder.generate(PdfDocumentData.fromMarkdown(title:'${customer?'مرتجع زبون':'مرتجع مورد'} $returnId',author:'NaeemSoft POS',markdown:md));
+ if(context.mounted) await Navigator.push(context,MaterialPageRoute(builder:(_)=>InvoicePdfPreviewPage(file:file)));
+}
+
 class ReturnsPage extends StatefulWidget {
  const ReturnsPage({super.key});
  @override State<ReturnsPage> createState()=>_ReturnsPageState();
@@ -1046,10 +1084,18 @@ class _ReturnsPageState extends State<ReturnsPage>{
   if(selected.isEmpty){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('أدخل كمية مرتجعة لصنف واحد على الأقل')));return;}
   setState(()=>saving=true);
   try{
-   final id=await ShopDb.instance.saveReturn(type:type,invoiceId:invoiceId!,items:selected,cashPaid:type=='customer'?(int.tryParse(cash.text)??0):0);
+   final sourceInvoiceId=invoiceId!;
+   final id=await ShopDb.instance.saveReturn(type:type,invoiceId:sourceInvoiceId,items:selected,cashPaid:type=='customer'?(int.tryParse(cash.text)??0):0);
    if(!mounted)return;
+   final partyColumn=type=='customer'?'customer_id':'supplier_id';
+   final invoiceTable=type=='customer'?'sales':'purchases';
+   final invoice=(await ShopDb.instance.db.query(invoiceTable,where:'id=?',whereArgs:[sourceInvoiceId],limit:1)).first;
+   final partyId=invoice[partyColumn] as int?;
+   final partyName=partyId==null?(type=='customer'?'زبون نقدي':'مورد غير محدد'):(await ShopDb.instance.db.query(type=='customer'?'customers':'suppliers',where:'id=?',whereArgs:[partyId],limit:1)).first['name'].toString();
+   final returnTotal=selected.fold<int>(0,(sum,x)=>sum+(((x['grams'] as int)*(x['unit_price'] as int))/1000).round());
    setState((){invoiceId=null;invoiceItems=[];quantities.clear();cash.text='0';});
-   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم حفظ المرتجع رقم '+id.toString())));
+   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('تم حفظ المرتجع رقم $id')));
+   await _showReturnReceipt(context,type:type,returnId:id,partyName:partyName,amount:returnTotal);
   }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
   finally{if(mounted)setState(()=>saving=false);}
  }
