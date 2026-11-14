@@ -145,7 +145,6 @@ class ShopDb {
       unit_name TEXT NOT NULL, default_weight_grams INTEGER NOT NULL DEFAULT 1000,
       UNIQUE(product_id, unit_name), FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE)''');
     await _createProductSupplierUnits(d);
-    await _createRelationalLinks(d);
     await d.execute('''CREATE TABLE IF NOT EXISTS customer_product_prices(
       id INTEGER PRIMARY KEY AUTOINCREMENT, customer_id INTEGER NOT NULL, product_id INTEGER NOT NULL,
       price_per_kg INTEGER NOT NULL CHECK(price_per_kg >= 0), active INTEGER NOT NULL DEFAULT 1,
@@ -157,6 +156,7 @@ class ShopDb {
       source_type TEXT, source_id INTEGER, quantity_grams INTEGER NOT NULL,
       unit_cost_per_kg INTEGER NOT NULL DEFAULT 0, value_delta_djf INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, note TEXT,
       FOREIGN KEY(product_id) REFERENCES products(id))''');
+    await _createRelationalLinks(d);
     await d.execute('''CREATE TABLE IF NOT EXISTS payment_allocations(
       id INTEGER PRIMARY KEY AUTOINCREMENT, payment_id INTEGER NOT NULL,
       invoice_type TEXT NOT NULL CHECK(invoice_type IN ('sale','purchase')),
