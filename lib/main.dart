@@ -328,6 +328,14 @@ String tr(String value) {
       'الكمية المرتجعة بالكيلو':'Returned quantity (kg)',
       'مثال: 1 أو 0.5':'Example: 1 or 0.5',
       'لا توجد مسودات محفوظة':'No saved drafts',
+    
+      'كجم':'kg',
+      'كجم/وحدة':'kg/unit',
+      'المدفوع نقداً':'Paid in cash',
+      'خصم المرتجعات':'Returns deducted',
+      'المتبقي بعد المرتجعات':'Balance after returns',
+      'تم خصم الكمية من مخزون الصنف.':'Quantity deducted from product stock.',
+      'تمت إضافة الكمية إلى مخزون صنف المبيعات المرتبط.':'Quantity added to the linked sales product stock.',
     },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
@@ -631,6 +639,14 @@ String tr(String value) {
       'الكمية المرتجعة بالكيلو':'Quantité retournée (kg)',
       'مثال: 1 أو 0.5':'Exemple : 1 ou 0,5',
       'لا توجد مسودات محفوظة':'Aucun brouillon enregistré',
+    
+      'كجم':'kg',
+      'كجم/وحدة':'kg/unité',
+      'المدفوع نقداً':'Payé en espèces',
+      'خصم المرتجعات':'Retours déduits',
+      'المتبقي بعد المرتجعات':'Solde après retours',
+      'تم خصم الكمية من مخزون الصنف.':'Quantité déduite du stock de l’article.',
+      'تمت إضافة الكمية إلى مخزون صنف المبيعات المرتبط.':'Quantité ajoutée au stock de l’article de vente associé.',
     }
   };
   return translations[language]?[value] ?? value;
@@ -1802,8 +1818,8 @@ class InvoiceDetailPage extends StatelessWidget {
      ],
      rows:lines.map((x){
       final quantity=sale
-       ? '${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} كجم'
-       : '${x['packages']} ${x['unit']} • ${x['weight_each']} كجم/وحدة';
+       ? '${((x['quantity_grams'] as num)/1000).toStringAsFixed(3)} ${tr('كجم')}'
+       : '${x['packages']} ${x['unit']} • ${x['weight_each']} ${tr('كجم/وحدة')}';
       return DataRow(cells:[
        DataCell(Text((x['product_name']??tr('صنف محذوف')).toString())),
        DataCell(Text(quantity)),
@@ -1825,7 +1841,7 @@ class InvoiceDetailPage extends StatelessWidget {
 
 Widget _invoiceAmount(String label,num amount)=>Padding(
  padding:const EdgeInsets.symmetric(vertical:4),
- child:Row(children:[Expanded(child:Text(label)),Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))]));
+ child:Row(children:[Expanded(child:Text(tr(label))),Text(money(amount),style:const TextStyle(fontWeight:FontWeight.bold))]));
 
 
 
