@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 11,
+      version: 12,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -91,6 +91,7 @@ class ShopDb {
     await _createRelationalLinks(d);
         }
         if (oldVersion < 11) await _createRelationalLinks(d);
+        if (oldVersion < 12) await _createPartyPaymentLinks(d);
       },
     );
   }
@@ -184,6 +185,7 @@ class ShopDb {
     await d.execute('CREATE INDEX IF NOT EXISTS idx_sales_customer_date ON sales(customer_id, date)');
     await d.execute('CREATE INDEX IF NOT EXISTS idx_stock_product_date ON stock_movements(product_id, created_at)');
     await d.execute('CREATE INDEX IF NOT EXISTS idx_payments_party_date ON payments(party_type, party_id, date)');
+    await _createPartyPaymentLinks(d);
   }
 
 
@@ -209,6 +211,55 @@ class ShopDb {
     await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_movement_purchase_item ON stock_movements(purchase_item_id) WHERE purchase_item_id IS NOT NULL');
     await d.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_stock_movement_sale_item ON stock_movements(sale_item_id) WHERE sale_item_id IS NOT NULL');
     await d.execute('CREATE INDEX IF NOT EXISTS idx_product_stock_links_stock ON product_stock_links(stock_product_id)');
+  }
+
+  Future<void> _createPartyPaymentLinks(DatabaseExecutor d) async {
+    await d.execute('''CREATE TABLE IF NOT EXISTS customer_payment_links(
+      payment_id INTEGER PRIMARY KEY,
+      customer_id INTEGER NOT NULL,
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(customer_id) REFERENCES customers(id)
+    )''');
+    await d.execute('''CREATE TABLE IF NOT EXISTS supplier_payment_links(
+      payment_id INTEGER PRIMARY KEY,
+      supplier_id INTEGER NOT NULL,
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
+    )''');
+    await d.execute('''CREATE TABLE IF NOT EXISTS sale_payment_allocations(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_id INTEGER NOT NULL,
+      sale_id INTEGER NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      UNIQUE(payment_id, sale_id),
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(sale_id) REFERENCES sales(id)
+    )''');
+    await d.execute('''CREATE TABLE IF NOT EXISTS purchase_payment_allocations(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      payment_id INTEGER NOT NULL,
+      purchase_id INTEGER NOT NULL,
+      amount INTEGER NOT NULL CHECK(amount > 0),
+      UNIQUE(payment_id, purchase_id),
+      FOREIGN KEY(payment_id) REFERENCES payments(id) ON DELETE CASCADE,
+      FOREIGN KEY(purchase_id) REFERENCES purchases(id)
+    )''');
+    await d.execute('''INSERT OR IGNORE INTO customer_payment_links(payment_id, customer_id)
+      SELECT id, party_id FROM payments WHERE party_type='customer'
+      AND EXISTS(SELECT 1 FROM customers c WHERE c.id=payments.party_id)''');
+    await d.execute('''INSERT OR IGNORE INTO supplier_payment_links(payment_id, supplier_id)
+      SELECT id, party_id FROM payments WHERE party_type='supplier'
+      AND EXISTS(SELECT 1 FROM suppliers s WHERE s.id=payments.party_id)''');
+    await d.execute('''INSERT OR IGNORE INTO sale_payment_allocations(payment_id, sale_id, amount)
+      SELECT pa.payment_id, pa.invoice_id, pa.amount FROM payment_allocations pa
+      JOIN sales s ON pa.invoice_type='sale' AND s.id=pa.invoice_id''');
+    await d.execute('''INSERT OR IGNORE INTO purchase_payment_allocations(payment_id, purchase_id, amount)
+      SELECT pa.payment_id, pa.invoice_id, pa.amount FROM payment_allocations pa
+      JOIN purchases p ON pa.invoice_type='purchase' AND p.id=pa.invoice_id''');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_customer_payment_links_customer ON customer_payment_links(customer_id)');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_supplier_payment_links_supplier ON supplier_payment_links(supplier_id)');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_sale_payment_allocations_sale ON sale_payment_allocations(sale_id)');
+    await d.execute('CREATE INDEX IF NOT EXISTS idx_purchase_payment_allocations_purchase ON purchase_payment_allocations(purchase_id)');
   }
 
   Future<void> _createProductSupplierUnits(DatabaseExecutor d) async {
@@ -594,9 +645,13 @@ class ShopDb {
           'party_type': 'supplier', 'party_id': supplierId,
           'date': txDate, 'amount': paid, 'note': 'دفعة عند التوريد',
         });
+        await tx.insert('supplier_payment_links', {'payment_id':paymentId, 'supplier_id':supplierId});
         await tx.insert('payment_allocations', {
           'payment_id': paymentId, 'invoice_type': 'purchase',
           'invoice_id': purchaseId, 'amount': paid,
+        });
+        await tx.insert('purchase_payment_allocations', {
+          'payment_id':paymentId, 'purchase_id':purchaseId, 'amount':paid,
         });
       }
       if (draftId != null) await tx.delete('invoice_drafts', where: 'id = ?', whereArgs: [draftId]);
@@ -674,8 +729,12 @@ class ShopDb {
           'party_type': 'customer', 'party_id': customerId,
           'date': txDate, 'amount': paid, 'note': 'دفعة عند البيع',
         });
+        await tx.insert('customer_payment_links', {'payment_id':paymentId, 'customer_id':customerId});
         await tx.insert('payment_allocations', {
           'payment_id': paymentId, 'invoice_type': 'sale', 'invoice_id': saleId, 'amount': paid,
+        });
+        await tx.insert('sale_payment_allocations', {
+          'payment_id':paymentId, 'sale_id':saleId, 'amount':paid,
         });
       }
       if (draftId != null) await tx.delete('invoice_drafts', where: 'id = ?', whereArgs: [draftId]);
