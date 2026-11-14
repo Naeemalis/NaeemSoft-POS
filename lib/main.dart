@@ -334,7 +334,7 @@ String tr(String value) {
       'الكمية المرتجعة بالكيلو':'Returned quantity (kg)',
       'مثال: 1 أو 0.5':'Example: 1 or 0.5',
       'لا توجد مسودات محفوظة':'No saved drafts',
-    }    },
+    },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
       'العربية • English • Français':'العربية • English • Français',
