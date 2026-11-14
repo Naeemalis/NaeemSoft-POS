@@ -208,4 +208,65 @@ void main() {
     expect(await shop.getSupplierProductUnits(productId), hasLength(2));
   });
 
+  test('customer return restores the exact original expiry batch allocation', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final customer = await shop.db.insert('customers', {'name': 'زبون'});
+    final saleProduct = await shop.addProduct(
+      'فراولة', 'كيلو', 1000, 500, requiresExpiry: true,
+    );
+    final purchaseProduct = await shop.addProduct(
+      'فراولة توريد', 'صندوق', 5000, 0,
+      productType: 'purchase', pairedSaleProductId: saleProduct,
+    );
+    await shop.savePurchase(supplierId: supplier, paid: 0, items: [
+      {'product_id': purchaseProduct, 'unit': 'صندوق', 'packages': 1,
+       'weight_grams': 5000, 'package_cost': 1000, 'expiry_date': '2026-12-31'},
+    ]);
+    await shop.saveSale(customerId: customer, paid: 0, items: [
+      {'product_id': saleProduct, 'grams': 3000, 'price_per_kg': 500},
+    ]);
+    final saleItem = (await shop.db.query('sale_items')).single;
+    final batchBefore = (await shop.db.query('purchase_batches')).single;
+    expect(batchBefore['remaining_grams'], 2000);
+    expect(await shop.db.query('sale_batch_allocations'), hasLength(1));
+
+    await shop.saveReturn(type: 'customer', invoiceId: (saleItem['sale_id'] as num).toInt(),
+      items: [{'source_item_id': saleItem['id'], 'grams': 2000}]);
+    final batchAfter = (await shop.db.query('purchase_batches')).single;
+    expect(batchAfter['remaining_grams'], 4000);
+    expect(await shop.db.query('return_batch_allocations'), hasLength(1));
+
+    await shop.saveSale(customerId: customer, paid: 0, items: [
+      {'product_id': saleProduct, 'grams': 4000, 'price_per_kg': 500},
+    ]);
+    expect((await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct])).single['stock_grams'], 0);
+    expect((await shop.db.query('purchase_batches')).single['remaining_grams'], 0);
+  });
+
+  test('supplier return reduces the original purchase expiry batch and cannot return sold batch stock', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final saleProduct = await shop.addProduct(
+      'عنب', 'كيلو', 1000, 600, requiresExpiry: true,
+    );
+    final purchaseProduct = await shop.addProduct(
+      'عنب توريد', 'صندوق', 5000, 0,
+      productType: 'purchase', pairedSaleProductId: saleProduct,
+    );
+    final purchaseId = await shop.savePurchase(supplierId: supplier, paid: 0, items: [
+      {'product_id': purchaseProduct, 'unit': 'صندوق', 'packages': 1,
+       'weight_grams': 5000, 'package_cost': 1500, 'expiry_date': '2026-12-31'},
+    ]);
+    final purchaseItem = (await shop.db.query('purchase_items')).single;
+    await shop.saveSale(customerId: null, paid: 3000, items: [
+      {'product_id': saleProduct, 'grams': 3000, 'price_per_kg': 1000},
+    ]);
+    await expectLater(
+      shop.saveReturn(type: 'supplier', invoiceId: purchaseId,
+        items: [{'source_item_id': purchaseItem['id'], 'grams': 1000}]),
+      throwsException,
+    );
+    expect((await shop.db.query('purchase_batches')).single['remaining_grams'], 2000);
+    expect((await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct])).single['stock_grams'], 2000);
+  });
+
 }
