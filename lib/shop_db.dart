@@ -578,7 +578,7 @@ class ShopDb {
         final productId=(source['product_id'] as num).toInt();
         final price=type=='customer'?(source['price_per_kg'] as num).toInt():((source['quantity'] as num)>0?((source['line_total'] as num)/(source['quantity'] as num)).round():0);
         final line=((grams*price)/1000).round();
-        await tx.insert('return_items',{
+        final returnItemId = await tx.insert('return_items',{
           'return_id':returnId,'product_id':productId,
           'sale_item_id':type=='customer'?sourceId:null,
           'purchase_item_id':type=='supplier'?sourceId:null,
@@ -606,10 +606,53 @@ class ShopDb {
             'value_delta_djf': restoreCost, 'created_at': DateTime.now().toIso8601String(),
             'note': 'مرتجع زبون أعيد للمخزون',
           });
+          final saleAllocations = await tx.query('sale_batch_allocations',
+            where:'sale_item_id=?', whereArgs:[sourceId], orderBy:'id ASC');
+          var restoreRemaining = grams;
+          for (final allocation in saleAllocations) {
+            if (restoreRemaining <= 0) break;
+            final batchId = (allocation['purchase_batch_id'] as num).toInt();
+            final allocatedGrams = (allocation['quantity_grams'] as num).toInt();
+            final returnedRows = await tx.rawQuery(
+              'SELECT COALESCE(SUM(quantity_grams),0) q FROM return_batch_allocations WHERE sale_item_id=? AND purchase_batch_id=?',
+              [sourceId, batchId]);
+            final alreadyReturned = (returnedRows.first['q'] as num).toInt();
+            final availableToRestore = allocatedGrams - alreadyReturned;
+            if (availableToRestore <= 0) continue;
+            final take = availableToRestore < restoreRemaining ? availableToRestore : restoreRemaining;
+            await tx.rawUpdate('UPDATE purchase_batches SET remaining_grams=remaining_grams+? WHERE id=?', [take, batchId]);
+            await tx.insert('return_batch_allocations', {
+              'return_item_id': returnItemId, 'sale_item_id': sourceId,
+              'purchase_batch_id': batchId, 'quantity_grams': take,
+            });
+            restoreRemaining -= take;
+          }
+          final requiresExpiry = (product['requires_expiry'] as num?)?.toInt() == 1;
+          if (requiresExpiry && restoreRemaining > 0) {
+            throw Exception('تعذر إعادة كمية المرتجع إلى دفعات الصلاحية الأصلية');
+          }
         } else {
           final purchaseProduct = (await tx.query('products', columns: ['paired_sale_product_id'], where: 'id = ?', whereArgs: [productId], limit: 1));
           final saleProductId = purchaseProduct.isEmpty ? null : purchaseProduct.first['paired_sale_product_id'] as int?;
           if (saleProductId == null) throw Exception('صنف التوريد غير مربوط بصنف المبيعات');
+          final sourceBatches = await tx.query('purchase_batches',
+            where:'purchase_item_id=?', whereArgs:[sourceId], orderBy:'id ASC');
+          if (sourceBatches.isNotEmpty) {
+            final batchAvailable = sourceBatches.fold<int>(0,
+              (sum, batch) => sum + (batch['remaining_grams'] as num).toInt());
+            if (grams > batchAvailable) {
+              throw Exception('الكمية المتاحة للإرجاع من دفعة التوريد أقل من المطلوب');
+            }
+            var removeRemaining = grams;
+            for (final batch in sourceBatches) {
+              if (removeRemaining <= 0) break;
+              final available = (batch['remaining_grams'] as num).toInt();
+              final take = available < removeRemaining ? available : removeRemaining;
+              await tx.update('purchase_batches', {'remaining_grams': available - take},
+                where:'id=?', whereArgs:[batch['id']]);
+              removeRemaining -= take;
+            }
+          }
           final product = (await tx.query('products', where: 'id = ?', whereArgs: [saleProductId], limit: 1)).first;
           final oldGrams = (product['stock_grams'] as num).toInt();
           if (grams > oldGrams) throw Exception('لا يمكن إرجاع كمية للمورد أكبر من المتاح في المخزون');
