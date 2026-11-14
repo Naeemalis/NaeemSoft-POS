@@ -383,6 +383,8 @@ String tr(String value) {
       'المتبقي للموردين بعد المرتجعات':'Supplier balance due after returns',
     
       'قيمة المخزون: ':'Stock value: ',
+    
+      'إجمالي الكمية':'Total quantity',
     },
     'fr': {
       'لغة التطبيق / Application language / Langue':'Langue de l’application',
@@ -741,6 +743,8 @@ String tr(String value) {
       'المتبقي للموردين بعد المرتجعات':'Solde fournisseur dû après retours',
     
       'قيمة المخزون: ':'Valeur du stock : ',
+    
+      'إجمالي الكمية':'Quantité totale',
     }
   };
   return translations[language]?[value] ?? value;
