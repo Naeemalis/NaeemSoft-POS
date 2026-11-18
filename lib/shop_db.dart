@@ -11,7 +11,7 @@ class ShopDb {
     final dir = databasePath == null ? await getDatabasesPath() : null;
     db = await openDatabase(
       databasePath ?? p.join(dir!, 'naeemsoft_shop.db'),
-      version: 9,
+      version: 10,
       onConfigure: (d) async {
         await d.execute('PRAGMA foreign_keys = ON');
       },
@@ -83,6 +83,11 @@ class ShopDb {
             await d.execute('ALTER TABLE products ADD COLUMN paired_sale_product_id INTEGER');
           }
         }
+        if (oldVersion < 10) {
+          if (!await _hasColumn(d, 'products', 'sale_package_price')) {
+            await d.execute('ALTER TABLE products ADD COLUMN sale_package_price INTEGER NOT NULL DEFAULT 0');
+          }
+        }
       },
     );
   }
@@ -100,7 +105,7 @@ class ShopDb {
       purchase_unit TEXT NOT NULL DEFAULT 'جوان', base_unit TEXT NOT NULL DEFAULT 'كجم',
       default_weight REAL NOT NULL DEFAULT 1, cost REAL NOT NULL DEFAULT 0,
       sale_price REAL NOT NULL DEFAULT 0, stock REAL NOT NULL DEFAULT 0,
-      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER)''');
+      stock_grams INTEGER NOT NULL DEFAULT 0, inventory_value_djf INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, product_type TEXT NOT NULL DEFAULT 'sale', paired_sale_product_id INTEGER, sale_package_price INTEGER NOT NULL DEFAULT 0)''');
     await d.execute('CREATE TABLE suppliers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('CREATE TABLE customers(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, phone TEXT, payment_term TEXT NOT NULL DEFAULT "نقدي", opening_balance INTEGER NOT NULL DEFAULT 0, notes TEXT, active INTEGER NOT NULL DEFAULT 1)');
     await d.execute('''CREATE TABLE purchases(
@@ -412,11 +417,11 @@ class ShopDb {
   Future<List<Map<String, Object?>>> query(String table, {String? orderBy}) =>
       db.query(table, orderBy: orderBy ?? 'id DESC');
 
-  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId}) async {
+  Future<int> addProduct(String name, String unit, int defaultWeightGrams, int price, {String productType = 'sale', int cost = 0, int? pairedSaleProductId, int salePackagePrice = 0}) async {
     return db.transaction((tx) async {
       final id = await tx.insert('products', {
         'name': name.trim(), 'purchase_unit': unit, 'default_weight': defaultWeightGrams / 1000,
-        'sale_price': price, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId,
+        'sale_price': price, 'sale_package_price': salePackagePrice, 'cost': cost, 'stock': 0, 'stock_grams': 0, 'product_type': productType, 'paired_sale_product_id': pairedSaleProductId,
       });
       await tx.insert('product_units', {
         'product_id': id, 'unit_name': unit, 'default_weight_grams': defaultWeightGrams,
@@ -531,7 +536,7 @@ class ShopDb {
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
         if (grams <= 0 || price < 0) throw Exception('راجع كمية وسعر الصنف');
-        total += ((grams * price) / 1000).round();
+        total += (x['line_total'] as num?)?.round() ?? ((grams * price) / 1000).round();
       }
       if (paid < 0 || paid > total) throw Exception('قيمة المدفوع غير صحيحة');
       if (customerId == null && paid != total) throw Exception('البيع الآجل يتطلب اختيار زبون مسجل');
@@ -544,7 +549,7 @@ class ShopDb {
         final x = items[i];
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
-        final line = ((grams * price) / 1000).round();
+        final line = (x['line_total'] as num?)?.round() ?? ((grams * price) / 1000).round();
         final productRows = await tx.query('products', where: 'id = ? AND product_type = ?', whereArgs: [x['product_id'], 'sale'], limit: 1);
         if (productRows.isEmpty) throw Exception('صنف المبيعات غير موجود');
         final product = productRows.first;
@@ -589,10 +594,10 @@ class ShopDb {
     });
   }
 
-  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId}) async {
+  Future<void> updateProduct({required int id, required String name, required String unit, required int defaultWeightGrams, required int salePrice, String? productType, int? cost, int? pairedSaleProductId, int salePackagePrice = 0}) async {
     if (name.trim().isEmpty || unit.trim().isEmpty || defaultWeightGrams <= 0 || salePrice < 0) throw Exception('بيانات الصنف غير صحيحة');
     await db.transaction((tx) async {
-      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId}, where:'id=?', whereArgs:[id]);
+      await tx.update('products', {'name':name.trim(),'purchase_unit':unit.trim(),'default_weight':defaultWeightGrams/1000,'sale_price':salePrice, 'sale_package_price':salePackagePrice, if (cost != null) 'cost':cost, if (productType != null) 'product_type':productType, 'paired_sale_product_id':pairedSaleProductId}, where:'id=?', whereArgs:[id]);
       final units=await tx.query('product_units',where:'product_id=?',whereArgs:[id],limit:1);
       if(units.isEmpty){
         await tx.insert('product_units',{'product_id':id,'unit_name':unit.trim(),'default_weight_grams':defaultWeightGrams});

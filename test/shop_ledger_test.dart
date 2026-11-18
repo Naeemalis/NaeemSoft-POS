@@ -100,4 +100,33 @@ void main() {
     final stock = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
     expect(stock.single['stock_grams'], 9000);
   });
+
+  test('package sale uses independent package price and deducts its full weight', () async {
+    final supplier = await shop.db.insert('suppliers', {'name': 'مورد'});
+    final customer = await shop.db.insert('customers', {'name': 'زبون'});
+    final saleProduct = await shop.addProduct(
+      'بطاط', 'جوان', 30000, 200, salePackagePrice: 5500,
+    );
+    final purchaseProduct = await shop.addProduct(
+      'بطاط توريد', 'جوان', 30000, 0,
+      productType: 'purchase', pairedSaleProductId: saleProduct,
+    );
+    await shop.savePurchase(supplierId: supplier, paid: 0, items: [
+      {'product_id': purchaseProduct, 'unit': 'جوان', 'packages': 1,
+       'weight_grams': 30000, 'package_cost': 3000},
+    ]);
+    final invoiceId = await shop.saveSale(
+      customerId: customer, paid: 5500,
+      items: [{'product_id': saleProduct, 'grams': 30000,
+        'price_per_kg': 183, 'line_total': 5500}],
+    );
+    final sale = await shop.db.query('sales', where: 'id=?', whereArgs: [invoiceId]);
+    final line = await shop.db.query('sale_items', where: 'sale_id=?', whereArgs: [invoiceId]);
+    final product = await shop.db.query('products', where: 'id=?', whereArgs: [saleProduct]);
+    expect(sale.single['total'], 5500);
+    expect(line.single['line_total'], 5500);
+    expect(line.single['quantity_grams'], 30000);
+    expect(product.single['stock_grams'], 0);
+    expect(product.single['sale_package_price'], 5500);
+  });
 }
