@@ -536,7 +536,7 @@ class ShopDb {
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
         if (grams <= 0 || price < 0) throw Exception('راجع كمية وسعر الصنف');
-        total += ((grams * price) / 1000).round();
+        total += (x['line_total'] as num?)?.round() ?? ((grams * price) / 1000).round();
       }
       if (paid < 0 || paid > total) throw Exception('قيمة المدفوع غير صحيحة');
       if (customerId == null && paid != total) throw Exception('البيع الآجل يتطلب اختيار زبون مسجل');
@@ -549,7 +549,7 @@ class ShopDb {
         final x = items[i];
         final grams = (x['grams'] as num).toInt();
         final price = (x['price_per_kg'] as num).toInt();
-        final line = ((grams * price) / 1000).round();
+        final line = (x['line_total'] as num?)?.round() ?? ((grams * price) / 1000).round();
         final productRows = await tx.query('products', where: 'id = ? AND product_type = ?', whereArgs: [x['product_id'], 'sale'], limit: 1);
         if (productRows.isEmpty) throw Exception('صنف المبيعات غير موجود');
         final product = productRows.first;
